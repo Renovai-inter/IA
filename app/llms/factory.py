@@ -1,4 +1,4 @@
-from llms.base import LLMProvider
+from app.llms.base import LLMProvider
 
 from langchain_core.language_models import BaseChatModel
 

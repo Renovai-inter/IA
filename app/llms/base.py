@@ -5,7 +5,6 @@ Define a interface abstrata padrão que todos os provedores de modelos de
 linguagem (ex: Groq, OpenAI, Anthropic) devem implementar, garantindo o
 desacoplamento da infraestrutura de IA do restante do ecossistema.
 """
-
 from abc import ABC, abstractmethod
 from typing import (
     Any,

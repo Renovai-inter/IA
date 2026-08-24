@@ -8,8 +8,7 @@ de fallback, retry e injeção de configurações de inferência.
 Classes:
     GroqProvider: Implementação concreta de 'LLMProvider' para a API Groq.
 """
-
-from llms.base import LLMProvider
+from app.llms.base import LLMProvider
 
 from langchain_groq import ChatGroq
 

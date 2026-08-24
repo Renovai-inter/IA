@@ -8,8 +8,7 @@ funções (tool calling) e parse das respostas estruturadas da SDK do Google.
 Classes:
     GeminiProvider: Implementação concreta de 'LLMProvider' para a API Google Gemini.
 """
-
-from llms.base import LLMProvider
+from app.llms.base import LLMProvider
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 
