@@ -1,6 +1,6 @@
 from app.agents.base import BaseAgent
+from app.graph.state import GraphState
 
-from langchain_core.language_models import BaseChatModel
 from langchain.agents import create_agent
 
 class RouterAgent(BaseAgent):
@@ -13,5 +13,12 @@ class RouterAgent(BaseAgent):
             tools=self.tools,
         )
 
-    def run(self, state):
-        pass
+    def run(self, state: GraphState) -> dict:
+        saida = self._runnable.invoke({"messages": list(state["messages"])})
+        rota = 'fim'
+
+        return {
+            'messages' :        [{"role": "assistant", "content": saida["messages"][-1].text}],
+            'agentes_chamados': ['router', rota],
+            'proximo_agente' :  rota
+        }
