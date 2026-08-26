@@ -13,19 +13,38 @@ Funções:
         memorizada via 'lru_cache'.
 """
 from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 from typing import (
-    Dict, Tuple
+    ClassVar, Dict, Tuple
 )
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=BASE_DIR / ".env",
+        env_file_encoding="utf-8",
+    )
+
     GEMINI_API_KEY: str
     GROQ_API_KEY: str
-    MONGO_URI: str
-    DATABASE_URL: str
+    MONGODB_URI: str
+    # DATABASE_URL: str
 
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'router_agent': ('GROQ', 'LOW'),
     }
 
-    class Config:
-        env_file = '.env'
+    _CAMPOS_OBRIGATORIOS: ClassVar[tuple[str, ...]] = (
+        "GEMINI_API_KEY",
+        "GROQ_API_KEY",
+    )
+
+    def validar_config(self) -> list[str]:
+        """Devolve a lista de problemas de configuração (vazia = tudo certo)."""
+        problemas = []
+        for nome in self._CAMPOS_OBRIGATORIOS:
+            if not getattr(self, nome, None):
+                problemas.append(f"Variável ausente no .env: {nome}")
+        return problemas 

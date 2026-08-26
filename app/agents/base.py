@@ -12,7 +12,7 @@ class BaseAgent(ABC):
         self.llm = llm
         self.system_prompt = system_prompt
         self.tools = tools or []
-        self._runnable = create_agent(model=self.llm, tools=self.tools, prompt=self.system_prompt)
+        self._runnable = create_agent(model=self.llm, tools=self.tools, system_prompt=self.system_prompt)
         
     @abstractmethod
     def run(self, state):

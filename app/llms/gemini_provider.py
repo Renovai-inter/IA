@@ -15,31 +15,26 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 class GeminiProvider(LLMProvider):
     def __init__(self, api_key):
         super().__init__(api_key)
-        self._LLMs = [
-            {
-                'HIGH' : ChatGoogleGenerativeAI(
-                    model='gemini-3.5-flash',
-                    temperature=0.7,
-                    top_p=0.95,
-                    api_key=self.api_key
-                ),
-                'MEDIUM' : ChatGoogleGenerativeAI(
-                    model='gemini-2.5-flash',
-                    temperature=0.7,
-                    top_p=0.95,
-                    api_key=self.api_key
-                ),
-            }
-        ]
+        self._LLMs = {
+            'HIGH': ChatGoogleGenerativeAI(
+                model='gemini-3.5-flash-preview',
+                temperature=0.7,
+                top_p=0.95,
+                api_key=self.api_key
+            ),
+            'MEDIUM': ChatGoogleGenerativeAI(
+                model='gemini-2.5-flash',
+                temperature=0.7,
+                top_p=0.95,
+                api_key=self.api_key
+            )
+        }
 
     def get_llm(self, tier, **overrides):
         """
         Retorna um llm do tier informado.
-
-        Kwargs é opcional, quando passado retorna uma nova instância 
-        de ChatGoogleGenerativeAI com os argumentos fornecidos.
         """
-        base_llm = self._LLMs[tier]
+        base_llm = self._LLMs.get(tier)
 
         if overrides:
             return base_llm.model_copy(update=overrides)

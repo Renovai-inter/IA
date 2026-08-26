@@ -7,12 +7,13 @@ class LLMFactory:
         self._providers = providers
 
     def get(self, provider_name: str, tier: str, **overrides) -> BaseChatModel:
-        primary_llm = self._providers[provider_name]
+        primary_llm = self._providers[provider_name].get_llm(tier, **overrides)
         fallbacks = [
             llm.get_llm(tier, **overrides)
             for prov, llm in self._providers.items()
             if prov != provider_name
         ]
+        fallbacks = list(filter(lambda x: x is not None, fallbacks))
 
         if fallbacks:
             return primary_llm.with_fallbacks(fallbacks)

@@ -15,8 +15,7 @@ from langchain_groq import ChatGroq
 class GroqProvider(LLMProvider):
     def __init__(self, api_key):
         super().__init__(api_key)
-        self._LLMs = [
-            {
+        self._LLMs = {
                 'HIGH' : ChatGroq(
                     model='qwen/qwen3.6-27b',
                     temperature=0.7,
@@ -33,16 +32,12 @@ class GroqProvider(LLMProvider):
                     api_key=self.api_key
                 ),
             }
-        ]
 
     def get_llm(self, tier, **overrides):
         """
         Retorna um llm do tier informado.
-
-        Kwargs é opcional, quando passado retorna uma nova instância 
-        de ChatGroq com os argumentos fornecidos.
         """
-        base_llm = self._LLMs[tier]
+        base_llm = self._LLMs.get(tier)
 
         if overrides:
             return base_llm.model_copy(update=overrides)
