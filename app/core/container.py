@@ -11,6 +11,9 @@ from app.agents.router_agent import RouterAgent
 from app.graph.builder import GraphBuilder
 from app.repository.postgresql.db import build_postgres_pool
 
+from app.repository.base import Repository
+from app.repository.postgresql.perfil_repository import PerfilRepository
+
 from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -34,11 +37,16 @@ def build_container(settings: Settings) -> Container:
     graph = GraphBuilder(agents, MemorySaver()).build_graph()
     pg_pool = build_postgres_pool(settings.DATABASE_URL)
 
-    return Container(graph=graph, agentes=agents, pg_pool=pg_pool)
+    _REPOSITORIES_MAP = {
+        'perfil_repo': PerfilRepository(db=pg_pool),
+    }
+
+    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP)
 
 
 class Container:
-    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool):
+    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool, repositories: Dict[str: Repository]):
         self.graph = graph
         self.agentes = agentes
         self.pg_pool = pg_pool
+        self.repositories = repositories
