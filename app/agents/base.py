@@ -2,9 +2,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langchain.agents import create_agent
 
-from typing import (
-    List, Optional
-)
+from typing import List
 from abc import ABC, abstractmethod
 
 class BaseAgent(ABC):
@@ -16,4 +14,4 @@ class BaseAgent(ABC):
         
     @abstractmethod
     def run(self, state):
-        ...
+        raise NotImplementedError
