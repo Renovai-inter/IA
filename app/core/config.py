@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     GROQ_API_KEY: str
     MONGODB_URI: str
-    # DATABASE_URL: str
+    DATABASE_URL: str
 
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'router_agent': ('GROQ', 'LOW'),
