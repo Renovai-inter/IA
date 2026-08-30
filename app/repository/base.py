@@ -1,11 +1,7 @@
-from abc import ABC, abstractmethod
-from uuid import UUID
+from abc import ABC
+
+from psycopg_pool import ConnectionPool
 
 class Repository[T](ABC):
-    def __init__(self, perfil_id: UUID, entity: T):
-        self.perfil_id = perfil_id
-        self.entity = entity
-
-    @abstractmethod
-    def get_snapshot(self):
-        raise NotImplementedError
+    def __init__(self, db: ConnectionPool):
+        self._db = db

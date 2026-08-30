@@ -1,8 +1,4 @@
-import psycopg2
-from app.core.config import Settings
+from psycopg_pool import ConnectionPool
 
-settings = Settings()
-
-def get_conn():
-    """Estabelece conexão com o banco PostgreSQL"""
-    return psycopg2.connect(settings.DATABASE_URL)
+def build_postgres_pool(dsn: str) -> ConnectionPool:
+    return ConnectionPool(dsn)

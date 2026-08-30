@@ -9,6 +9,7 @@ from app.agents.base import BaseAgent
 from app.agents.router_agent import RouterAgent
 
 from app.graph.builder import GraphBuilder
+from app.repository.postgresql.db import build_postgres_pool
 
 from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
@@ -31,10 +32,13 @@ def build_container(settings: Settings) -> Container:
         agents[name] = spec["cls"](llm=llm, system_prompt=spec["prompt"], tools=spec["tools"])
 
     graph = GraphBuilder(agents, MemorySaver()).build_graph()
-    return Container(graph=graph, agentes=agents)
+    pg_pool = build_postgres_pool(settings.DATABASE_URL)
+
+    return Container(graph=graph, agentes=agents, pg_pool=pg_pool)
 
 
 class Container:
-    def __init__(self, graph, agentes: Dict[str, BaseAgent]):
+    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool):
         self.graph = graph
         self.agentes = agentes
+        self.pg_pool = pg_pool

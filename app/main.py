@@ -15,6 +15,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    container.pg_pool.close()
+
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(chat_router)
