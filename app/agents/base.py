@@ -11,7 +11,14 @@ class BaseAgent(ABC):
         self.system_prompt = system_prompt
         self.tools = tools or []
         self._runnable = create_agent(model=self.llm, tools=self.tools, system_prompt=self.system_prompt)
-        
+
+    def obter_texto_mensagem(msg) -> str:
+        if hasattr(msg, "content"):
+            return msg.content
+        elif isinstance(msg, dict):
+            return msg.get("content", "")
+        return str(msg)
+    
     @abstractmethod
     def run(self, state):
         raise NotImplementedError

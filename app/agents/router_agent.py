@@ -15,10 +15,16 @@ class RouterAgent(BaseAgent):
 
     def run(self, state: GraphState) -> dict:
         saida = self._runnable.invoke({"messages": list(state["messages"])})
+        texto = self.obter_texto_mensagem(saida)
         rota = 'fim'
 
+        for linha in texto.splitlines():
+            if linha.startswith("ROUTE="):
+                rota = linha.split("=", 1)[1].strip()
+                break
+
         return {
-            'messages' :        [{"role": "assistant", "content": saida["messages"][-1].text}],
-            'agentes_chamados': ['router', rota],
-            'proximo_agente' :  rota
+            'messages'        : [{"role": "assistant", "content": saida["messages"][-1].text}],
+            'agentes_chamados': ['router'],
+            'proximo_agente'  : rota
         }
