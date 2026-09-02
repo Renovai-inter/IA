@@ -16,6 +16,7 @@ from app.graph.builder import GraphBuilder
 from app.repository.postgresql.db import build_postgres_pool
 
 from app.repository.base import Repository
+from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.perfil_repository import PerfilRepository
 from app.repository.postgresql.material_repository import MaterialRepository
 
@@ -32,7 +33,8 @@ def build_container(settings: Settings) -> Container:
 
     _REPOSITORIES_MAP = {
         'perfil_repository':   PerfilRepository(db=pg_pool),
-        'material_repository': MaterialRepository(db=pg_pool)
+        'material_repository': MaterialRepository(db=pg_pool),
+        'estoque_repository':  EstoqueRepository(db=pg_pool)
     }
 
     providers = {

@@ -17,10 +17,26 @@ class Material(BaseModel):
     esta_disponivel: bool
     imagem_url: Optional[str] = None
 
-class MaterialSnapshot[Material](Snapshot):
-    cooperativa_id: UUID
-    capturado_em: datetime
-    itens: list[Material]
+class MaterialSnapshot(Snapshot[Material]):
+    pass
+
+_QUERY_MATERIAL_POR_COOPERATIVA = """
+    SELECT 
+        m.material_id,
+        m.categoria_id,
+        cm.nome_categoria,
+        m.cooperativa_id,
+        co.nome AS nome_cooperativa,
+        m.preco_sugerido,
+        m.esta_disponivel,
+        m.imagem_url
+    FROM materiais m
+    INNER JOIN categorias_materiais cm 
+        ON m.categoria_id = cm.categoria_id
+    LEFT JOIN cooperativas co 
+        ON m.cooperativa_id = co.cooperativa_id
+    WHERE cooperativa_id = %s;
+"""
 
 class MaterialRepository(Repository[Material]):
     def __init__(self, db):
@@ -28,27 +44,8 @@ class MaterialRepository(Repository[Material]):
 
     def get_snapshot(self, cooperativa_id: UUID) -> MaterialSnapshot:
         with self._db.connection() as conn:
-            with conn.cursor() as cur:
-                query = """
-                SELECT 
-                    m.material_id,
-                    m.categoria_id,
-                    cm.nome_categoria,
-                    m.cooperativa_id,
-                    co.nome AS nome_cooperativa,
-                    m.preco_sugerido,
-                    m.esta_disponivel,
-                    m.imagem_url
-                FROM materiais m
-                INNER JOIN categorias_materiais cm 
-                    ON m.categoria_id = cm.categoria_id
-                LEFT JOIN cooperativas co 
-                    ON m.cooperativa_id = co.cooperativa_id
-                WHERE cooperativa_id = %s;
-                """
-                params = [cooperativa_id]
-                
-                cur.execute(query, params)
+            with conn.cursor() as cur:                
+                cur.execute(_QUERY_MATERIAL_POR_COOPERATIVA, [cooperativa_id])
                 itens = [Material(**material) for material in cur.fetchall()]
                 
                 return MaterialSnapshot(

@@ -34,7 +34,7 @@ class Settings(BaseSettings):
         'material_estoque_agent': ('GEMINI', 'HIGH'),
     }
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {
-        'material_estoque_agent': ['material_repository',]
+        'material_estoque_agent': ['material_repository','estoque_repository']
     }
 
     _CAMPOS_OBRIGATORIOS: ClassVar[tuple[str, ...]] = (
