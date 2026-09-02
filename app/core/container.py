@@ -1,12 +1,16 @@
 from app.core.config import Settings
 from app.llms.factory import LLMFactory
-from app.prompts import ROUTER_PROMPT
+from app.prompts import (
+    ROUTER_PROMPT,
+    MATERIAL_ESTOQUE_PROMPT
+)
 
 from app.llms.gemini_provider import GeminiProvider
 from app.llms.groq_provider import GroqProvider
 
 from app.agents.base import BaseAgent
 from app.agents.router_agent import RouterAgent
+from app.agents.material_estoque_agent import MaterialEstoqueAgent
 
 from app.graph.builder import GraphBuilder
 from app.repository.postgresql.db import build_postgres_pool
@@ -19,7 +23,8 @@ from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
 
 _AGENT_REGISTRY: dict[str, dict] = {
-    "router_agent": {"cls": RouterAgent, "prompt": ROUTER_PROMPT, "tools": []},
+    'router_agent': {'cls': RouterAgent, 'prompt': ROUTER_PROMPT, 'tools': []},
+    'estoaue_material_agent': {'cls': MaterialEstoqueAgent, 'prompt': MATERIAL_ESTOQUE_PROMPT, 'tools': []}
 }
 
 def build_container(settings: Settings) -> Container:
@@ -40,7 +45,7 @@ def build_container(settings: Settings) -> Container:
     for name, spec in _AGENT_REGISTRY.items():
         provider_name, tier = settings.AGENT_LLM_MAP[name]
         llm = factory.get(provider_name, tier)
-        agents[name] = spec["cls"](llm=llm, system_prompt=spec["prompt"], tools=spec["tools"])
+        agents[name] = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'])
 
     graph = GraphBuilder(agents, _REPOSITORIES_MAP, MemorySaver()).build_graph()
 

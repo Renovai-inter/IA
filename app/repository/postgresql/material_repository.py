@@ -22,11 +22,11 @@ class MaterialSnapshot[Material](Snapshot):
     capturado_em: datetime
     itens: list[Material]
 
-class MaterialRepository[Material](Repository):
+class MaterialRepository(Repository[Material]):
     def __init__(self, db):
         super().__init__(db)
 
-    def get_snapshot(self, cooperativa_id: UUID) -> Snapshot:
+    def get_snapshot(self, cooperativa_id: UUID) -> MaterialSnapshot:
         with self._db.connection() as conn:
             with conn.cursor() as cur:
                 query = """
@@ -49,12 +49,7 @@ class MaterialRepository[Material](Repository):
                 params = [cooperativa_id]
                 
                 cur.execute(query, params)
-                
-                colnames = [desc[0] for desc in cur.description]
-                itens = []
-                for row in cur.fetchall():
-                    row_dict = dict(zip(colnames, row))
-                    itens.append(Material(**row_dict))
+                itens = [Material(**material) for material in cur.fetchall()]
                 
                 return MaterialSnapshot(
                     cooperativa_id=cooperativa_id,

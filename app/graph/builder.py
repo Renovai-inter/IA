@@ -3,12 +3,9 @@ from app.core.config import Settings
 from app.agents.base import BaseAgent
 from app.repository.base import Repository
 
-from app.graph.nodes import (
-    material_estoque_node,
-)
+from app.graph.nodes import make_repo_backed_node
 
-from typing import Dict, List
-from functools import partial
+from typing import Dict
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.graph import (
     StateGraph,
@@ -25,20 +22,13 @@ class GraphBuilder:
         graph = StateGraph(GraphState)
         settings = Settings()
 
-        agent_repos_map: Dict[str, List[Repository]] = {
-            agent_name: [self.repositories[repo_name] for repo_name in repo_names if repo_name in self.repositories]
-            for agent_name, repo_names in settings.AGENT_REPOSITORY_MAP.items()
-        }
-
-        graph.add_node('router_agent', self.agentes['router_agent'].run)
-        graph.add_node(
-            'material_estoque_agent', 
-            partial(
-                material_estoque_node, 
-                agent=self.agentes['material_estoque_agent'], 
-                repositories=agent_repos_map.get('material_estoque_agent', [])
-            )
-        )
+        for agent_name, agent in self.agentes.items():
+            repo_names = settings.AGENT_REPOSITORY_MAP.get(agent_name, [])
+            if repo_names:
+                agent_repos = {nome: self.repositories[nome] for nome in repo_names}
+                graph.add_node(agent_name, make_repo_backed_node(agent, agent_repos))
+            else:
+                graph.add_node(agent_name, agent.run)
 
         graph.set_entry_point('router_agent')
         graph.add_conditional_edges(

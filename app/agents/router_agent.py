@@ -15,7 +15,7 @@ class RouterAgent(BaseAgent):
 
     def run(self, state: GraphState) -> dict:
         saida = self._runnable.invoke({"messages": list(state["messages"])})
-        texto = self.obter_texto_mensagem(saida)
+        texto = self.obter_texto_mensagem(saida["messages"][-1])
         rota = 'fim'
 
         for linha in texto.splitlines():

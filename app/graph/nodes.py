@@ -1,11 +1,11 @@
 from app.repository.base import Repository
-from app.agents.material_estoque_agent import MaterialEstoqueAgent
+from app.agents.base import BaseAgent
 
 from app.graph.state import GraphState
 
-def material_estoque_node(state: GraphState, agent: MaterialEstoqueAgent, repositories: list[Repository]) -> dict:
-    cooperativa_id = state["perfil_ctx"].cooperativa_id
-    snapshots = [repo.get_snapshot(cooperativa_id) for repo in repositories]
-
-    enriched_state = {**state, "snapshots": snapshots}
-    return agent.run(enriched_state)
+def make_repo_backed_node(agent: BaseAgent, repos: dict[str, Repository]):
+    def node(state: GraphState) -> dict:
+        cooperativa_id = state["perfil_ctx"].cooperativa_id
+        snapshots = {nome: repo.get_snapshot(cooperativa_id) for nome, repo in repos.items()}
+        return agent.run({**state, "snapshots": snapshots})
+    return node

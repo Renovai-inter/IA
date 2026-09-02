@@ -12,7 +12,7 @@ class BaseAgent(ABC):
         self.tools = tools or []
         self._runnable = create_agent(model=self.llm, tools=self.tools, system_prompt=self.system_prompt)
 
-    def obter_texto_mensagem(msg) -> str:
+    def obter_texto_mensagem(self, msg) -> str:
         if hasattr(msg, "content"):
             return msg.content
         elif isinstance(msg, dict):
