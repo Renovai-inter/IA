@@ -15,7 +15,7 @@ router = APIRouter(tags=["chat"])
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, body: ChatRequest):
     container = request.app.state.container
-    perfil_ctx = container.perfil_repo.resolve(body.perfil_id)
+    perfil_ctx = container.perfil_repository.resolve(body.perfil_id)
 
     resultado = await container.graph.ainvoke(
         {"messages": [HumanMessage(content=body.pergunta)], "perfil_ctx": perfil_ctx},

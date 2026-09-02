@@ -1,4 +1,4 @@
-from app.repository.base import Repository
+from app.repository.base import Repository, Snapshot
 
 from pydantic import BaseModel
 
@@ -17,7 +17,7 @@ class Material(BaseModel):
     esta_disponivel: bool
     imagem_url: Optional[str] = None
 
-class MaterialSnapshot(BaseModel):
+class MaterialSnapshot[Material](Snapshot):
     cooperativa_id: UUID
     capturado_em: datetime
     itens: list[Material]
@@ -26,7 +26,7 @@ class MaterialRepository[Material](Repository):
     def __init__(self, db):
         super().__init__(db)
 
-    def get_snapshot(self, cooperativa_id: UUID) -> MaterialSnapshot:
+    def get_snapshot(self, cooperativa_id: UUID) -> Snapshot:
         with self._db.connection() as conn:
             with conn.cursor() as cur:
                 query = """

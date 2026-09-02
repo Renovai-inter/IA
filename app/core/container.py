@@ -13,6 +13,7 @@ from app.repository.postgresql.db import build_postgres_pool
 
 from app.repository.base import Repository
 from app.repository.postgresql.perfil_repository import PerfilRepository
+from app.repository.postgresql.material_repository import MaterialRepository
 
 from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
@@ -22,6 +23,13 @@ _AGENT_REGISTRY: dict[str, dict] = {
 }
 
 def build_container(settings: Settings) -> Container:
+    pg_pool = build_postgres_pool(settings.DATABASE_URL)
+
+    _REPOSITORIES_MAP = {
+        'perfil_repository':   PerfilRepository(db=pg_pool),
+        'material_repository': MaterialRepository(db=pg_pool)
+    }
+
     providers = {
         'GEMINI': GeminiProvider(settings.GEMINI_API_KEY),
         'GROQ':   GroqProvider(settings.GROQ_API_KEY),
@@ -34,18 +42,13 @@ def build_container(settings: Settings) -> Container:
         llm = factory.get(provider_name, tier)
         agents[name] = spec["cls"](llm=llm, system_prompt=spec["prompt"], tools=spec["tools"])
 
-    graph = GraphBuilder(agents, MemorySaver()).build_graph()
-    pg_pool = build_postgres_pool(settings.DATABASE_URL)
-
-    _REPOSITORIES_MAP = {
-        'perfil_repo': PerfilRepository(db=pg_pool),
-    }
+    graph = GraphBuilder(agents, _REPOSITORIES_MAP, MemorySaver()).build_graph()
 
     return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP)
 
 
 class Container:
-    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool, repositories: Dict[str: Repository]):
+    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool, repositories: Dict[str, Repository]):
         self.graph = graph
         self.agentes = agentes
         self.pg_pool = pg_pool
