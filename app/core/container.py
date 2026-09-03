@@ -20,12 +20,14 @@ from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.perfil_repository import PerfilRepository
 from app.repository.postgresql.material_repository import MaterialRepository
 
+from app.tools.material_estoque_tools import MATERIAL_ESTOQUE_TOOLS
+
 from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
 
 _AGENT_REGISTRY: dict[str, dict] = {
     'router_agent': {'cls': RouterAgent, 'prompt': ROUTER_PROMPT_COMPLETO, 'tools': []},
-    'material_estoque_agent': {'cls': MaterialEstoqueAgent, 'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO, 'tools': []}
+    'material_estoque_agent': {'cls': MaterialEstoqueAgent, 'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO, 'tools': MATERIAL_ESTOQUE_TOOLS}
 }
 
 def build_container(settings: Settings) -> Container:
