@@ -8,15 +8,12 @@ e carregamento automático do arquivo '.env'.
 Classes:
     Settings: Define o schema das variáveis de ambiente da aplicação.
 
-Funções:
-    get_settings: Retorna uma instância singleton da classe Settings
-        memorizada via 'lru_cache'.
 """
 from pydantic_settings import BaseSettings
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from typing import (
-    ClassVar, Dict, Tuple
+    ClassVar, Dict, Tuple, List
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -30,10 +27,14 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     GROQ_API_KEY: str
     MONGODB_URI: str
-    # DATABASE_URL: str
+    DATABASE_URL: str
 
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
-        'router_agent': ('GROQ', 'LOW'),
+        'router_agent':           ('GROQ',   'LOW'),
+        'material_estoque_agent': ('GEMINI', 'HIGH'),
+    }
+    AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {
+        'material_estoque_agent': ['material_repository','estoque_repository']
     }
 
     _CAMPOS_OBRIGATORIOS: ClassVar[tuple[str, ...]] = (

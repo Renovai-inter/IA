@@ -7,7 +7,6 @@ desacoplamento da infraestrutura de IA do restante do ecossistema.
 """
 from abc import ABC, abstractmethod
 from typing import (
-    Any,
     Dict,
     List
 )
@@ -26,4 +25,4 @@ class LLMProvider(ABC):
         
     @abstractmethod
     def get_llm(self, tier: str, **kwargs) -> BaseChatModel:
-        ...
+        raise NotImplementedError
