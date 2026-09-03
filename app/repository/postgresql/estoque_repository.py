@@ -45,6 +45,7 @@ QUERY_ESTOQUE_POR_COOPERATIVA = """
 
 class EstoqueRepository(Repository[Estoque]):
     def get_snapshot(self, cooperativa_id: UUID) -> EstoqueSnapshot:
+        print('[DEBUG]: chegou no material_repository e tirou snapshot')
         with self._db.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(QUERY_ESTOQUE_POR_COOPERATIVA, [cooperativa_id])

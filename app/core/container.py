@@ -1,8 +1,8 @@
 from app.core.config import Settings
 from app.llms.factory import LLMFactory
 from app.prompts import (
-    ROUTER_PROMPT,
-    MATERIAL_ESTOQUE_PROMPT
+    ROUTER_PROMPT_COMPLETO,
+    MATERIAL_ESTOQUE_PROMPT_COMPLETO
 )
 
 from app.llms.gemini_provider import GeminiProvider
@@ -24,8 +24,8 @@ from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
 
 _AGENT_REGISTRY: dict[str, dict] = {
-    'router_agent': {'cls': RouterAgent, 'prompt': ROUTER_PROMPT, 'tools': []},
-    'estoaue_material_agent': {'cls': MaterialEstoqueAgent, 'prompt': MATERIAL_ESTOQUE_PROMPT, 'tools': []}
+    'router_agent': {'cls': RouterAgent, 'prompt': ROUTER_PROMPT_COMPLETO, 'tools': []},
+    'material_estoque_agent': {'cls': MaterialEstoqueAgent, 'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO, 'tools': []}
 }
 
 def build_container(settings: Settings) -> Container:

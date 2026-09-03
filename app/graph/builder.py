@@ -17,7 +17,15 @@ class GraphBuilder:
         self.agentes = agentes
         self.repositories = repositories
         self.checkpointer = checkpointer
-        
+        self._ROUTE_NODE_MAP = {
+            'estoque': 'material_estoque_agent',
+        }
+
+    def _decisao_roteador(self, state: GraphState):
+        """Lê o protocolo do roteador e devolve o nome do próximo nó.
+        VAI TER QUE MUDAR - roteador deve poder chamar mais de um agente (mudar prompt e run() também)"""
+        return self._ROUTE_NODE_MAP.get(state['proximo_agente'], 'fim')
+
     def build_graph(self) -> CompiledStateGraph:
         graph = StateGraph(GraphState)
         settings = Settings()
@@ -31,10 +39,16 @@ class GraphBuilder:
                 graph.add_node(agent_name, agent.run)
 
         graph.set_entry_point('router_agent')
+
         graph.add_conditional_edges(
-            "router_agent",
-            lambda state: state["proximo_agente"],
-            {"material_estoque_agent": "material_estoque_agent"},
+            'router_agent',
+            self._decisao_roteador,
+            {
+                'material_estoque_agent': 'material_estoque_agent',
+                'fim': END,
+            },
         )
+
+        graph.add_edge('material_estoque_agent', END)
 
         return graph.compile(checkpointer=self.checkpointer)

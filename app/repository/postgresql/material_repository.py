@@ -35,7 +35,7 @@ _QUERY_MATERIAL_POR_COOPERATIVA = """
         ON m.categoria_id = cm.categoria_id
     LEFT JOIN cooperativas co 
         ON m.cooperativa_id = co.cooperativa_id
-    WHERE cooperativa_id = %s;
+    WHERE co.cooperativa_id = %s;
 """
 
 class MaterialRepository(Repository[Material]):
@@ -43,6 +43,7 @@ class MaterialRepository(Repository[Material]):
         super().__init__(db)
 
     def get_snapshot(self, cooperativa_id: UUID) -> MaterialSnapshot:
+        print('[DEBUG]: chegou no material_repository e tirou snapshot')
         with self._db.connection() as conn:
             with conn.cursor() as cur:                
                 cur.execute(_QUERY_MATERIAL_POR_COOPERATIVA, [cooperativa_id])
