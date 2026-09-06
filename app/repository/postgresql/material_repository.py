@@ -11,6 +11,7 @@ class Material(BaseModel):
     material_id: UUID
     categoria_id: UUID
     nome_categoria: str
+    categoria_pai_id: Optional[UUID]
     cooperativa_id: Optional[UUID]
     nome_cooperativa: Optional[str]
     preco_sugerido: Optional[Decimal]
@@ -25,6 +26,7 @@ _QUERY_MATERIAL_POR_COOPERATIVA = """
         m.material_id,
         m.categoria_id,
         cm.nome_categoria,
+        cm.categoria_pai_id,
         m.cooperativa_id,
         co.nome AS nome_cooperativa,
         m.preco_sugerido,
