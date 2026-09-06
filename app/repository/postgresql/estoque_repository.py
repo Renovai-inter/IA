@@ -4,6 +4,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel
+from typing import Optional
 
 from app.repository.base import Repository, Snapshot
 
@@ -14,8 +15,10 @@ class Estoque(BaseModel):
     nome_cooperativa: str
     material_id: UUID
     nome_categoria: str
+    categoria_pai_id: Optional[UUID]
+    nome_categoria_pai: Optional[str]
     quantidade_kg: Decimal
-    data_atualizacao: datetime
+    data_atualizacao: Optional[datetime]
 
 
 class EstoqueSnapshot(Snapshot[Estoque]):
@@ -29,6 +32,8 @@ QUERY_ESTOQUE_POR_COOPERATIVA = """
         co.nome AS nome_cooperativa,
         e.material_id,
         cm.nome_categoria,
+        cm.categoria_pai_id,
+        cm2.nome_categoria AS nome_categoria_pai,
         e.quantidade_kg,
         e.data_atualizacao
     FROM estoques e
@@ -36,6 +41,8 @@ QUERY_ESTOQUE_POR_COOPERATIVA = """
         ON e.material_id = m.material_id
     INNER JOIN categorias_materiais cm
         ON m.categoria_id = cm.categoria_id
+    LEFT JOIN categorias_materiais cm2
+        ON cm.categoria_pai_id = cm2.categoria_id
     INNER JOIN cooperativas co
         ON e.cooperativa_id = co.cooperativa_id
     WHERE e.cooperativa_id = %s
