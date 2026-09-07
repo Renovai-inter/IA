@@ -16,9 +16,10 @@ from app.graph.builder import GraphBuilder
 from app.repository.postgresql.db import build_postgres_pool
 
 from app.repository.base import Repository
-from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.perfil_repository import PerfilRepository
 from app.repository.postgresql.material_repository import MaterialRepository
+from app.repository.postgresql.estoque_repository import EstoqueRepository
+from app.repository.postgresql.movimentacao_estoque_repository import MovimentacaoEstoqueRepository
 
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
@@ -44,9 +45,10 @@ def build_container(settings: Settings) -> Container:
     pg_pool = build_postgres_pool(settings.DATABASE_URL)
 
     _REPOSITORIES_MAP = {
-        'perfil_repository':   PerfilRepository(db=pg_pool),
-        'material_repository': MaterialRepository(db=pg_pool),
-        'estoque_repository':  EstoqueRepository(db=pg_pool)
+        'perfil_repository':               PerfilRepository(db=pg_pool),
+        'material_repository':             MaterialRepository(db=pg_pool),
+        'estoque_repository':              EstoqueRepository(db=pg_pool),
+        'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=pg_pool),
     }
 
     providers = {
