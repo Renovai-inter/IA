@@ -6,7 +6,7 @@ from collections import defaultdict
 from pydantic import BaseModel, Field
 from decimal import Decimal
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from typing import Optional, List
 
 import unicodedata
@@ -94,6 +94,43 @@ class BuscarEstoqueHistoricoArgs(BaseModel):
     preco_max: Optional[float] = Field(default=None, description="Preço sugerido máximo do material.")
 
 
+class ConsultarEstoqueGranularArgs(BaseModel):
+    data_referencia: datetime = Field(
+        ...,
+        description="Timestamp ISO 8601; se ausente, usa NOW() no banco."
+    )
+    granularidade: str = Field(
+        ...,
+        description=(
+            "Nível da granularidade temporal, determinístico para o atributo data_referência"
+            "granularidade= DIA | SEMANA | MES | TRIMESTRE | ANO"
+            "por padrão, usa DIA"
+        )
+    )
+    material_ids: Optional[List[UUID]] = Field(
+        default=None,
+        description="IDs em materiais (FK). Pode conter um ou mais materiais."
+    )
+    material_nomes: Optional[List[str]] = Field(
+        default=None,
+        description="Nome (ou parte do nome) de um ou mais materiais, para busca quando o ID não é conhecido. Ex: ['PET', 'papelão']."
+    )
+    tipo_movimentacao: Optional[str] = Field(
+        default=None,
+        description=(
+            "Tipo de movimentação (entrada ou saída) de um material no estoque."
+            "'ENTRADA' = movimentação originada de uma triagem, quantidade_kg > 0"
+            "'SAIDA' = movimentação originada de um pedido, quantidade < 0"
+            "None = trazer TODAS as movimentações, entradas e saídas."
+        )
+    )
+    disponivel: Optional[bool] = Field(default=None, description="Filtra por disponibilidade (true = apenas disponíveis).")
+    quantidade_min_kg: Optional[float] = Field(default=None, description="Quantidade mínima em estoque (kg).")
+    quantidade_max_kg: Optional[float] = Field(default=None, description="Quantidade máxima em estoque (kg).")
+    preco_min: Optional[float] = Field(default=None, description="Preço sugerido mínimo do material.")
+    preco_max: Optional[float] = Field(default=None, description="Preço sugerido máximo do material.")
+
+
 class MaterialEstoqueToolkit(Toolkit):
     nome = 'material_estoque_toolkit'
     descricao = 'Tools de consulta de estoque e materiais do Renovaí.'
@@ -147,6 +184,45 @@ class MaterialEstoqueToolkit(Toolkit):
         nome_cat_pai = nome_categoria_pai if nome_categoria_pai is not None else estoque_item.nome_categoria
 
         return cat_pai_id, nome_cat_pai
+
+    def _resolver_intervalo_data(
+        self,
+        data_inicio: Optional[datetime] = None,     data_fim: Optional[datetime] = None,
+        data_referencia: Optional[datetime] = None, granularidade: Optional[str] = None,
+    ) -> tuple[datetime, datetime]:
+        if data_inicio is not None and data_fim is not None:
+            data_inicio = datetime.combine(data_inicio.date(), time())
+            data_fim = datetime.combine(data_fim.date() + timedelta(days=1), time())
+            return data_inicio, data_fim
+
+        data_referencia = (data_referencia or datetime.now()).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        granularidade = (granularidade or "DIA").strip().upper()
+        match granularidade:
+            case 'DIA':
+                data_inicio = data_referencia
+                data_fim = data_inicio + timedelta(days=1)
+
+            case 'SEMANA':
+                data_inicio = data_referencia - timedelta(days=data_referencia.weekday())
+                data_fim = data_inicio + timedelta(days=7)
+
+            case 'MES':
+                data_inicio = data_referencia.replace(day=1)
+                data_fim = (data_inicio.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+            case 'TRIMESTRE':
+                data_inicio = data_referencia.replace(month=((data_referencia.month - 1) // 3) * 3 + 1, day=1)
+                data_fim = data_inicio.replace(month=data_inicio.month + 3) if data_inicio.month <= 9 else data_inicio.replace(year=data_inicio.year + 1, month=1)
+
+            case 'ANO':
+                data_inicio = data_referencia.replace(month=1, day=1)
+                data_fim = data_inicio.replace(year=data_inicio.year + 1)
+
+            case _:
+                raise ValueError(f"Granularidade inválida: {granularidade}")
+
+        return data_inicio, data_fim
 
     def _passar_filtros(
         self,
@@ -424,6 +500,105 @@ class MaterialEstoqueToolkit(Toolkit):
             return {'status': 'error', 'message': 'Nenhum material correspondente encontrado.'}
 
         material_por_id = {item.material_id: item for item in materiais_candidatos}
+        data_inicio, data_fim = self._resolver_intervalo_data(data_inicio=data_inicio,data_fim=data_fim)
+
+        quantidade_por_categoria: dict[str, Decimal] = defaultdict(Decimal)
+        quantidade_por_tipo_mov: dict[str, Decimal] = defaultdict(Decimal)
+        detalhes = []
+        for movimentacao_item in movimentacao_estoque_snapshot.itens:
+            info_material = material_por_id.get(movimentacao_item.material_id)
+            if info_material is None:
+                continue
+
+            if not self._passar_filtros(
+                snapshot_item=movimentacao_item,     info_material=info_material,
+                quantidade_min_kg=quantidade_min_kg, quantidade_max_kg=quantidade_max_kg,
+                preco_min=preco_min,                 preco_max=preco_max,
+                data_inicio=data_inicio,             data_fim=data_fim,
+                tipo_movimentacao=tipo_movimentacao, disponivel=disponivel,
+            ):
+                continue
+
+            quantidade_por_categoria[movimentacao_item.nome_categoria] += movimentacao_item.quantidade_kg
+            quantidade_por_tipo_mov[movimentacao_item.tipo_movimentacao] += abs(movimentacao_item.quantidade_kg)
+
+            detalhes.append({
+                'material_id':       str(movimentacao_item.material_id),
+                'nome_categoria':    movimentacao_item.nome_categoria,
+                'quantidade_kg':     str(abs(movimentacao_item.quantidade_kg)),
+                'tipo_movimentacao': movimentacao_item.tipo_movimentacao,
+                'preco_sugerido':    str(info_material.preco_sugerido) if info_material.preco_sugerido else None,
+                'esta_disponivel':   info_material.esta_disponivel,
+                'data_movimentacao': str(movimentacao_item.data_movimentacao),
+            })
+        
+        if not detalhes:
+            return {'status': 'error', 'message': 'Nenhum item de estoque bateu com os filtros informados.'}
+        
+        return {
+            'status': 'ok',
+            'quantidade_por_categoria_kg': {k: str(v) for k, v in quantidade_por_categoria.items()},
+            'quantidade_por_tipo_movimentacao_kg': {k: str(v) for k, v in quantidade_por_tipo_mov.items()},
+            'itens': detalhes,
+        }
+
+
+    def consultar_estoque_granular(
+        self,
+        config: RunnableConfig,
+        data_referencia: datetime,
+        granularidade: str,
+        material_ids: Optional[List[UUID]] = None,
+        material_nomes: Optional[List[str]] = None,
+        tipo_movimentacao: Optional[str] = None,
+        disponivel: Optional[bool] = None,
+        quantidade_min_kg: Optional[float] = None,
+        quantidade_max_kg: Optional[float] = None,
+        preco_min: Optional[float] = None,
+        preco_max: Optional[float] = None,
+    ) -> dict:
+        """Consulta e consolida movimentações de estoque truncadas por janelas temporais fixas.
+
+        Diferente da busca histórica aberta, esta função é otimizada para truncar o período
+        a partir de uma data de referência e uma granularidade definida (ex: resumos diários,
+        semanais, mensais ou anuais). É ideal para atender a perguntas rotineiras de relatórios
+        periódicos ("qual foi o movimento de ontem?", "resumo da última semana", etc.).
+
+        Args:
+            config (RunnableConfig): Configuração do LangChain/LangGraph contendo os
+                snapshots de 'material_snapshot' e 'movimentacao_estoque_snapshot'.
+            data_referencia (datetime): Data base utilizada como ponto de ancoragem para
+                o cálculo da janela temporal.
+            granularidade (str): Unidade de truncamento temporal para delimitar o intervalo
+                (ex: 'DIA', 'SEMANA', 'MES', 'TRIMESTRE', 'ANO').
+            material_ids: Lista de UUIDs para filtrar materiais específicos.
+            material_nomes: Lista de nomes ou termos de busca para materiais.
+            tipo_movimentacao: Tipo da movimentação (ex: 'ENTRADA', 'SAIDA').
+            disponivel: Status de disponibilidade do material.
+            quantidade_min_kg: Quantidade mínima em kg para filtro.
+            quantidade_max_kg: Quantidade máxima em kg para filtro.
+            preco_min: Preço sugerido mínimo do material para filtro.
+            preco_max: Preço sugerido máximo do material para filtro.
+
+        Returns:
+            dict: Dicionário contendo o status da operação ('ok' ou 'error') e:
+                - Se sucesso: 'quantidade_por_categoria_kg', 'quantidade_por_tipo_movimentacao_kg'
+                  e a lista 'itens' com os detalhes filtrados do período demarcado.
+                - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material ou 
+                  movimentação encontrada na janela informada).
+        """
+        print('[DEBUG]: acessou tool - consultar_estoque_granular')
+        
+        snapshots = config['configurable']['snapshots']
+        material_snapshot = snapshots['material_snapshot']
+        movimentacao_estoque_snapshot = snapshots['movimentacao_estoque_snapshot']
+        
+        materiais_candidatos = self._resolver_materiais(material_snapshot, material_ids, material_nomes)
+        if not materiais_candidatos:
+            return {'status': 'error', 'message': 'Nenhum material correspondente encontrado.'}
+
+        material_por_id = {item.material_id: item for item in materiais_candidatos}
+        data_inicio, data_fim = self._resolver_intervalo_data(data_referencia=data_referencia,granularidade=granularidade)
 
         quantidade_por_categoria: dict[str, Decimal] = defaultdict(Decimal)
         quantidade_por_tipo_mov: dict[str, Decimal] = defaultdict(Decimal)
@@ -485,5 +660,11 @@ class MaterialEstoqueToolkit(Toolkit):
                 name='buscar_estoque_historico',
                 description=self.buscar_estoque_historico.__doc__,
                 args_schema=BuscarEstoqueHistoricoArgs,
+            ),
+            StructuredTool.from_function(
+                func=self.consultar_estoque_granular,
+                name='consultar_estoque_granular',
+                description=self.consultar_estoque_granular.__doc__,
+                args_schema=ConsultarEstoqueGranularArgs,
             ),
         ]
