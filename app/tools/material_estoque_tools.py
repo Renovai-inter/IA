@@ -352,6 +352,7 @@ class MaterialEstoqueToolkit(Toolkit):
         return {
             'status': 'ok',
             'quantidade_por_categoria_kg': {k: str(v) for k, v in quantidade_por_categoria.items()},
+            'count': len(detalhes),
             'itens': detalhes,
         }
 
@@ -446,6 +447,7 @@ class MaterialEstoqueToolkit(Toolkit):
         return {
             'status': 'ok',
             'quantidade_por_categoria_pai_kg': {k: str(v) for k, v in quantidade_por_categoria_pai.items()},
+            'count': len(detalhes),
             'itens': detalhes,
         }
 
@@ -539,6 +541,7 @@ class MaterialEstoqueToolkit(Toolkit):
             'status': 'ok',
             'quantidade_por_categoria_kg': {k: str(v) for k, v in quantidade_por_categoria.items()},
             'quantidade_por_tipo_movimentacao_kg': {k: str(v) for k, v in quantidade_por_tipo_mov.items()},
+            'count': len(detalhes),
             'itens': detalhes,
         }
 
@@ -637,6 +640,7 @@ class MaterialEstoqueToolkit(Toolkit):
             'status': 'ok',
             'quantidade_por_categoria_kg': {k: str(v) for k, v in quantidade_por_categoria.items()},
             'quantidade_por_tipo_movimentacao_kg': {k: str(v) for k, v in quantidade_por_tipo_mov.items()},
+            'count': len(detalhes),
             'itens': detalhes,
         }
 
