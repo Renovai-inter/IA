@@ -11,6 +11,8 @@ class Material(BaseModel):
     material_id: UUID
     categoria_id: UUID
     nome_categoria: str
+    categoria_pai_id: Optional[UUID]
+    nome_categoria_pai: Optional[str]
     cooperativa_id: Optional[UUID]
     nome_cooperativa: Optional[str]
     preco_sugerido: Optional[Decimal]
@@ -25,6 +27,8 @@ _QUERY_MATERIAL_POR_COOPERATIVA = """
         m.material_id,
         m.categoria_id,
         cm.nome_categoria,
+        cm.categoria_pai_id,
+        cm2.nome_categoria AS nome_categoria_pai,
         m.cooperativa_id,
         co.nome AS nome_cooperativa,
         m.preco_sugerido,
@@ -33,6 +37,8 @@ _QUERY_MATERIAL_POR_COOPERATIVA = """
     FROM materiais m
     INNER JOIN categorias_materiais cm 
         ON m.categoria_id = cm.categoria_id
+    LEFT JOIN categorias_materiais cm2
+        ON cm.categoria_pai_id = cm2.categoria_id
     LEFT JOIN cooperativas co 
         ON m.cooperativa_id = co.cooperativa_id
     WHERE co.cooperativa_id = %s;

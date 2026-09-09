@@ -1,4 +1,4 @@
-# repository/postgresql/estoque_repository.py
+# repository/postgresql/movimentacao_estoque_repository.py
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
@@ -9,56 +9,61 @@ from typing import Optional
 from app.repository.base import Repository, Snapshot
 
 
-class Estoque(BaseModel):
+class MovimentacaoEstoque(BaseModel):
+    movimentacao_id: UUID
     estoque_id: UUID
     cooperativa_id: UUID
-    nome_cooperativa: str
     material_id: UUID
     nome_categoria: str
     categoria_pai_id: Optional[UUID]
     nome_categoria_pai: Optional[str]
+    triagem_id: Optional[UUID]
+    item_id: Optional[UUID]
     quantidade_kg: Decimal
-    data_atualizacao: Optional[datetime]
+    tipo_movimentacao: str
+    data_movimentacao: datetime
 
 
-class EstoqueSnapshot(Snapshot[Estoque]):
+class MovimentacaoEstoqueSnapshot(Snapshot[MovimentacaoEstoque]):
     pass
 
 
-QUERY_ESTOQUE_POR_COOPERATIVA = """
+QUERY_MOVIMENTACOES_POR_COOPERATIVA = """
     SELECT
-        e.estoque_id,
+        mv.movimentacao_id,
+        mv.estoque_id,
         e.cooperativa_id,
-        co.nome AS nome_cooperativa,
         e.material_id,
         cm.nome_categoria,
         cm.categoria_pai_id,
         cm2.nome_categoria AS nome_categoria_pai,
-        e.quantidade_kg,
-        e.data_atualizacao
-    FROM estoques e
+        mv.triagem_id,
+        mv.item_id,
+        mv.quantidade_kg,
+        mv.tipo_movimentacao,
+        mv.data_movimentacao
+    FROM movimentacoes_estoques mv
+    INNER JOIN estoques e
+        ON mv.estoque_id = e.estoque_id
     INNER JOIN materiais m
         ON e.material_id = m.material_id
     INNER JOIN categorias_materiais cm
         ON m.categoria_id = cm.categoria_id
     LEFT JOIN categorias_materiais cm2
         ON cm.categoria_pai_id = cm2.categoria_id
-    INNER JOIN cooperativas co
-        ON e.cooperativa_id = co.cooperativa_id
     WHERE e.cooperativa_id = %s
-    ORDER BY cm.nome_categoria;
+    ORDER BY mv.data_movimentacao DESC;
 """
 
 
-class EstoqueRepository(Repository[Estoque]):
-    def get_snapshot(self, cooperativa_id: UUID) -> EstoqueSnapshot:
-        print('[DEBUG]: chegou no estoque_repository e tirou snapshot')
+class MovimentacaoEstoqueRepository(Repository[MovimentacaoEstoque]):
+    def get_snapshot(self, cooperativa_id: UUID) -> MovimentacaoEstoqueSnapshot:
         with self._db.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(QUERY_ESTOQUE_POR_COOPERATIVA, [cooperativa_id])
-                itens = [Estoque(**item) for item in cur.fetchall()]
+                cur.execute(QUERY_MOVIMENTACOES_POR_COOPERATIVA, [cooperativa_id])
+                itens = [MovimentacaoEstoque(**item) for item in cur.fetchall()]
 
-        return EstoqueSnapshot(
+        return MovimentacaoEstoqueSnapshot(
             cooperativa_id=cooperativa_id,
             capturado_em=datetime.now(),
             itens=itens,
