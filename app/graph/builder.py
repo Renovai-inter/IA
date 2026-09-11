@@ -49,6 +49,7 @@ class GraphBuilder:
             },
         )
 
-        graph.add_edge('material_estoque_agent', END)
+        graph.add_edge('material_estoque_agent', 'orchestrator_agent')
+        graph.add_edge('orchestrator_agent', END)
 
         return graph.compile(checkpointer=self.checkpointer)
