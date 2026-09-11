@@ -7,13 +7,12 @@ from typing import (
     Optional,
     List,
     Literal,
-    Any,
     Dict
 )
 import operator
 
 class EspecialistaOutput(BaseModel):
-    conteudo: Dict[str, Any]
+    conteudo: str
     fonte: Optional[str] = None
     veredito_juiz: Literal["pendente", "aprovado", "reprovado"] = "pendente"
     feedback_juiz: Optional[str] = None
