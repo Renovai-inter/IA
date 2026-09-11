@@ -2,7 +2,8 @@ from app.core.config import Settings
 from app.llms.factory import LLMFactory
 from app.prompts import (
     ROUTER_PROMPT_COMPLETO,
-    MATERIAL_ESTOQUE_PROMPT_COMPLETO
+    MATERIAL_ESTOQUE_PROMPT_COMPLETO,
+    ORQUESTRADOR_PROMPT_COMPLETO
 )
 
 from app.llms.gemini_provider import GeminiProvider
@@ -11,6 +12,7 @@ from app.llms.groq_provider import GroqProvider
 from app.agents.base import BaseAgent
 from app.agents.router_agent import RouterAgent
 from app.agents.material_estoque_agent import MaterialEstoqueAgent
+from app.agents.orchestrator_agent import OrchestratorAgent
 
 from app.graph.builder import GraphBuilder
 from app.repository.postgresql.db import build_postgres_pool
@@ -38,6 +40,11 @@ _AGENT_REGISTRY: dict[str, dict] = {
         'cls': MaterialEstoqueAgent,
         'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
         'tools': material_estoque_toolkit.get_tools()
+    },
+    'orchestrator_agent': {
+        'cls': OrchestratorAgent,
+        'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
+        'tools': []
     },
 }
 
