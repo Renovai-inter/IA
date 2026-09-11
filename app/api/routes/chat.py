@@ -12,7 +12,7 @@ from fastapi import APIRouter
 settings = Settings()
 router = APIRouter(tags=["chat"])
 
-def _extrair_texto(msg) -> str:
+def _obter_texto_mensagem(msg) -> str:
     content = msg.content
     if isinstance(content, str):
         return content
@@ -32,4 +32,5 @@ async def chat(request: Request, body: ChatRequest):
         config={"configurable": {"thread_id": body.session_id}},
     )
 
-    return ChatResponse(resposta=_extrair_texto(resultado["messages"][-1]))
+    # return ChatResponse(resposta=_obter_texto_mensagem(resultado["messages"][-1]))
+    return ChatResponse(resposta=resultado["messages"])
