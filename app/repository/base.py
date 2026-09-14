@@ -5,6 +5,7 @@ from uuid import UUID
 from datetime import datetime
 
 from psycopg_pool import ConnectionPool
+from pymongo import MongoClient
 
 T = TypeVar('T')
 
@@ -14,5 +15,5 @@ class Snapshot(BaseModel, Generic[T]):
     itens: list[T]
 
 class Repository(ABC, Generic[T]):
-    def __init__(self, db: ConnectionPool):
+    def __init__(self, db: ConnectionPool | MongoClient):
         self._db = db
