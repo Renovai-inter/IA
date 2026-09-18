@@ -3,11 +3,13 @@ from typing import Dict, Optional
 from bson import ObjectId
 
 from app.memory.base import MemoriaCtx, MemoryStore
+from app.memory.resumo_service import ResumoService
 
 
 class MongoMemory(MemoryStore):
-    def __init__(self, repository, janela_mensagens = 10):
+    def __init__(self, repository, resumo_service: ResumoService, janela_mensagens: int = 10):
         super().__init__(repository, janela_mensagens)
+        self.resumo_service = resumo_service
 
     def preparar_turno(
         self,
@@ -61,6 +63,10 @@ class MongoMemory(MemoryStore):
         """
         sessao = self.repository.buscar_sessao_ativa(session_id)
         if sessao is None or not sessao.mensagens:
-            return
+            return ''
+
+        resumo = ''
+        resumo = self._resumo_service.gerar_resumo(sessao.mensagens, sessao.resumo)
 
         self.repository.encerrar_sessao(ObjectId(sessao.id), resumo=resumo)
+        return resumo
