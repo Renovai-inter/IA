@@ -70,7 +70,7 @@ def build_container(settings: Settings) -> Container:
     }
     factory = LLMFactory(providers)
 
-    resumo_service = ResumoService(factory, *settings.AGENT_LLM_MAP['resumo'])
+    resumo_service = ResumoService(factory, *settings.AGENT_LLM_MAP['resumo_agent'])
 
     agents = {}
     for name, spec in _AGENT_REGISTRY.items():
@@ -80,7 +80,7 @@ def build_container(settings: Settings) -> Container:
 
     graph = GraphBuilder(agents, _REPOSITORIES_MAP, MemorySaver()).build_graph()
 
-    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP)
+    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, resumo_service=    resumo_service)
 
 
 class Container:
