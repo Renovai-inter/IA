@@ -128,13 +128,13 @@ class SessaoRepository(Repository[Sessao]):
         doc_id: ObjectId,
         role: str,
         content: str,
-        agente: Optional[str] = None,
+        agentes: Optional[List[str]] = [],
         meta: Optional[Dict] = None,
     ) -> None:
         """Dado o _id de uma sessão já existente, só faz o push da mensagem."""
         mensagem = {
             'role': role,
-            'agente': agente,
+            'agentes': agentes,
             'content': content,
             'timestamp': self._agora(),
         }
@@ -146,7 +146,7 @@ class SessaoRepository(Repository[Sessao]):
             {
                 '$set': {'data_atualizacao': self._agora()},
                 '$push': {'mensagens': mensagem},
-                '$addToSet': {'agentes_chamados': agente if agente else []},
+                '$addToSet': {'agentes_chamados': {'$each': agentes}},
             },
         )
 

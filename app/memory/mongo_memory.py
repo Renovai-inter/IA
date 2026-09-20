@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from bson import ObjectId
 
@@ -45,28 +45,48 @@ class MongoMemory(MemoryStore):
         self,
         session_id: str,
         resposta: str,
-        agente: Optional[str] = None,
+        agentes: Optional[List[str]] = [],
         meta: Optional[Dict] = None,
-    ) -> None:
+    ) -> MemoriaCtx:
         """Chamado pelo Orquestrador ao final do turno."""
         sessao = self.repository.buscar_sessao_ativa(session_id)
         if sessao is None:
-            return
+            return MemoriaCtx()
 
         doc_id = ObjectId(sessao.id)
-        self.repository.adicionar_mensagem(doc_id, role="assistente", content=resposta, agente=agente, meta=meta)
+        self.repository.adicionar_mensagem(doc_id, role="assistente", content=resposta, agentes=agentes, meta=meta)
 
-    def encerrar_e_resumir(self, session_id: str, resumo: str) -> None:
+        sessao_atualizada = self.repository.buscar_por_id(doc_id)
+        if sessao_atualizada is None:
+            return MemoriaCtx()
+        
+        return MemoriaCtx(
+            resumo=sessao_atualizada.resumo,
+            mensagens_recentes=sessao_atualizada.mensagens[-self.janela_mensagens:],
+            agentes_chamados=sessao_atualizada.agentes_chamados,
+        )
+
+    def encerrar_sessao(self, session_id: str, resumo: str) -> MemoriaCtx:
         """
         Decide se vale encerrar a sessão (só encerra se ela teve pelo menos
         uma mensagem) e, quando um resumo for fornecido, persiste junto.
         """
         sessao = self.repository.buscar_sessao_ativa(session_id)
         if sessao is None or not sessao.mensagens:
-            return ''
+            return MemoriaCtx()
+
+        doc_id = ObjectId(sessao.id)
 
         resumo = ''
         resumo = self._resumo_service.gerar_resumo(sessao.mensagens, sessao.resumo)
+        self.repository.marcar_encerrada(ObjectId(sessao.id), resumo=resumo)
 
-        self.repository.encerrar_sessao(ObjectId(sessao.id), resumo=resumo)
-        return resumo
+        sessao_atualizada = self.repository.buscar_por_id(doc_id)
+        if sessao_atualizada is None:
+            return MemoriaCtx()
+        
+        return MemoriaCtx(
+            resumo=sessao_atualizada.resumo,
+            mensagens_recentes=sessao_atualizada.mensagens[-self.janela_mensagens:],
+            agentes_chamados=sessao_atualizada.agentes_chamados,
+        )
