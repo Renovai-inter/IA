@@ -1,5 +1,7 @@
 from app.core.config import Settings
 from app.llms.factory import LLMFactory
+from app.memory.mongo_memory import MongoMemory
+from app.memory.resumo_service import ResumoService
 from app.prompts import (
     ROUTER_PROMPT_COMPLETO,
     MATERIAL_ESTOQUE_PROMPT_COMPLETO,
@@ -15,6 +17,8 @@ from app.agents.material_estoque_agent import MaterialEstoqueAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
 
 from app.graph.builder import GraphBuilder
+from app.repository.mongodb.db import get_mongo_conn
+from app.repository.mongodb.sessao_repository import SessaoRepository
 from app.repository.postgresql.db import build_postgres_pool
 
 from app.repository.base import Repository
@@ -23,39 +27,24 @@ from app.repository.postgresql.material_repository import MaterialRepository
 from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.movimentacao_estoque_repository import MovimentacaoEstoqueRepository
 
+from app.tools.memory_tools import MemoriaToolkit
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
 from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
 
-material_estoque_toolkit = MaterialEstoqueToolkit()
-
-_AGENT_REGISTRY: dict[str, dict] = {
-    'router_agent': {
-        'cls': RouterAgent,
-        'prompt': ROUTER_PROMPT_COMPLETO,
-        'tools': []
-    },
-    'material_estoque_agent': {
-        'cls': MaterialEstoqueAgent,
-        'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
-        'tools': material_estoque_toolkit.get_tools()
-    },
-    'orchestrator_agent': {
-        'cls': OrchestratorAgent,
-        'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
-        'tools': []
-    },
-}
 
 def build_container(settings: Settings) -> Container:
     pg_pool = build_postgres_pool(settings.DATABASE_URL)
+    mongo_conn = get_mongo_conn(settings.MONGODB_URI)
 
     _REPOSITORIES_MAP = {
         'perfil_repository':               PerfilRepository(db=pg_pool),
         'material_repository':             MaterialRepository(db=pg_pool),
         'estoque_repository':              EstoqueRepository(db=pg_pool),
         'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=pg_pool),
+
+        'sessao_repository':               SessaoRepository(db=mongo_conn)
     }
 
     providers = {
@@ -63,6 +52,30 @@ def build_container(settings: Settings) -> Container:
         'GROQ':   GroqProvider(settings.GROQ_API_KEY),
     }
     factory = LLMFactory(providers)
+
+    resumo_service = ResumoService(factory, *settings.AGENT_LLM_MAP['resumo_agent'])
+    mongo_memory = MongoMemory(_REPOSITORIES_MAP.get('sessao_repository', SessaoRepository(db=mongo_conn)), resumo_service)
+
+    memoria_toolkit          = MemoriaToolkit(mongo_memory)
+    material_estoque_toolkit = MaterialEstoqueToolkit()
+
+    _AGENT_REGISTRY: dict[str, dict] = {
+        'router_agent': {
+            'cls': RouterAgent,
+            'prompt': ROUTER_PROMPT_COMPLETO,
+            'tools': memoria_toolkit.get_tools()
+        },
+        'material_estoque_agent': {
+            'cls': MaterialEstoqueAgent,
+            'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
+            'tools': memoria_toolkit.get_tools() + material_estoque_toolkit.get_tools()
+        },
+        'orchestrator_agent': {
+            'cls': OrchestratorAgent,
+            'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
+            'tools': []
+        },
+    }
 
     agents = {}
     for name, spec in _AGENT_REGISTRY.items():
@@ -72,12 +85,13 @@ def build_container(settings: Settings) -> Container:
 
     graph = GraphBuilder(agents, _REPOSITORIES_MAP, MemorySaver()).build_graph()
 
-    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP)
+    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, mongo_memory = mongo_memory)
 
 
 class Container:
-    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool, repositories: Dict[str, Repository]):
+    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool, repositories: Dict[str, Repository], mongo_memory: MongoMemory):
         self.graph = graph
         self.agentes = agentes
         self.pg_pool = pg_pool
         self.repositories = repositories
+        self.mongo_memory = mongo_memory

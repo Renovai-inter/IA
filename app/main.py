@@ -1,5 +1,5 @@
 from app.core.container import build_container
-from app.api.routes.chat import router as chat_router
+from app.api.routes import chat, sessions
 from app.core.config import Settings
 
 from contextlib import asynccontextmanager
@@ -16,7 +16,8 @@ async def lifespan(app: FastAPI):
     container.pg_pool.close()
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(chat_router)
+app.include_router(chat.router)
+app.include_router(sessions.router)
 
 @app.get("/health")
 async def health(request: Request) -> dict:

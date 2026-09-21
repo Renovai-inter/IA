@@ -33,6 +33,7 @@ class Settings(BaseSettings):
         'router_agent':           ('GROQ',   'LOW'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
         'orchestrator_agent':     ('GROQ',   'LOW'),
+        'resumo_agent':           ('GROQ',   'LOW'),
     }
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {
         'material_estoque_agent': ['material_repository','estoque_repository', 'movimentacao_estoque_repository']

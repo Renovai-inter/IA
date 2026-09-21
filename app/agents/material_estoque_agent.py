@@ -1,3 +1,5 @@
+from langchain_core.runnables import RunnableConfig
+
 from app.agents.base import BaseAgent
 from app.graph.state import GraphState, EspecialistaOutput
 
@@ -16,10 +18,10 @@ class MaterialEstoqueAgent(BaseAgent):
             tools=self.tools,
         )
 
-    def run(self, state: GraphState) -> dict:
+    def run(self, state: GraphState, config: RunnableConfig) -> dict:
         resultado = self._runnable.invoke(
             {'messages': list(state['messages'])},
-            config={'configurable': {'snapshots': state['snapshots']}},
+            config=(config or {}).get('configurable', {}) | {'snapshots': state['snapshots']}
         )
 
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
