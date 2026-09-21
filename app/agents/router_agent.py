@@ -1,3 +1,5 @@
+from langchain_core.runnables import RunnableConfig
+
 from app.agents.base import BaseAgent
 from app.graph.state import GraphState
 
@@ -16,10 +18,11 @@ class RouterAgent(BaseAgent):
             tools=self.tools,
         )
 
-    def run(self, state: GraphState) -> dict:
-        resultado = self._runnable.invoke({
-            'messages': list(state['messages'])
-        })
+    def run(self, state: GraphState, config: RunnableConfig) -> dict:
+        resultado = self._runnable.invoke(
+            {'messages': list(state['messages'])},
+            config=(config or {}).get('configurable', {})
+            )
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
 
         rota = 'fim'

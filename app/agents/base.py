@@ -1,4 +1,5 @@
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from langchain.agents import create_agent
 from app.graph.state import GraphState
@@ -24,5 +25,5 @@ class BaseAgent(ABC):
     )
     
     @abstractmethod
-    def run(self, state: GraphState):
+    def run(self, state: GraphState, config: RunnableConfig):
         raise NotImplementedError

@@ -19,11 +19,7 @@ class MemoriaToolkit(Toolkit):
     def __init__(self, mongo_memory: MongoMemory):
         self.mongo_memory = mongo_memory
 
-    def buscar_historico(
-        self,
-        state: Annotated[dict, InjectedState],
-        config: RunnableConfig
-    ) -> dict:
+    def buscar_historico(self, config: RunnableConfig) -> dict:
         """Consulta conversas ANTERIORES do usuário (sessões já encerradas).
 
         Use SOMENTE quando a resposta depende de algo dito numa conversa passada
@@ -32,12 +28,12 @@ class MemoriaToolkit(Toolkit):
         já existem as tools de consulta específicas"""
         config = (config or {}).get('configurable', {})
         user_id = config.get('user_id') or config.get('thread_id')
-        perfil_ctx = state.get('perfil_ctx', None)
+        perfil_id = config.get('perfil_id', None)
 
-        if not user_id and not perfil_ctx:
+        if not user_id and not perfil_id:
             return {'status': 'error', 'message': 'Não foi possível identificar o usuário para buscar o histórico.'}
 
-        historico = self.mongo_memory.recuperar_historico(perfil_ctx, user_id)
+        historico = self.mongo_memory.recuperar_historico(user_id, perfil_id)
 
         if not historico:
             return {'status': 'error', 'message': 'Nenhuma conversa anterior relevante encontrada.'}

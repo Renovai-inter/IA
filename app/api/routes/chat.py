@@ -29,7 +29,7 @@ async def chat(request: Request, body: ChatRequest):
 
     resultado = await container.graph.ainvoke(
         {'messages': [HumanMessage(content=body.pergunta)], 'perfil_ctx': perfil_ctx},
-        config={'configurable': {'thread_id': body.session_id}},
+        config={'configurable': {'thread_id': body.session_id, 'user_id': body.user_id, 'perfil_id': body.perfil_id}},
     )
 
     return ChatResponse(resposta=_obter_texto_mensagem(resultado['messages'][-1]))

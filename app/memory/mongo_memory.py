@@ -92,9 +92,9 @@ class MongoMemory(MemoryStore):
             agentes_chamados=sessao_atualizada.agentes_chamados,
         )
 
-    def recuperar_historico(self, perfil_ctx: PerfilContext, user_id: Optional[str]):
+    def recuperar_historico(self, user_id: Optional[str], perfil_id: str):
         filtro = {
-            'usuario_id' if user_id else 'perfil_id': (user_id or perfil_ctx.perfil_id),
+            'usuario_id' if user_id else 'perfil_id': (user_id or perfil_id),
             'resumo': {'$nin': ['', None]}
         }
 
