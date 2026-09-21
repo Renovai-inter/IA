@@ -26,23 +26,26 @@ from app.repository.postgresql.material_repository import MaterialRepository
 from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.movimentacao_estoque_repository import MovimentacaoEstoqueRepository
 
+from app.tools.memory_tools import MemoriaToolkit
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
 from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
 
+
+memoria_toolkit          = MemoriaToolkit()
 material_estoque_toolkit = MaterialEstoqueToolkit()
 
 _AGENT_REGISTRY: dict[str, dict] = {
     'router_agent': {
         'cls': RouterAgent,
         'prompt': ROUTER_PROMPT_COMPLETO,
-        'tools': []
+        'tools': memoria_toolkit.get_tools()
     },
     'material_estoque_agent': {
         'cls': MaterialEstoqueAgent,
         'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
-        'tools': material_estoque_toolkit.get_tools()
+        'tools': memoria_toolkit.get_tools() + material_estoque_toolkit.get_tools()
     },
     'orchestrator_agent': {
         'cls': OrchestratorAgent,
@@ -80,7 +83,7 @@ def build_container(settings: Settings) -> Container:
 
     graph = GraphBuilder(agents, _REPOSITORIES_MAP, MemorySaver()).build_graph()
 
-    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, resumo_service=    resumo_service)
+    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, resumo_service = resumo_service)
 
 
 class Container:

@@ -15,7 +15,7 @@ collection: sessao
   'mensagens': [
     {
       'role':      'usuario' | 'assistente',
-      'agente':    str | None,
+      'agentes':   [str],
       'content':   str,
       'timestamp': datetime,
       'meta':      dict | None,
@@ -128,16 +128,17 @@ class SessaoRepository(Repository[Sessao]):
         doc_id: ObjectId,
         role: str,
         content: str,
-        agentes: Optional[List[str]] = [],
+        agentes: Optional[List[str]] = None,
         meta: Optional[Dict] = None,
     ) -> None:
         """Dado o _id de uma sessão já existente, só faz o push da mensagem."""
         mensagem = {
             'role': role,
-            'agentes': agentes,
             'content': content,
             'timestamp': self._agora(),
         }
+        if agentes is not None:
+            mensagem['agentes'] = agentes
         if meta is not None:
             mensagem['meta'] = meta
 
@@ -146,7 +147,7 @@ class SessaoRepository(Repository[Sessao]):
             {
                 '$set': {'data_atualizacao': self._agora()},
                 '$push': {'mensagens': mensagem},
-                '$addToSet': {'agentes_chamados': {'$each': agentes}},
+                '$addToSet': {'agentes_chamados': {'$each': agentes if agentes else []}},
             },
         )
 
@@ -158,3 +159,13 @@ class SessaoRepository(Repository[Sessao]):
             update['resumo'] = resumo
 
         self._get_collection().update_one({'_id': doc_id}, {'$set': update})
+
+    def buscar_usuario(self, filtro, limite = 3) -> List[Sessao]:
+        docs = (
+            self._get_collection()
+                .find(filtro)
+                .limit(limite)
+        )
+
+        docs = [{**doc, '_id': str(doc['_id'])} for doc in docs]
+        return [Sessao(**doc) for doc in docs]
