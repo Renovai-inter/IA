@@ -83,7 +83,7 @@ def build_container(settings: Settings) -> Container:
         llm = factory.get(provider_name, tier)
         agents[name] = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'])
 
-    graph = GraphBuilder(agents, _REPOSITORIES_MAP, MemorySaver()).build_graph()
+    graph = GraphBuilder(agents, settings, _REPOSITORIES_MAP, MemorySaver()).build_graph()
 
     return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, mongo_memory = mongo_memory)
 
