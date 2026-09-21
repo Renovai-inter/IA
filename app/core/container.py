@@ -1,5 +1,6 @@
 from app.core.config import Settings
 from app.llms.factory import LLMFactory
+from app.memory.mongo_memory import MongoMemory
 from app.memory.resumo_service import ResumoService
 from app.prompts import (
     ROUTER_PROMPT_COMPLETO,
@@ -33,27 +34,6 @@ from typing import Dict
 from langgraph.checkpoint.memory import MemorySaver
 
 
-memoria_toolkit          = MemoriaToolkit()
-material_estoque_toolkit = MaterialEstoqueToolkit()
-
-_AGENT_REGISTRY: dict[str, dict] = {
-    'router_agent': {
-        'cls': RouterAgent,
-        'prompt': ROUTER_PROMPT_COMPLETO,
-        'tools': memoria_toolkit.get_tools()
-    },
-    'material_estoque_agent': {
-        'cls': MaterialEstoqueAgent,
-        'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
-        'tools': memoria_toolkit.get_tools() + material_estoque_toolkit.get_tools()
-    },
-    'orchestrator_agent': {
-        'cls': OrchestratorAgent,
-        'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
-        'tools': []
-    },
-}
-
 def build_container(settings: Settings) -> Container:
     pg_pool = build_postgres_pool(settings.DATABASE_URL)
     mongo_conn = get_mongo_conn(settings.MONGODB_URI)
@@ -74,6 +54,28 @@ def build_container(settings: Settings) -> Container:
     factory = LLMFactory(providers)
 
     resumo_service = ResumoService(factory, *settings.AGENT_LLM_MAP['resumo_agent'])
+    mongo_memory = MongoMemory(_REPOSITORIES_MAP.get('sessao_repository', SessaoRepository(db=mongo_conn)), resumo_service)
+
+    memoria_toolkit          = MemoriaToolkit()
+    material_estoque_toolkit = MaterialEstoqueToolkit()
+
+    _AGENT_REGISTRY: dict[str, dict] = {
+        'router_agent': {
+            'cls': RouterAgent,
+            'prompt': ROUTER_PROMPT_COMPLETO,
+            'tools': memoria_toolkit.get_tools()
+        },
+        'material_estoque_agent': {
+            'cls': MaterialEstoqueAgent,
+            'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
+            'tools': memoria_toolkit.get_tools() + material_estoque_toolkit.get_tools()
+        },
+        'orchestrator_agent': {
+            'cls': OrchestratorAgent,
+            'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
+            'tools': []
+        },
+    }
 
     agents = {}
     for name, spec in _AGENT_REGISTRY.items():
@@ -87,9 +89,9 @@ def build_container(settings: Settings) -> Container:
 
 
 class Container:
-    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool, repositories: Dict[str, Repository], resumo_service: ResumoService):
+    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool, repositories: Dict[str, Repository], mongo_memory: MongoMemory):
         self.graph = graph
         self.agentes = agentes
         self.pg_pool = pg_pool
         self.repositories = repositories
-        self.resumo_service = resumo_service
+        self.mongo_memory = mongo_memory

@@ -16,7 +16,8 @@ class MemoriaToolkit(Toolkit):
         'sessao_repository': SessaoRepository
     }
 
-    mongo_memory = MongoMemory()
+    def __init__(self, mongo_memory: MongoMemory):
+        self.mongo_memory = mongo_memory
 
     def buscar_historico(
         self,
