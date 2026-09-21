@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel
 from typing import Optional
 
-from app.repository.base import Repository, Snapshot
+from app.repository.base import Repository, Snapshot, SnapshotRepository
 
 
 class Estoque(BaseModel):
@@ -50,7 +50,7 @@ QUERY_ESTOQUE_POR_COOPERATIVA = """
 """
 
 
-class EstoqueRepository(Repository[Estoque]):
+class EstoqueRepository(SnapshotRepository[Estoque]):
     def get_snapshot(self, cooperativa_id: UUID) -> EstoqueSnapshot:
         print('[DEBUG]: chegou no estoque_repository e tirou snapshot')
         with self._db.connection() as conn:

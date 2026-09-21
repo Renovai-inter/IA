@@ -1,4 +1,4 @@
-from app.repository.base import Repository, Snapshot
+from app.repository.base import Repository, Snapshot, SnapshotRepository
 
 from pydantic import BaseModel
 
@@ -44,7 +44,7 @@ _QUERY_MATERIAL_POR_COOPERATIVA = """
     WHERE co.cooperativa_id = %s;
 """
 
-class MaterialRepository(Repository[Material]):
+class MaterialRepository(SnapshotRepository[Material]):
     def __init__(self, db):
         super().__init__(db)
 
