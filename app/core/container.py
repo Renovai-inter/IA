@@ -56,7 +56,7 @@ def build_container(settings: Settings) -> Container:
     resumo_service = ResumoService(factory, *settings.AGENT_LLM_MAP['resumo_agent'])
     mongo_memory = MongoMemory(_REPOSITORIES_MAP.get('sessao_repository', SessaoRepository(db=mongo_conn)), resumo_service)
 
-    memoria_toolkit          = MemoriaToolkit()
+    memoria_toolkit          = MemoriaToolkit(mongo_memory)
     material_estoque_toolkit = MaterialEstoqueToolkit()
 
     _AGENT_REGISTRY: dict[str, dict] = {
@@ -85,7 +85,7 @@ def build_container(settings: Settings) -> Container:
 
     graph = GraphBuilder(agents, _REPOSITORIES_MAP, MemorySaver()).build_graph()
 
-    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, resumo_service = resumo_service)
+    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, mongo_memory = mongo_memory)
 
 
 class Container:
