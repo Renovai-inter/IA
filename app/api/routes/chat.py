@@ -9,7 +9,6 @@ from langchain_core.messages import HumanMessage
 from fastapi import APIRouter
 
 
-settings = Settings()
 router = APIRouter(tags=['chat'])
 
 def _obter_texto_mensagem(msg) -> str:
@@ -32,5 +31,8 @@ async def chat(request: Request, body: ChatRequest):
         config={'configurable': {'thread_id': body.session_id, 'user_id': body.user_id, 'perfil_id': body.perfil_id}},
     )
 
-    return ChatResponse(resposta=_obter_texto_mensagem(resultado['messages'][-1]))
+    return ChatResponse(
+        resposta=_obter_texto_mensagem(resultado['messages'][-1]),
+        agentes_chamados=resultado['agentes_chamados']
+    )
     # return ChatResponse(resposta=resultado['messages'])

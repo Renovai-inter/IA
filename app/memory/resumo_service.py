@@ -8,7 +8,7 @@ class ResumoService:
     def __init__(self, llm_factory: LLMFactory, provider: str, tier: str):
         self._llm = llm_factory.get(provider, tier)
         self._PROMPT_RESUMO = """\
-            Você é um assistente que resume conversas de assessoria financeira e agenda.
+            Você é um assistente que resume conversas de acompanhamento de cooperativas e empresas recicladoras.
             Gere um resumo conciso em 2-4 frases capturando:
             - O que o usuário fez
             - O que o usuário perguntou

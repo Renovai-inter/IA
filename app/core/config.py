@@ -38,9 +38,6 @@ class Settings(BaseSettings):
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {
         'material_estoque_agent': ['material_repository','estoque_repository', 'movimentacao_estoque_repository']
     }
-    ROUTE_NODE_MAP: Dict[str, str] = {
-        'material_estoque': 'material_estoque_agent',
-    }
 
     _CAMPOS_OBRIGATORIOS: ClassVar[tuple[str, ...]] = (
         "GEMINI_API_KEY",
