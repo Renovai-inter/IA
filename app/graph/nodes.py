@@ -11,6 +11,6 @@ def make_repo_backed_node(agent: BaseAgent, repos: dict[str, Repository]):
         snapshots = {nome.replace('repository', 'snapshot'): repo.get_snapshot(cooperativa_id) for nome, repo in repos.items()}
         return agent.run(
             state={**state, 'snapshots': snapshots},
-            config={config}
+            config=config
         )
     return node

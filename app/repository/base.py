@@ -16,7 +16,7 @@ class Repository[T](ABC):
     def __init__(self, db: ConnectionPool | MongoClient):
         self._db = db
 
-class SnapshotRepository[T](ABC, Repository[T]):
+class SnapshotRepository[T](Repository[T]):
     def __init__(self, db):
         super().__init__(db)
 

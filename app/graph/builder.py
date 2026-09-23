@@ -1,4 +1,4 @@
-from app.core.config import Settings
+from app.graph.registro import RegistroEspecialista
 from app.graph.state import GraphState
 from app.agents.base import BaseAgent
 from app.repository.base import Repository
@@ -11,42 +11,51 @@ from langgraph.graph import (
     StateGraph,
     END,
 )
+from langgraph.checkpoint.base import BaseCheckpointSaver
+
 
 class GraphBuilder:
-    def __init__(self, agentes: Dict[str, BaseAgent], settings: Settings, repositories: Dict[str, Repository], checkpointer):
-        self.agentes = agentes
-        self.settings = settings
-        self.repositories = repositories
-        self.checkpointer = checkpointer
+    def __init__(
+        self,
+        router_agent: BaseAgent,
+        orchestrator_agent: BaseAgent,
+        specialists: List[RegistroEspecialista],
+        repositories: Dict[str, Repository],
+        checkpointer: BaseCheckpointSaver,
+    ):
+        self._router_agent = router_agent
+        self._orchestrator_agent = orchestrator_agent
+        self._specialists = specialists
+        self._repositories = repositories
+        self._checkpointer = checkpointer
 
-    def _decisao_roteador(self, state: GraphState):
+    def _decisao_roteador(self, state: GraphState) -> str:
         """Lê o protocolo do roteador e devolve o nome do próximo nó.
         VAI TER QUE MUDAR - roteador deve poder chamar mais de um agente (mudar prompt e run() também)"""
-        return self.settings.ROUTE_NODE_MAP.get(state['proximo_agente'], 'fim')
+        return state['proximo_agente']
 
     def build_graph(self) -> CompiledStateGraph:
         graph = StateGraph(GraphState)
+        graph.add_node('router_agent', self._router_agent.run)
+        graph.add_node('orchestrator_agent', self._orchestrator_agent.run)
 
-        for agent_name, agent in self.agentes.items():
-            repo_names = self.settings.AGENT_REPOSITORY_MAP.get(agent_name, [])
-            if repo_names:
-                agent_repos = {nome: self.repositories[nome] for nome in repo_names}
-                graph.add_node(agent_name, make_repo_backed_node(agent, agent_repos))
-            else:
-                graph.add_node(agent_name, agent.run)
+        route_node_map: Dict[str, str] = {}
+        for registro in self._specialists:
+            agent_repos = {nome: self._repositories[nome] for nome in registro.repositories}
+            node = make_repo_backed_node(registro.agente, agent_repos)
+
+            graph.add_node(registro.node_name, node)
+            graph.add_edge(registro.node_name, 'orchestrator_agent') # troca por 'juiz' quando ele existir
+            route_node_map[registro.rota] = registro.node_name
 
         graph.set_entry_point('router_agent')
 
         graph.add_conditional_edges(
             'router_agent',
             self._decisao_roteador,
-            {
-                'material_estoque_agent': 'material_estoque_agent',
-                'fim': END,
-            },
+            {**route_node_map, 'fim': END}
         )
 
-        graph.add_edge('material_estoque_agent', 'orchestrator_agent')
         graph.add_edge('orchestrator_agent', END)
 
-        return graph.compile(checkpointer=self.checkpointer)
+        return graph.compile(checkpointer=self._checkpointer)

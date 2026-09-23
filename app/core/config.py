@@ -39,7 +39,7 @@ class Settings(BaseSettings):
         'material_estoque_agent': ['material_repository','estoque_repository', 'movimentacao_estoque_repository']
     }
     ROUTE_NODE_MAP: Dict[str, str] = {
-        'estoque': 'material_estoque_agent',
+        'material_estoque': 'material_estoque_agent',
     }
 
     _CAMPOS_OBRIGATORIOS: ClassVar[tuple[str, ...]] = (
