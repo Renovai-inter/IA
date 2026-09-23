@@ -1,5 +1,4 @@
-from abc import ABC
-from typing import Generic, TypeVar
+from abc import ABC, abstractmethod
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
@@ -7,13 +6,20 @@ from datetime import datetime
 from psycopg_pool import ConnectionPool
 from pymongo import MongoClient
 
-T = TypeVar('T')
 
-class Snapshot(BaseModel, Generic[T]):
+class Snapshot[T](BaseModel):
     cooperativa_id: UUID
     capturado_em: datetime
     itens: list[T]
 
-class Repository(ABC, Generic[T]):
+class Repository[T](ABC):
     def __init__(self, db: ConnectionPool | MongoClient):
         self._db = db
+
+class SnapshotRepository[T](Repository[T]):
+    def __init__(self, db):
+        super().__init__(db)
+
+    @abstractmethod
+    def get_snapshot(self, cooperativa_id: UUID) -> Snapshot[T]:
+        raise NotImplementedError

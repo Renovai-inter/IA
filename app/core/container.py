@@ -1,4 +1,5 @@
 from app.core.config import Settings
+from app.graph.registro import RegistroEspecialista
 from app.llms.factory import LLMFactory
 from app.memory.mongo_memory import MongoMemory
 from app.memory.resumo_service import ResumoService
@@ -66,6 +67,7 @@ def build_container(settings: Settings) -> Container:
             'tools': memoria_toolkit.get_tools()
         },
         'material_estoque_agent': {
+            'route': 'estoque',
             'cls': MaterialEstoqueAgent,
             'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
             'tools': memoria_toolkit.get_tools() + material_estoque_toolkit.get_tools()
@@ -77,13 +79,31 @@ def build_container(settings: Settings) -> Container:
         },
     }
 
+    specialists: list[RegistroEspecialista] = []
     agents = {}
     for name, spec in _AGENT_REGISTRY.items():
-        provider_name, tier = settings.AGENT_LLM_MAP[name]
-        llm = factory.get(provider_name, tier)
-        agents[name] = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'])
+        llm = factory.get(*settings.AGENT_LLM_MAP[name])
+        agent_repos = settings.AGENT_REPOSITORY_MAP.get(name, [])
+        agent = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'])
+        agents[name] = agent
 
-    graph = GraphBuilder(agents, _REPOSITORIES_MAP, MemorySaver()).build_graph()
+        if 'route' in spec:
+            specialists.append(
+                RegistroEspecialista(
+                    rota=spec['route'],
+                    node_name=name,
+                    agente=agent,
+                    repositories=agent_repos
+                )
+            )
+
+    graph = GraphBuilder(
+        router_agent=agents['router_agent'],
+        orchestrator_agent=agents['orchestrator_agent'],
+        specialists=specialists,
+        repositories=_REPOSITORIES_MAP,
+        checkpointer=MemorySaver()
+    ).build_graph()
 
     return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, mongo_memory = mongo_memory)
 

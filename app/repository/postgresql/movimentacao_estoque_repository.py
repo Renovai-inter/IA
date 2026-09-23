@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel
 from typing import Optional
 
-from app.repository.base import Repository, Snapshot
+from app.repository.base import Repository, Snapshot, SnapshotRepository
 
 
 class MovimentacaoEstoque(BaseModel):
@@ -56,7 +56,7 @@ QUERY_MOVIMENTACOES_POR_COOPERATIVA = """
 """
 
 
-class MovimentacaoEstoqueRepository(Repository[MovimentacaoEstoque]):
+class MovimentacaoEstoqueRepository(SnapshotRepository[MovimentacaoEstoque]):
     def get_snapshot(self, cooperativa_id: UUID) -> MovimentacaoEstoqueSnapshot:
         with self._db.connection() as conn:
             with conn.cursor() as cur:
