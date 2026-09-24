@@ -12,7 +12,7 @@ class PerfilContext(BaseModel):
     cooperativa_id: Optional[UUID]
 
 
-class PerfilRepository(Repository[PerfilContext]):
+class PerfilRepository(Repository[PerfilContext, ConnectionPool]):
     def __init__(self, db: ConnectionPool):
         super().__init__(db)
 

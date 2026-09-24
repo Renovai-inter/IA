@@ -1,4 +1,6 @@
-from app.repository.base import Repository, Snapshot, SnapshotRepository
+from psycopg_pool import ConnectionPool
+
+from app.repository.base import Snapshot, SnapshotRepository
 
 from pydantic import BaseModel
 
@@ -44,8 +46,8 @@ _QUERY_MATERIAL_POR_COOPERATIVA = """
     WHERE co.cooperativa_id = %s;
 """
 
-class MaterialRepository(SnapshotRepository[Material]):
-    def __init__(self, db):
+class MaterialRepository(SnapshotRepository[Material, ConnectionPool]):
+    def __init__(self, db: ConnectionPool):
         super().__init__(db)
 
     def get_snapshot(self, cooperativa_id: UUID) -> MaterialSnapshot:
