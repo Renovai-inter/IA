@@ -3,10 +3,11 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
+from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
 from typing import Optional
 
-from app.repository.base import Repository, Snapshot, SnapshotRepository
+from app.repository.base import Snapshot, SnapshotRepository
 
 
 class MovimentacaoEstoque(BaseModel):
@@ -56,7 +57,10 @@ QUERY_MOVIMENTACOES_POR_COOPERATIVA = """
 """
 
 
-class MovimentacaoEstoqueRepository(SnapshotRepository[MovimentacaoEstoque]):
+class MovimentacaoEstoqueRepository(SnapshotRepository[MovimentacaoEstoque, ConnectionPool]):
+    def __init__(self, db: ConnectionPool):
+        super().__init__(db)
+
     def get_snapshot(self, cooperativa_id: UUID) -> MovimentacaoEstoqueSnapshot:
         with self._db.connection() as conn:
             with conn.cursor() as cur:

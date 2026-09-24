@@ -50,7 +50,7 @@ class Sessao(BaseModel):
     mensagens: List[Dict] = []
 
 
-class SessaoRepository(Repository[Sessao]):
+class SessaoRepository(Repository[Sessao, Database]):
     """
     Camada mecânica: só sabe conversar com a collection `sessao`. Não decide
     QUANDO criar, encerrar ou resumir uma sessão — quem decide isso é
