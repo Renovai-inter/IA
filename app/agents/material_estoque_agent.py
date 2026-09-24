@@ -6,7 +6,7 @@ from app.graph.state import GraphState, EspecialistaOutput
 from langchain.agents import create_agent
 
 class MaterialEstoqueAgent(BaseAgent):
-    nome_agente: str = 'nome_agente'
+    nome_agente: str = 'material_estoque'
     descricao: str = ''
 
     def __init__(self, llm, system_prompt, tools = None):

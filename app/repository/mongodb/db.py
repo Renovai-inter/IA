@@ -11,7 +11,7 @@ class MongoConnectionFactory(ConnectionFactory[Database]):
         self._client: MongoClient | None = None
 
     def connect(self) -> Database:
-        self._client = MongoClient(self._dsn)
+        self._client = MongoClient(self.dsn)
         return self._client[self._db_name]
 
     def close(self, conn: Database) -> None:

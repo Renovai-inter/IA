@@ -18,34 +18,42 @@ from app.agents.material_estoque_agent import MaterialEstoqueAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
 
 from app.graph.builder import GraphBuilder
-from app.repository.mongodb.db import get_mongo_conn
+from app.repository.mongodb.db import MongoConnectionFactory
 from app.repository.mongodb.sessao_repository import SessaoRepository
-from app.repository.postgresql.db import build_postgres_pool
+from app.repository.postgresql.db import PostgresConnectionFactory
 
-from app.repository.base import Repository
+from app.repository.base import ConnectionFactory, Repository
 from app.repository.postgresql.perfil_repository import PerfilRepository
 from app.repository.postgresql.material_repository import MaterialRepository
 from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.movimentacao_estoque_repository import MovimentacaoEstoqueRepository
 
+from app.repository.qdrant.db import QdrantConnectionFactory
 from app.tools.memory_tools import MemoriaToolkit
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
-from typing import Dict
+from typing import Any, Dict, Tuple
 from langgraph.checkpoint.memory import MemorySaver
 
 
 def build_container(settings: Settings) -> Container:
-    pg_pool = build_postgres_pool(settings.DATABASE_URL)
-    mongo_conn = get_mongo_conn(settings.MONGODB_URI)
+    pg_factory = PostgresConnectionFactory(dsn=settings.DATABASE_URL)
+    mongo_factory = MongoConnectionFactory(dsn=settings.MONGODB_URI, db_name='mongo_dbrenovai')
+    qdrant_factory = QdrantConnectionFactory(dsn=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+
+    _FACTORIES_MAP = {
+        'pg_factory':     (pg_factory,     pg_factory.connect()),
+        'mongo_factory':  (mongo_factory,  mongo_factory.connect()),
+        'qdrant_factory': (qdrant_factory, qdrant_factory.connect()),
+    }
 
     _REPOSITORIES_MAP = {
-        'perfil_repository':               PerfilRepository(db=pg_pool),
-        'material_repository':             MaterialRepository(db=pg_pool),
-        'estoque_repository':              EstoqueRepository(db=pg_pool),
-        'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=pg_pool),
+        'perfil_repository':               PerfilRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
+        'material_repository':             MaterialRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
+        'estoque_repository':              EstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
+        'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
 
-        'sessao_repository':               SessaoRepository(db=mongo_conn)
+        'sessao_repository':               SessaoRepository(db=_FACTORIES_MAP.get('mongo_factory')[1])
     }
 
     providers = {
@@ -55,7 +63,7 @@ def build_container(settings: Settings) -> Container:
     factory = LLMFactory(providers)
 
     resumo_service = ResumoService(factory, *settings.AGENT_LLM_MAP['resumo_agent'])
-    mongo_memory = MongoMemory(_REPOSITORIES_MAP.get('sessao_repository', SessaoRepository(db=mongo_conn)), resumo_service)
+    mongo_memory = MongoMemory(_REPOSITORIES_MAP['sessao_repository'], resumo_service)
 
     memoria_toolkit          = MemoriaToolkit(mongo_memory)
     material_estoque_toolkit = MaterialEstoqueToolkit()
@@ -105,13 +113,19 @@ def build_container(settings: Settings) -> Container:
         checkpointer=MemorySaver()
     ).build_graph()
 
-    return Container(graph=graph, agentes=agents, pg_pool=pg_pool, repositories=_REPOSITORIES_MAP, mongo_memory = mongo_memory)
+    return Container(
+        graph=graph,
+        agentes=agents,
+        factories=_FACTORIES_MAP,
+        repositories=_REPOSITORIES_MAP,
+        mongo_memory = mongo_memory
+    )
 
 
 class Container:
-    def __init__(self, graph, agentes: Dict[str, BaseAgent], pg_pool, repositories: Dict[str, Repository], mongo_memory: MongoMemory):
+    def __init__(self, graph, agentes: Dict[str, BaseAgent], factories: Dict[str, Tuple[ConnectionFactory, Any]], repositories: Dict[str, Repository], mongo_memory: MongoMemory):
         self.graph = graph
         self.agentes = agentes
-        self.pg_pool = pg_pool
+        self.factories = factories
         self.repositories = repositories
         self.mongo_memory = mongo_memory
