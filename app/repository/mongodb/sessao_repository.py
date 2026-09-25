@@ -26,6 +26,7 @@ collection: sessao
 
 from datetime import datetime, timezone
 from typing import Dict, List, Literal, Optional
+from uuid import uuid4
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,7 +38,7 @@ from app.repository.base import Repository
 class Sessao(BaseModel):
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
-    id: Optional[str] = Field(default=None, alias='_id')
+    id: str = Field(default_factory=lambda: str(uuid4()), alias='_id')
     session_id: str
     perfil_id: str
     usuario_id: Optional[str] = None
@@ -97,7 +98,7 @@ class SessaoRepository(Repository[Sessao, Database]):
         doc['_id'] = str(doc['_id'])
         return Sessao(**doc)
 
-    def buscar_por_id(self, doc_id: ObjectId) -> Optional[Sessao]:
+    def buscar_por_id(self, doc_id: str) -> Optional[Sessao]:
         doc = self._get_collection().find_one({'_id': doc_id})
         if not doc:
             return None
@@ -105,27 +106,16 @@ class SessaoRepository(Repository[Sessao, Database]):
         doc['_id'] = str(doc['_id'])
         return Sessao(**doc)
 
-    def criar_sessao(self, session_id: str, perfil_id: str, usuario_id: Optional[str] = None) -> ObjectId:
-        """Insere um novo documento"""
+    def criar_sessao(self, session_id: str, perfil_id: str, usuario_id: Optional[str] = None) -> str:
         agora = self._agora()
-        novo_doc = {
-            'session_id': session_id,
-            'perfil_id': perfil_id,
-            'usuario_id': usuario_id,
-            'status': 'ativa',
-            'data_inicio': agora,
-            'data_atualizacao': agora,
-            'data_encerramento': None,
-            'resumo': None,
-            'agentes_chamados': [],
-            'mensagens': [],
-        }
-        resultado = self._get_collection().insert_one(novo_doc)
-        return resultado.inserted_id
+        sessao = Sessao(session_id=session_id, perfil_id=perfil_id, usuario_id=usuario_id,
+                        status='ativa', data_inicio=agora, data_atualizacao=agora)
+        self._get_collection().insert_one(sessao.model_dump(by_alias=True))
+        return sessao.id
 
     def adicionar_mensagem(
         self,
-        doc_id: ObjectId,
+        doc_id: str,
         role: str,
         content: str,
         agentes: Optional[List[str]] = None,
@@ -151,7 +141,7 @@ class SessaoRepository(Repository[Sessao, Database]):
             },
         )
 
-    def marcar_encerrada(self, doc_id: ObjectId, resumo: Optional[str] = None) -> None:
+    def marcar_encerrada(self, doc_id: str, resumo: Optional[str] = None) -> None:
         """Dado o _id de uma sessão, marca como encerrada. Não decide SE deveria encerrar."""
         agora = self._agora()
         update = {'status': 'encerrada', 'data_atualizacao': agora, 'data_encerramento': agora}
@@ -165,6 +155,7 @@ class SessaoRepository(Repository[Sessao, Database]):
             self._get_collection()
                 .find(filtro)
                 .limit(limite)
+                .sort('data_encerramento', -1)
         )
 
         docs = [{**doc, '_id': str(doc['_id'])} for doc in docs]
