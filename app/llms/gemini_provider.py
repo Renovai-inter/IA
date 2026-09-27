@@ -10,7 +10,7 @@ Classes:
 """
 from app.llms.base import LLMProvider
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 class GeminiProvider(LLMProvider):
     def __init__(self, api_key):
@@ -27,6 +27,10 @@ class GeminiProvider(LLMProvider):
                 temperature=0.7,
                 top_p=0.95,
                 api_key=self.api_key
+            ),
+            'EMBEDDING': GoogleGenerativeAIEmbeddings(
+                model="gemini-embedding-2-preview",
+                google_api_key=self.api_key,
             )
         }
 

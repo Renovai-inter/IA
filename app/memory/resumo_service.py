@@ -19,7 +19,7 @@ class ResumoService:
             Conversa:
             {conversa}
         """
-        self._embeddings = llm_factory.get(provider, tier, model='gemini-embedding-2-preview')
+        self._embeddings = llm_factory.get(provider, tier)
         self._EMBEDDING_DIM = 768
 
     def _formatar_conversa(self, mensagens: list[dict]) -> str:
