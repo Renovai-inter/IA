@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     QDRANT_URL: str
     MONGODB_URI: str
 
+    # Opcional: só é lido se/quando você decidir registrar 'OLLAMA' como
+    # provider no container de produção (app/core/container.py). Os testes de
+    # integração (tests/integration/) NÃO leem esse campo: eles pegam a URL
+    # direto da env var OLLAMA_BASE_URL (default http://localhost:11434), pra
+    # não depender do restante do Settings (GEMINI/GROQ/Postgres/Mongo/Qdrant)
+    # só pra rodar contra um LLM local.
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'router_agent':           ('GROQ',   'LOW'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
