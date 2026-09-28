@@ -13,19 +13,13 @@ class QdrantMemory(MemoryStore):
     def __init__(self, repository, resumo_service: ResumoService, janela = 5):
         super().__init__(repository, resumo_service, janela)
 
-    def atualizar_memoria(
-            self,
-            user_id: Optional[str],
-            perfil_id: str,
-            sessao_id: str,
-            memory_ctx: MemoriaCtx
-        ):
+    def atualizar_memoria(self, memory_ctx: MemoriaCtx):
         vetor = self.resumo_service.gerar_embedding(memory_ctx.resumo)
         
         payload = ResumoPayload(
-            usuario_id=user_id,
-            perfil_id=perfil_id,
-            sessao_id=sessao_id,
+            usuario_id=memory_ctx.usuario_id,
+            perfil_id=memory_ctx.perfil_id,
+            sessao_id=memory_ctx.sessao_id,
             resumo=memory_ctx.resumo,
             data_inicio=memory_ctx.data_inicio
         )
@@ -45,6 +39,9 @@ class QdrantMemory(MemoryStore):
         return [
             MemoriaCtx(
                 doc_id=resultado.id,
+                usuario_id=resultado.item.usuario_id,
+                perfil_id=resultado.item.perfil_id,
+                sessao_id=resultado.item.sessao_id,
                 resumo=resultado.item.resumo,
                 data_inicio=resultado.item.data_inicio,
             )

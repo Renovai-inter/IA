@@ -1,11 +1,13 @@
-from typing import Annotated
+from typing import Annotated, Dict
 
 from langchain.tools import InjectedState
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 
+from app.memory.base import MemoryStore
 from app.repository.mongodb.sessao_repository import SessaoRepository
 from app.memory.mongo_memory import MongoMemory
+from app.repository.qdrant.resumo_repository import ResumoRepository
 from app.tools.base import Toolkit
 
 
@@ -13,13 +15,15 @@ class MemoriaToolkit(Toolkit):
     nome = 'memoria_toolkit'
     descricao = 'Tools de consulta de conversas anteriores do usuário.'
     repositories = {
-        'sessao_repository': SessaoRepository
+        'sessao_repository': SessaoRepository,
+        'resumo_repository': ResumoRepository
     }
 
-    def __init__(self, mongo_memory: MongoMemory):
-        self.mongo_memory = mongo_memory
+    def __init__(self, memory_stores = Dict[str, MemoryStore]):
+        self.mongo_memory = memory_stores.get('mongo_memory', None)
+        self.qdrant_memory = memory_stores.get('qdrant_memory', None)
 
-    def buscar_historico(self, config: RunnableConfig) -> dict:
+    def buscar_historico(self, config: RunnableConfig, busca: str = '') -> dict:
         """Consulta conversas ANTERIORES do usuário (sessões já encerradas).
 
         Use SOMENTE quando a resposta depende de algo dito numa conversa passada
@@ -27,13 +31,16 @@ class MemoriaToolkit(Toolkit):
         NÃO use para dados que estão no banco : para isso
         já existem as tools de consulta específicas"""
         config = (config or {}).get('configurable', {})
-        user_id = config.get('user_id') or config.get('thread_id')
+        user_id = config.get('user_id')
         perfil_id = config.get('perfil_id', None)
 
         if not user_id and not perfil_id:
             return {'status': 'error', 'message': 'Não foi possível identificar o usuário para buscar o histórico.'}
 
-        historico = self.mongo_memory.recuperar_historico(user_id, perfil_id)
+        if busca and self.qdrant_memory:
+            historico = self.qdrant_memory.recuperar_historico(user_id, perfil_id, busca)
+        else:
+            historico = self.mongo_memory.recuperar_historico(user_id, perfil_id)
 
         if not historico:
             return {'status': 'error', 'message': 'Nenhuma conversa anterior relevante encontrada.'}
@@ -43,7 +50,7 @@ class MemoriaToolkit(Toolkit):
             'sessoes': len(historico)
         }
         return historico_output | {
-            h['data_inicio'].strftime('%d/%m/%Y') if hasattr(h['data_inicio'], "strftime") else str(h['data_inicio'])[:10] : h['resumo']
+            h.data_inicio.strftime('%d/%m/%Y') if hasattr(h.data_inicio, "strftime") else str(h.data_inicio)[:10] : h.resumo
             for h in historico
         }
 

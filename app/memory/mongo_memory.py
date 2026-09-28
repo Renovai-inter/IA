@@ -37,7 +37,11 @@ class MongoMemory(MemoryStore):
 
         return MemoriaCtx(
             doc_id=sessao_atualizada.id,
+            usuario_id=sessao_atualizada.usuario_id,
+            perfil_id=sessao_atualizada.perfil_id,
+            sessao_id=sessao_atualizada.session_id,
             resumo=sessao_atualizada.resumo,
+            data_inicio=sessao_atualizada.data_inicio,
             mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
             agentes_chamados=sessao_atualizada.agentes_chamados,
         )
@@ -63,6 +67,9 @@ class MongoMemory(MemoryStore):
         
         return MemoriaCtx(
             doc_id=sessao_atualizada.id,
+            usuario_id=sessao_atualizada.usuario_id,
+            perfil_id=sessao_atualizada.perfil_id,
+            sessao_id=sessao_atualizada.session_id,
             resumo=sessao_atualizada.resumo,
             data_inicio=sessao_atualizada.data_inicio,
             mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
@@ -90,6 +97,9 @@ class MongoMemory(MemoryStore):
         
         return MemoriaCtx(
             doc_id=sessao_atualizada.id,
+            usuario_id=sessao_atualizada.usuario_id,
+            perfil_id=sessao_atualizada.perfil_id,
+            sessao_id=sessao_atualizada.session_id,
             resumo=sessao_atualizada.resumo,
             data_inicio=sessao_atualizada.data_inicio,
             mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
@@ -106,6 +116,9 @@ class MongoMemory(MemoryStore):
         return [
             MemoriaCtx(
                 doc_id=sessao.id,
+                usuario_id=sessao.usuario_id,
+                perfil_id=sessao.perfil_id,
+                sessao_id=sessao.session_id,
                 resumo=sessao.resumo,
                 data_inicio=sessao.data_inicio,
                 mensagens_recentes=sessao.mensagens[-self.janela],

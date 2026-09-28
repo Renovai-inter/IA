@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
-from qdrant_client.grpc import FieldCondition, Filter, PointStruct
+from qdrant_client.grpc import Filter, PointStruct
 
 from app.repository.base import Repository
 
