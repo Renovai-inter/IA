@@ -28,6 +28,11 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# Inclui "smoke_test_*.py" além do padrão (test_*.py / *_test.py) porque
+# tests/integration/smoke_test_ollama_provider.py não bate com nenhum dos
+# dois — sem isso o pytest simplesmente não coletava esse arquivo (sem erro,
+# sem aviso, os 3 testes de lá nunca rodavam).
+python_files = ["test_*.py", "*_test.py", "smoke_test_*.py"]
 markers = [
     "requires_ollama: precisa de um servidor Ollama local respondendo (ver tests/integration/ollama_helpers.py)",
 ]
