@@ -19,6 +19,8 @@ class ResumoService:
             Conversa:
             {conversa}
         """
+        self._embeddings = llm_factory.get(provider, tier)
+        self._EMBEDDING_DIM = 768
 
     def _formatar_conversa(self, mensagens: list[dict]) -> str:
         """Formata o array de mensagens em texto para o prompt de resumo."""
@@ -36,3 +38,11 @@ class ResumoService:
                 HumanMessage(content=f'{contexto_anterior}Conversa:\n{historico}'),
         ])
         return resposta.content
+
+    def gerar_embedding(self, texto: str) -> list[float]:
+        """Gera um vetor de 768 dimensões para o texto informado."""
+        return self._embeddings.embed_query(texto, output_dimensionality=self._EMBEDDING_DIM)
+
+    def gerar_embeddings_batch(self, textos: list[str]) -> list[list[float]]:
+        """Gera embeddings para uma lista de textos de uma vez (mais eficiente)."""
+        return self._embeddings.embed_documents(textos, output_dimensionality=self._EMBEDDING_DIM)

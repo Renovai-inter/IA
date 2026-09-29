@@ -1,7 +1,9 @@
 from app.core.config import Settings
 from app.graph.registro import RegistroEspecialista
 from app.llms.factory import LLMFactory
+from app.memory.base import MemoryStore
 from app.memory.mongo_memory import MongoMemory
+from app.memory.qdrant_memory import QdrantMemory
 from app.memory.resumo_service import ResumoService
 from app.prompts import (
     ROUTER_PROMPT_COMPLETO,
@@ -29,11 +31,13 @@ from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.movimentacao_estoque_repository import MovimentacaoEstoqueRepository
 
 from app.repository.qdrant.db import QdrantConnectionFactory
+from app.repository.qdrant.resumo_repository import ResumoRepository
 from app.tools.memory_tools import MemoriaToolkit
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
 from typing import Any, Dict, Tuple
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.state import CompiledStateGraph
 
 
 def build_container(settings: Settings) -> Container:
@@ -53,19 +57,26 @@ def build_container(settings: Settings) -> Container:
         'estoque_repository':              EstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
 
-        'sessao_repository':               SessaoRepository(db=_FACTORIES_MAP.get('mongo_factory')[1])
+        'sessao_repository':               SessaoRepository(db=_FACTORIES_MAP.get('mongo_factory')[1]),
+        'resumo_repository':               ResumoRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1]),
     }
 
     providers = {
         'GEMINI': GeminiProvider(settings.GEMINI_API_KEY),
         'GROQ':   GroqProvider(settings.GROQ_API_KEY),
     }
-    factory = LLMFactory(providers)
+    llm_factory = LLMFactory(providers)
 
-    resumo_service = ResumoService(factory, *settings.AGENT_LLM_MAP['resumo_agent'])
+    resumo_service = ResumoService(llm_factory, *settings.AGENT_LLM_MAP['resumo_agent'])
     mongo_memory = MongoMemory(_REPOSITORIES_MAP['sessao_repository'], resumo_service)
+    qdrant_memory = QdrantMemory(_REPOSITORIES_MAP['resumo_repository'], resumo_service)
 
-    memoria_toolkit          = MemoriaToolkit(mongo_memory)
+    _MEMORY_STORE_MAP = {
+        'mongo_memory': mongo_memory,
+        'qdrant_memory': qdrant_memory,
+    }
+
+    memoria_toolkit = MemoriaToolkit(_MEMORY_STORE_MAP)
     material_estoque_toolkit = MaterialEstoqueToolkit()
 
     _AGENT_REGISTRY: dict[str, dict] = {
@@ -90,7 +101,7 @@ def build_container(settings: Settings) -> Container:
     specialists: list[RegistroEspecialista] = []
     agents = {}
     for name, spec in _AGENT_REGISTRY.items():
-        llm = factory.get(*settings.AGENT_LLM_MAP[name])
+        llm = llm_factory.get(*settings.AGENT_LLM_MAP[name])
         agent_repos = settings.AGENT_REPOSITORY_MAP.get(name, [])
         agent = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'])
         agents[name] = agent
@@ -118,14 +129,21 @@ def build_container(settings: Settings) -> Container:
         agentes=agents,
         factories=_FACTORIES_MAP,
         repositories=_REPOSITORIES_MAP,
-        mongo_memory = mongo_memory
+        memory_stores=_MEMORY_STORE_MAP
     )
 
 
 class Container:
-    def __init__(self, graph, agentes: Dict[str, BaseAgent], factories: Dict[str, Tuple[ConnectionFactory, Any]], repositories: Dict[str, Repository], mongo_memory: MongoMemory):
+    def __init__(
+        self,
+        graph: CompiledStateGraph,
+        agentes: Dict[str, BaseAgent],
+        factories: Dict[str, Tuple[ConnectionFactory, Any]],
+        repositories: Dict[str, Repository],
+        memory_stores = Dict[str, MemoryStore]
+    ):
         self.graph = graph
         self.agentes = agentes
         self.factories = factories
         self.repositories = repositories
-        self.mongo_memory = mongo_memory
+        self.memory_stores = memory_stores

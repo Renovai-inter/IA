@@ -11,6 +11,7 @@ class QdrantConnectionFactory(ConnectionFactory[QdrantClient]):
 
     def connect(self) -> QdrantClient:
         self._client = QdrantClient(url=self.dsn, api_key=self._api_key)
+        return self._client
 
     def close(self, conn: QdrantClient) -> None:
         self._client.close()

@@ -8,9 +8,8 @@ from app.repository.postgresql.perfil_repository import PerfilContext
 
 
 class MongoMemory(MemoryStore):
-    def __init__(self, repository, resumo_service: ResumoService, janela_mensagens: int = 10):
-        super().__init__(repository, janela_mensagens)
-        self.resumo_service = resumo_service
+    def __init__(self, repository, resumo_service: ResumoService, janela: int = 10):
+        super().__init__(repository, resumo_service, janela)
 
     def preparar_turno(
         self,
@@ -37,8 +36,13 @@ class MongoMemory(MemoryStore):
             return MemoriaCtx()
 
         return MemoriaCtx(
+            doc_id=sessao_atualizada.id,
+            usuario_id=sessao_atualizada.usuario_id,
+            perfil_id=sessao_atualizada.perfil_id,
+            sessao_id=sessao_atualizada.session_id,
             resumo=sessao_atualizada.resumo,
-            mensagens_recentes=sessao_atualizada.mensagens[-self.janela_mensagens:],
+            data_inicio=sessao_atualizada.data_inicio,
+            mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
             agentes_chamados=sessao_atualizada.agentes_chamados,
         )
 
@@ -62,8 +66,13 @@ class MongoMemory(MemoryStore):
             return MemoriaCtx()
         
         return MemoriaCtx(
+            doc_id=sessao_atualizada.id,
+            usuario_id=sessao_atualizada.usuario_id,
+            perfil_id=sessao_atualizada.perfil_id,
+            sessao_id=sessao_atualizada.session_id,
             resumo=sessao_atualizada.resumo,
-            mensagens_recentes=sessao_atualizada.mensagens[-self.janela_mensagens:],
+            data_inicio=sessao_atualizada.data_inicio,
+            mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
             agentes_chamados=sessao_atualizada.agentes_chamados,
         )
 
@@ -87,8 +96,13 @@ class MongoMemory(MemoryStore):
             return MemoriaCtx()
         
         return MemoriaCtx(
+            doc_id=sessao_atualizada.id,
+            usuario_id=sessao_atualizada.usuario_id,
+            perfil_id=sessao_atualizada.perfil_id,
+            sessao_id=sessao_atualizada.session_id,
             resumo=sessao_atualizada.resumo,
-            mensagens_recentes=sessao_atualizada.mensagens[-self.janela_mensagens:],
+            data_inicio=sessao_atualizada.data_inicio,
+            mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
             agentes_chamados=sessao_atualizada.agentes_chamados,
         )
 
@@ -98,8 +112,17 @@ class MongoMemory(MemoryStore):
             'resumo': {'$nin': ['', None]}
         }
 
-        sessoes = self.repository.buscar_usuario(filtro)
+        sessoes = self.repository.buscar_usuario(filtro, self.janela)
         return [
-            {'doc_id': sessao.id, 'data_inicio': sessao.data_inicio, 'resumo': sessao.resumo}
+            MemoriaCtx(
+                doc_id=sessao.id,
+                usuario_id=sessao.usuario_id,
+                perfil_id=sessao.perfil_id,
+                sessao_id=sessao.session_id,
+                resumo=sessao.resumo,
+                data_inicio=sessao.data_inicio,
+                mensagens_recentes=sessao.mensagens[-self.janela],
+                agentes_chamados=sessao.agentes_chamados,
+            )
             for sessao in sessoes
         ]
