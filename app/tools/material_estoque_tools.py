@@ -1,3 +1,5 @@
+import inspect
+
 from app.tools.base import Toolkit
 from app.repository.postgresql.estoque_repository import EstoqueRepository, EstoqueSnapshot
 from app.repository.postgresql.material_repository import MaterialRepository, MaterialSnapshot
@@ -8,6 +10,7 @@ from decimal import Decimal
 from uuid import UUID
 from datetime import datetime, time, timedelta
 from typing import Optional, List
+import time as tm, functools, logging
 
 import unicodedata
 from langchain_core.runnables import RunnableConfig
@@ -271,6 +274,47 @@ class MaterialEstoqueToolkit(Toolkit):
         return True
 
 
+    def timed(categoria, nome):
+        log = logging.getLogger("latency")
+        def deco(fn):
+
+            if inspect.iscoroutinefunction(fn):
+
+                @functools.wraps(fn)
+                async def async_wrapper(*a, **kw):
+                    t = tm.perf_counter()
+
+                    try:
+                        return await fn(*a, **kw)
+                    finally:
+                        log.warning(
+                            "timing category=%s name=%s duration=%.2fs",
+                            categoria,
+                            nome,
+                            tm.perf_counter() - t,
+                        )
+
+                return async_wrapper
+
+            @functools.wraps(fn)
+            def sync_wrapper(*a, **kw):
+                t = tm.perf_counter()
+
+                try:
+                    return fn(*a, **kw)
+                finally:
+                    log.warning(
+                        "timing category=%s name=%s duration=%.2fs",
+                        categoria,
+                        nome,
+                        tm.perf_counter() - t,
+                    )
+
+            return sync_wrapper
+
+        return deco
+
+    @timed(categoria='tool', nome='consultar_estoque')
     def consultar_estoque(
         self,
         config: RunnableConfig,
@@ -356,6 +400,7 @@ class MaterialEstoqueToolkit(Toolkit):
             'itens': detalhes,
         }
 
+    @timed(categoria='tool', nome='generalizar_estoque')
     def generalizar_estoque(
         self,
         config: RunnableConfig,
@@ -451,6 +496,7 @@ class MaterialEstoqueToolkit(Toolkit):
             'itens': detalhes,
         }
 
+    @timed(categoria='tool', nome='buscar_estoque_historico')
     def buscar_estoque_historico(
         self,
         config: RunnableConfig,
@@ -546,6 +592,7 @@ class MaterialEstoqueToolkit(Toolkit):
         }
 
 
+    @timed(categoria='tool', nome='consultar_estoque_granular')
     def consultar_estoque_granular(
         self,
         config: RunnableConfig,
