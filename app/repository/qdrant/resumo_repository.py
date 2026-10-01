@@ -23,13 +23,12 @@ class ResultadoBusca[T](BaseModel):
     item: T
 
 class ResumoRepository(Repository[ResumoPayload, QdrantClient]):
-    COLLECTION_MEMORIA = "memoria_resumos"
-
-    def __init__(self, db: QdrantClient):
+    def __init__(self, db: QdrantClient, collection: str):
         super().__init__(db)
+        self._collection = collection
 
     def upsert(self, vetor, payload: ResumoPayload):
-        self._db.upsert(self.COLLECTION_MEMORIA, points=[PointStruct(
+        self._db.upsert(self._collection, points=[PointStruct(
             id=str(uuid4()),
             vector=vetor,
             payload=payload.model_dump(mode="json"),
@@ -37,7 +36,7 @@ class ResumoRepository(Repository[ResumoPayload, QdrantClient]):
 
     def buscar(self, embedding, filter: Filter, k: int = 5) -> list[ResultadoBusca[ResumoPayload]]:
         hits = self._db.query_points(
-            self.COLLECTION_MEMORIA,
+            self._collection,
             query=embedding,
             limit=k,
             query_filter=filter,

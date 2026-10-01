@@ -57,8 +57,8 @@ def build_container(settings: Settings) -> Container:
         'estoque_repository':              EstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
 
-        'sessao_repository':               SessaoRepository(db=_FACTORIES_MAP.get('mongo_factory')[1]),
-        'resumo_repository':               ResumoRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1]),
+        'sessao_repository':               SessaoRepository(db=_FACTORIES_MAP.get('mongo_factory')[1], collection=settings.MONGO_COLLECTION_SESSAO),
+        'resumo_repository':               ResumoRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1], collection=settings.QDRANT_COLLECTION_MEMORIA),
     }
 
     providers = {

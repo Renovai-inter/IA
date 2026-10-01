@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     QDRANT_URL: str
     MONGODB_URI: str
 
+    FAQ_PATH: str
+
+    MONGO_COLLECTION_SESSAO:   str = 'sessao'
+    QDRANT_COLLECTION_MEMORIA: str = 'memoria_resumos'
+    QDRANT_COLLECTION_FAQ:     str = 'faq_chunks'
+
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'router_agent':           ('GROQ',   'LOW'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
