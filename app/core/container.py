@@ -4,7 +4,7 @@ from app.llms.factory import LLMFactory
 from app.memory.base import MemoryStore
 from app.memory.mongo_memory import MongoMemory
 from app.memory.qdrant_memory import QdrantMemory
-from app.memory.resumo_service import ResumoService
+from app.llms.resumo_service import ResumoService
 from app.prompts import (
     ROUTER_PROMPT_COMPLETO,
     MATERIAL_ESTOQUE_PROMPT_COMPLETO,
