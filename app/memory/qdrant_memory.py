@@ -5,7 +5,7 @@ from qdrant_client.grpc import FieldCondition, Filter
 from qdrant_client.models import MatchValue
 
 from app.memory.base import MemoriaCtx, MemoryStore
-from app.memory.resumo_service import ResumoService
+from app.llms.resumo_service import ResumoService
 from app.repository.qdrant.resumo_repository import ResumoPayload
 
 

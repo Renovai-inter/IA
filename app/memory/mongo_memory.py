@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 from bson import ObjectId
 
 from app.memory.base import MemoriaCtx, MemoryStore
-from app.memory.resumo_service import ResumoService
+from app.llms.resumo_service import ResumoService
 from app.repository.postgresql.perfil_repository import PerfilContext
 
 

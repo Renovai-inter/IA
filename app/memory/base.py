@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel
 from abc import ABC, abstractmethod
 
-from app.memory.resumo_service import ResumoService
+from app.llms.resumo_service import ResumoService
 from app.repository.base import Repository
 
 
