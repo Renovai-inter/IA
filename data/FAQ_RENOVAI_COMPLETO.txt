@@ -1,0 +1,789 @@
+# FAQ RENOVAÍ — Guia Completo
+
+## Índice
+1. [Informações Gerais sobre o Renovaí](#informações-gerais)
+2. [Cooperativas de Reciclagem](#cooperativas)
+3. [Usuários e Perfis](#usuários)
+4. [Funcionalidades - Telas do Sistema](#funcionalidades)
+5. [Fluxo Operacional](#fluxo)
+6. [Pedidos e Negociações](#pedidos)
+7. [Materiais e Estoque](#estoque)
+8. [Identidade Visual e Design](#design)
+9. [Dados Técnicos](#técnico)
+
+---
+
+## Informações Gerais Sobre o Renovaí {#informações-gerais}
+
+### O que é o Renovaí?
+
+O Renovaí é uma plataforma digital que conecta cooperativas de reciclagem, empresas geradoras de resíduos e empresas recicladoras. Seu objetivo é fortalecer a cadeia da reciclagem, facilitando a comunicação, a gestão operacional e a criação de novas oportunidades comerciais entre todos os atores envolvidos.
+
+### Qual é a missão do Renovaí?
+
+Transformar resíduos em oportunidades e digitalizar a gestão das cooperativas de reciclagem de forma humana, eficiente e sustentável.
+
+### Quais são os benefícios do Renovaí?
+
+- **Para Cooperativas**: Gestão simplificada de coletas, triagens e vendas; rastreabilidade completa; acesso a mais clientes; controle financeiro através de rateios.
+- **Para Empresas**: Busca facilitada de materiais recicláveis por tipo, quantidade e localização; conexão direta com cooperativas; negociação integrada; acesso a histórico de avaliações.
+- **Para o Ecossistema**: Fortalecimento da economia circular; redução de desperdícios; profissionalização das cooperativas; impacto ambiental mensurado.
+
+### Quem desenvolveu o Renovaí?
+
+O Renovaí foi desenvolvido como uma solução para conectar cooperativas, empresas e o mercado de reciclagem no Brasil, facilitando toda a cadeia produtiva da reutilização.
+
+---
+
+## Cooperativas de Reciclagem {#cooperativas}
+
+### O que é uma cooperativa de reciclagem?
+
+Uma cooperativa de reciclagem é uma associação voluntária de pessoas (catadores/cooperados) que se unem para recolher, processar e comercializar materiais recicláveis. Diferente de uma empresa tradicional com dono único, todos os participantes são considerados sócios, possuem voz nas decisões e compartilham os resultados financeiros obtidos.
+
+### Quais são os princípios de uma cooperativa?
+
+- **Associação Voluntária**: Pessoas entram e saem quando desejam.
+- **Partilha Democrática**: Todos os sócios participam das decisões.
+- **Distribuição de Resultados**: Lucros são divididos entre os associados.
+- **Compromisso Social**: Atuam pensando no bem-estar da comunidade e não apenas nos membros.
+
+### Qual é o fluxo operacional de uma cooperativa de reciclagem?
+
+1. **Coleta**: Recolhimento de materiais recicláveis descartados pela população, comércio e indústrias.
+2. **Pesagem Inicial**: Registro do volume recebido.
+3. **Triagem**: Separação minuciosa dos materiais por tipo e características específicas.
+4. **Prensagem**: Compactação em fardos para otimizar armazenamento e transporte.
+5. **Pesagem Final**: Controle de peso pós-prensagem.
+6. **Venda**: Comercialização dos fardos para empresas recicladoras.
+
+### O Renovaí auxilia todas as etapas da cooperativa?
+
+Sim. O Renovaí registra desde a coleta inicial, passando por triagem e prensagem, até a venda para empresas recicladoras. A plataforma oferece dashboards, relatórios de estoque e integração com o sistema de pedidos.
+
+### Como é calculado o rateio na cooperativa?
+
+O rateio é o processo de distribuição de ganhos financeiros entre os cooperados. O gestor define:
+- **Tipo de Rateio**: Altera o cálculo proporcional (pode ser por hora trabalhada, peso triado, produção geral, etc.).
+- **Valor Acumulado**: Total arrecadado no período.
+- **Gastos Operacionais**: Descontos de água, energia e outras despesas do período.
+- **Distribuição Individual**: Cada cooperado recebe uma porcentagem individual, editável pelo gestor.
+
+O rateio é aberto automaticamente todo final de mês.
+
+---
+
+## Usuários e Perfis {#usuários}
+
+### Quantos tipos de usuários existem no Renovaí?
+
+Existem **6 tipos principais de usuários**:
+
+1. **Admin Site** — Gerencia a plataforma como um todo via backend.
+2. **Admin Cooperativa** — Gerencia a organização, permissões e configurações institucionais.
+3. **Gestor Cooperativa** — Processa dados operacionais, análises e vendas.
+4. **Cooperado** — Executa coletas, participa de triagens e recebe rateios.
+5. **Motorista** — Realiza rotas de coleta e transporte.
+6. **Empresa** — Busca, solicita e acompanha pedidos de materiais.
+
+### Qual é o papel do Admin da Cooperativa?
+
+O Admin da Cooperativa é responsável por:
+- **Configurações Institucionais**: Editar informações gerais, endereço, contato e logotipo.
+- **Gestão de Convites e Acessos**: Gerar códigos de entrada, enviar convites e aprovar cadastros.
+- **Controle de Cargos e Permissões**: Definir cargos, promover a gestor, criar permissões personalizadas.
+- **Histórico e Auditoria**: Monitorar alterações e quem as fez.
+- **Dashboard ADM**: Acompanhar total de cooperados, gestores, contas pendentes e atividades.
+
+### Qual é o papel do Gestor da Cooperativa?
+
+O Gestor da Cooperativa é responsável por:
+- **Gestão Operacional**: Criar coletas, triagens e rotas.
+- **Estoque**: Visualizar e gerenciar materiais em armazenamento.
+- **Pedidos**: Receber, negociar e finalizar pedidos de empresas.
+- **Relatórios**: Gerar relatórios de negociações e impacto ambiental.
+- **Rateios**: Configurar e distribuir ganhos entre cooperados.
+- **Equipes**: Criar e atribuir funcionários a equipes de triagem.
+- **Funcionários**: Visualizar lista completa de cooperados.
+
+### Qual é o papel do Cooperado?
+
+O Cooperado é responsável por:
+- **Coletas**: Registrar novas coletas com peso, foto e tipo (interno/externo).
+- **Triagens**: Participar de triagens e registrar separação de materiais.
+- **Perfil**: Visualizar informações pessoais e cooperativa vinculada.
+- **Rateios**: Consultar rateios recebidos.
+- **Histórico**: Visualizar coletas e triagens das quais participou.
+
+### Qual é o papel do Motorista?
+
+O Motorista é responsável por:
+- **Visualizar Rotas**: Acessar rotas atribuídas do dia.
+- **Iniciar Rota**: Ativar GPS e navegação do percurso completo.
+- **Rastreamento**: Visitar endereços na ordem correta com cronometragem automática.
+- **Finalizar Rota**: Registrar conclusão e tempo total gasto.
+
+### Qual é o papel da Empresa?
+
+A Empresa é responsável por:
+- **Buscar Materiais**: Filtrar cooperativas por tipo de material, quantidade e localização.
+- **Enviar Pedidos**: Fazer solicitações de materiais a cooperativas.
+- **Acompanhar Pedidos**: Monitorar status de negociações e contrapropostas.
+- **Favoritar Cooperativas**: Marcar cooperativas para acesso rápido.
+- **Perfil**: Gerenciar dados cadastrais e materiais de interesse.
+
+---
+
+## Funcionalidades - Telas do Sistema {#funcionalidades}
+
+### Seção 1: Login e Cadastro
+
+#### 1.1 - Splash Screen
+Tela de boas-vindas inicial.
+
+#### 1.2 - Login Geral
+Autenticação com e-mail e senha para todos os usuários.
+
+#### 1.3 - Escolha de Cadastro
+O novo usuário escolhe entre:
+- Cadastro de **Cooperativa** (sócios/cooperados)
+- Cadastro de **Empresa** (compradoras de materiais)
+
+#### 1.4 - Cadastro de Empresa
+Preenchimento de dados da empresa durante o registro.
+
+#### 1.5 - Verificar Cadastro do Cooperado
+O admin realiza pré-cadastro inserindo e-mail e senha temporária. O funcionário acessa o app para validar.
+
+#### 1.6 - Completar Cadastro
+Cooperado define e-mail, senha e confirmação de senha após pré-cadastro.
+
+#### 1.7 - Redefinir Senha
+Primeira etapa: usuário informa e-mail cadastrado para verificação.
+Segunda etapa: usuário define e confirma nova senha.
+
+---
+
+### Seção 2: Cooperado
+
+#### 2.1 - Home
+Tela principal com:
+- **BigNumbers**: Resumo de estatísticas.
+- **Últimas Coletas**: Listagem das coletas registradas recentemente.
+- **Triagens Atribuídas**: Triagens em aberto para a equipe do cooperado.
+
+#### 2.2 - Adicionar Coleta
+Registro de nova coleta com campos:
+- **Peso** (obrigatório)
+- **Foto do Material**
+- **Tipo**: Interno ou Externo
+
+**Se INTERNO**: Informa materiais coletados e indica se necessita triagem com data prevista (adiável).
+
+**Se EXTERNO**: Informa rota de origem e se necessita triagem.
+
+**Regra de Destino**:
+- Um único material → vai direto para estoque
+- Mais de um material → obrigatório passar por triagem antes de estoque
+
+#### 2.3 - Completar Triagem
+Ao abrir triagem em aberto, o cooperado visualiza:
+- ID da coleta vinculada
+- Foto da coleta
+- Companheiros de equipe
+- Materiais que compõem a coleta
+- Separação já realizada
+
+O cooperado registra peso e tipo de cada material separado, podendo salvar progresso ou marcar como concluída.
+
+#### 2.4 - Perfil
+Visualização de:
+- Nome, cargo, e-mail
+- Cooperativa vinculada
+
+#### 2.5 - Rateios Recebidos
+Listagem completa de todos os rateios recebidos pelo cooperado.
+
+#### 2.6 - Listagem de Coletas
+Histórico de todas as coletas registradas pelo cooperado.
+
+#### 2.7 - Listagem de Triagens
+Histórico de todas as triagens nas quais o cooperado participou.
+
+---
+
+### Seção 3: Motorista
+
+#### 3.1 - Home
+Tela simples exibindo as rotas do dia atribuídas ao motorista.
+
+#### 3.2 - Rota Selecionada
+Ao abrir uma rota:
+- **Mapa**: Traçado completo da rota.
+- **Listagem**: Endereços na ordem de parada.
+- **Iniciar Rota**: Ativa GPS e abre navegação estilo Google Maps com percurso completo.
+- **Cronometragem**: Tempo total é registrado automaticamente.
+- **Finalizar**: Ao retornar à cooperativa, motorista finaliza a rota.
+
+#### 3.3 - Perfil
+Visualização de nome, cargo, e-mail e cooperativa vinculada.
+
+---
+
+### Seção 4: Gestor da Cooperativa
+
+#### 4.1 - Home
+Tela principal com:
+- **BigNumbers**: Visão geral de estatísticas.
+- **Ações Rápidas**: Nova rota, nova triagem, pedidos, novo rateio.
+- **Listagens Resumidas**: Atividades mais recentes.
+
+#### 4.2 - Listagem de Coletas
+Coletas separadas por:
+- **Tipo**: Agendada, Pendente, Imediata
+- **Origem**: Externa, Interna
+
+Cada card exibe materiais e peso total.
+
+#### 4.2.1 - Coleta Detalhada
+Imagem, tipos de material, pesos, cooperado responsável, rota (se externa).
+
+#### 4.3 - Listagem de Estoque
+Todos os materiais em estoque com:
+- Nome
+- Peso atual
+- Data da última atualização
+
+#### 4.4 - Listagem de Relatórios
+Todos os relatórios gerados com imagem do PDF e data, disponíveis para download.
+
+#### 4.4.1 - Criar Novo Relatório
+Duas opções:
+- **Negociações**: Taxa de conversão de pedidos por período.
+- **Impacto Ambiental**: Estimativas de CO₂, água e energia baseadas nos materiais coletados.
+
+#### 4.5 - Listagem de Pedidos
+Lista de pedidos (abertos e respondidos) com data, peso, material e status. BigNumber com total arrecadado.
+
+#### 4.5.1 - Detalhamento do Pedido
+Informações completas: empresa solicitante, material, peso, valor proposto. Chat integrado com empresa para negociação. Botão "Marcar como Concluído" para registrar valor final fechado.
+
+#### 4.6 - Perfil
+Nome, cargo, e-mail e cooperativa vinculada.
+
+#### 4.7 - Listagem de Rateios
+Todos os rateios com data, tipo, quantidade de cooperados e valor total distribuído.
+
+#### 4.7.1 - Rateio Detalhado
+Para rateios em aberto:
+- Valor acumulado até o momento
+- Tipo de rateio (altera cálculo proporcional)
+- Listagem de funcionários ativos com valor e porcentagem (editável)
+- Campo para gastos de água e energia
+- Botão "Fechar Rateio" para distribuir valores
+
+Abre automaticamente todo fim de mês.
+
+#### 4.8 - Listagem de Triagens
+Todas as triagens com filtros: Todas, Em Andamento, Concluídas.
+Cada card: ID triagem, ID coleta, peso total, botão detalhes.
+
+#### 4.8.1 - Detalhamento da Triagem
+Funcionários participantes, materiais separados, informações gerais.
+
+#### 4.8.2 - Criar Triagem
+Gestor seleciona funcionários participantes e coleta a ser triada.
+
+#### 4.9 - Listagem de Funcionários
+Todos os cooperados cadastrados na cooperativa.
+
+---
+
+### Seção 5: Empresa
+
+#### 5.1 - Home (Dashboard)
+BigNumbers:
+- Total de pedidos enviados
+- Pedidos aceitos
+- Valor total negociado
+- Quantidade de cooperativas favoritadas
+
+Ações rápidas: "Buscar Materiais" e "Meus Pedidos".
+Seção: Cooperativas Favoritas + últimos pedidos com status.
+
+#### 5.2 - Busca de Materiais
+Filtra cooperativas por:
+- **Tipo de Material**: Plástico, Papel, Metal, Vidro
+- **Quantidade Disponível**
+- **Localização**
+
+Os filtros vêm pré-selecionados com base nos materiais de interesse do perfil.
+Cada card: nome cooperativa, material, peso disponível, estrela para favoritar.
+
+#### 5.2.1 - Perfil Público da Cooperativa
+Nome, localização, materiais, estoque, canal de contato (WhatsApp, e-mail, telefone).
+Botões: "Favoritar" e "Enviar Pedido".
+
+#### 5.3 - Enviar Pedido
+Formulário vinculado à cooperativa:
+- Tipo de material
+- Quantidade desejada (kg)
+- Valor proposto
+
+Status: "Aberto" aguardando resposta.
+
+#### 5.4 - Listagem de Pedidos
+Separados por status: Aberto, Em Negociação, Aceito, Recusado.
+Cada card: material, peso, data, badge status.
+BigNumber: valor total aprovado.
+
+#### 5.4.1 - Detalhe do Pedido
+Cooperativa, material, peso, valor proposto, status.
+Se houver contraproposta: valor sugerido + observação + botões "Aceitar Valor" ou "Recusar".
+Se aceito: confirmação + dados de contato da cooperativa.
+
+#### 5.5 - Cooperativas Favoritas
+Cooperativas marcadas com estrela.
+Cada card: nome, materiais, botão de acesso rápido, ícone para desfavoritar.
+
+#### 5.6 - Perfil da Empresa
+Nome, CNPJ, e-mail, endereço.
+Seção editável: Materiais de Interesse (multi-select: Plástico, Papel, Metal, Vidro).
+Opção de editar dados cadastrais.
+
+---
+
+## Fluxo Operacional {#fluxo}
+
+### Quais são as camadas do sistema?
+
+O Renovaí opera em **3 camadas**:
+
+1. **Camada Operacional Interna**: Registro de coleta, triagem e prensagem dentro das cooperativas.
+2. **Camada de Gestão**: Processamento e análise dos dados por gestores de cooperativas.
+3. **Camada Comercial Externa**: Busca, solicitação e acompanhamento de pedidos por empresas.
+
+### Qual é o estágio de Coleta?
+
+**Ator**: Funcionário da Cooperativa
+
+**Dados Capturados**:
+- ID da Coleta
+- Origem/Local
+- Peso Bruto Inicial (kg)
+- Fotos
+- Data/Hora
+- ID do Cooperado
+- Status
+
+**Ações no Sistema**:
+- Lançar nova coleta com origem identificada
+- Registrar peso bruto e foto comprobatória
+- Gerar ID único (padrão: COL-YYYYMMDD-XXXXX)
+- Armazenar com timestamp
+- Fluxo para fila de triagem e dashboard do gestor
+
+### Qual é o estágio de Pesagem Inicial?
+
+**Ator**: Funcionário da Cooperativa
+
+**Dados Capturados**:
+- ID da Coleta
+- Peso Registrado (kg)
+- Tipo de Balança
+- Data/Hora
+- Operador
+
+**Ações no Sistema**:
+- Vincular pesagem à coleta existente
+- Registrar peso unitário
+- Calcular variação desde o recebimento
+- Atualizar status para 'Pesado — Aguardando Triagem'
+
+### Qual é o estágio de Triagem?
+
+**Ator**: Funcionário da Cooperativa
+
+**Dados Capturados**:
+- ID Triagem
+- ID Coleta
+- Categoria
+- Tipo Específico
+- Peso por Tipo
+- Data/Hora
+- Operador
+
+**Ações no Sistema**:
+- Registrar separação minuciosa por tipo/subcategoria
+- Criar registros de triagem
+- Validar soma total com peso inicial
+- Atualizar status para 'Triado — Aguardando Prensa'
+
+### Qual é o estágio de Prensagem?
+
+**Ator**: Funcionário / Gestor
+
+**Dados Capturados**:
+- ID Fardo
+- ID Triagem
+- Tipo Material
+- Peso Fardo (kg)
+- Data/Hora
+- Operador
+
+**Ações no Sistema**:
+- Registrar compactação em fardo
+- Gerar ID único (FAR-YYYYMMDD-XXXXX)
+- Armazenar peso pós-prensagem
+- Atualizar status para 'Prensado — Disponível para Venda'
+- Incrementar estoque interno
+
+### Qual é o estágio de Armazenamento?
+
+**Ator**: Gestor da Cooperativa
+
+**Dados Capturados**:
+- ID Fardo
+- Categoria
+- Peso
+- Data Entrada
+- Data Saída
+- Status Estoque
+
+**Ações no Sistema**:
+- Manter registro de localização física dos fardos
+- Disponibilizar consulta de estoque para empresas compradoras
+- Gerar relatório mensal de movimentação
+
+### Qual é o estágio de Vendas e Pedidos?
+
+**Ator**: Gestor Empresa → Gestor Cooperativa
+
+**Dados Capturados**:
+- ID Pedido
+- ID Empresa
+- Tipo Material
+- Quantidade (kg)
+- Preço Unitário
+- Data
+- Status
+
+**Ações no Sistema**:
+- Empresa busca materiais por filtro (proximidade, quantidade, tipo)
+- Gera ID de pedido (PED-YYYYMMDD-XXXXX)
+- Cooperativa recebe notificação
+- Gestor aprova/recusa com justificativa
+- Atualiza status Pendente → Aceito/Recusado → Finalizado
+- Desconta do estoque
+- Registra rastreabilidade
+
+---
+
+## Pedidos e Negociações {#pedidos}
+
+### Como funciona o fluxo de pedidos?
+
+1. **Empresa Busca**: Filtra cooperativas por material, quantidade e localização.
+2. **Empresa Envia Pedido**: Preenche formulário com tipo, quantidade (kg) e valor proposto.
+3. **Status Inicial**: Pedido fica "Aberto" aguardando resposta.
+4. **Cooperativa Recebe**: Gestor recebe notificação e visualiza em "Listagem de Pedidos".
+5. **Negociação**: Gestor pode aceitar ou enviar contraproposta via chat integrado.
+6. **Empresa Recebe Contraproposta**: Valor sugerido aparece em destaque.
+7. **Empresa Aceita/Recusa**: Clica nos botões correspondentes.
+8. **Fechamento**: Ambas as partes confirmam valor final.
+9. **Conclusão**: Status "Concluído" + desconto automático do estoque.
+
+### O que é uma contraproposta?
+
+Uma contraproposta é quando a cooperativa não concorda com o valor proposto pela empresa e envia uma sugestão de preço diferente, acompanhada de uma observação. A empresa pode então aceitar o novo valor ou recusar.
+
+### Existe chat durante a negociação?
+
+Sim. Há um chat integrado entre empresa e gestor da cooperativa durante a negociação de pedidos, permitindo comunicação direta e negociação em tempo real.
+
+### Como a empresa favorita cooperativas?
+
+A empresa marca cooperativas com uma estrela ⭐ tanto na listagem de resultados de busca quanto no perfil público da cooperativa. As favoritadas aparecem em uma seção dedicada para acesso rápido.
+
+### Como é feita a busca de materiais pela empresa?
+
+A empresa filtra por:
+- **Categoria de Material**: Plástico, Papel, Metal, Vidro
+- **Quantidade Disponível**: kg
+- **Localização**: Proximidade/CEP
+
+Os filtros são pré-selecionados com base nos materiais cadastrados no perfil da empresa.
+
+---
+
+## Materiais e Estoque {#estoque}
+
+### Como funcionam as categorias de materiais?
+
+Existem categorias principais (Plástico, Papel, Metal, Vidro) que podem ter subcategorias. Por exemplo, dentro de "Plástico" pode haver "PET", "PEAD", "PP", etc. Cada tipo específico pode ter um valor de venda diferente.
+
+### Por que é importante a triagem detalhada?
+
+Porque diferentes tipos de materiais possuem valores e processos de reciclagem específicos. Um material mal classificado pode perder valor ou ser rejeitado pela empresa recicladora. A triagem minuciosa garante qualidade máxima.
+
+### O que é estoque no Renovaí?
+
+É o registro de materiais prensados em fardos, armazenados na cooperativa e disponíveis para venda. O gestor visualiza:
+- Nome do material
+- Peso atual
+- Data da última atualização
+
+### Como o estoque é atualizado?
+
+O estoque é atualizado automaticamente quando:
+- Triagem é concluída → entrada de peso
+- Pedido é finalizado → saída de peso
+
+Todas as movimentações geram registros de rastreabilidade.
+
+### O que é movimentação de estoque?
+
+É o registro de cada entrada ou saída de materiais. Cada movimentação registra:
+- ID da movimentação
+- ID do estoque
+- Quantidade (positivo para entrada, negativo para saída)
+- Tipo (ENTRADA ou SAÍDA)
+- Data/hora
+- Origem (triagem ou pedido)
+
+---
+
+## Identidade Visual e Design {#design}
+
+### Quais são as cores oficiais do Renovaí?
+
+| Hex | Nome | Uso |
+|-----|------|-----|
+| #623043 | Vinho Escuro | Cor primária; textos de destaque e botões principais |
+| #B18181 | Rosa Médio | Elementos secundários, hover states e ícones suaves |
+| #84B48B | Verde Médio | Confirmações, status positivos e ícones de natureza |
+| #519058 | Verde Escuro | Fundos de seção, badges de status e elementos institucionais |
+| #D0E391 | Verde Lima | Backgrounds de cards, destaques sutis e área do cooperado |
+
+### Quem é o mascote do Renovaí?
+
+**Nimo** é um guaxinim simpático com folha e luvas verdes que representa a missão da plataforma. O guaxinim foi escolhido por representar adaptação e reaproveitamento. Nimo aparece em:
+- Onboarding
+- Mensagens de feedback
+- Telas de estado vazio
+- Notificações
+
+Seus acessórios (folha verde, luvas verdes, símbolo de reciclagem) reforçam a conexão com a natureza.
+
+### Quais são os princípios de design da interface?
+
+1. **Simplicidade**: Telas com ações claras e diretas, mínimo de campos obrigatórios por etapa.
+2. **Hierarquia Visual**: Botões primários com contraste elevado (verde escuro ou vinho) para identificação imediata da ação.
+3. **Consistência**: Mesmas cores, ícones e padrões de navegação em toda a plataforma.
+4. **Acessibilidade**: Fontes legíveis, tamanho de toque adequado, suporte a leitores de tela.
+5. **Feedback Imediato**: Confirmações visuais após cada ação, eliminando dúvidas sobre o resultado.
+6. **Mobile-First**: Design concebido primeiro para dispositivos móveis, adaptado depois para web.
+
+### O Renovaí é otimizado para mobile?
+
+Sim. O design é mobile-first, priorizando dispositivos móveis usados pelos cooperados em campo. Depois é adaptado para web.
+
+### Existem diferentes versões do logo?
+
+Sim. O logo foi desenvolvido em múltiplas variações:
+- Fundo claro
+- Fundo escuro/vinho
+- Fundo verde
+- Versão somente símbolo
+
+Garantindo aplicabilidade em diferentes contextos digitais ou impressos.
+
+---
+
+## Dados Técnicos {#técnico}
+
+### Quais são as principais tabelas do banco de dados?
+
+**Usuários e Perfis**:
+- `usuarios` — Dados de todos os usuários
+- `perfis` — Perfis de empresa ou cooperativa
+- `funcionarios` — Funcionários vinculados à cooperativa
+- `cargos` — Tipos de cargo
+
+**Organizações**:
+- `cooperativas` — Dados das cooperativas
+- `empresas` — Dados das empresas
+
+**Materiais e Categorias**:
+- `categorias_materiais` — Categorias e subcategorias
+- `materiais` — Materiais específicos
+- `estoques` — Quantidade disponível por cooperativa
+- `movimentacoes_estoques` — Histórico de entrada/saída
+
+**Operações**:
+- `eventos_operacionais` — Base para coletas e triagens
+- `coletas` — Registros de coleta (herda de eventos_operacionais)
+- `triagens` — Registros de triagem (herda de eventos_operacionais)
+- `rotas` — Rotas de coleta
+- `equipes` — Equipes de cooperados
+
+**Comercial**:
+- `pedidos` — Pedidos de empresas
+- `pedido_itens` — Itens dentro de um pedido
+- `negociacoes` — Negociações em andamento
+- `negociacao_itens` — Itens negociados
+- `negociacao_mensagens` — Chat de negociação
+- `pedidos_cooperativas` — Associação entre pedidos e cooperativas
+
+**Financeiro**:
+- `rateios` — Distribuições de ganhos
+- `rateios_funcionarios` — Valores individuais de rateio
+- `tipos_rateios` — Tipos de distribuição
+- `despesas` — Despesas da cooperativa
+- `lancamentos_despesas` — Registros de despesa por período
+
+**Qualidade e Auditoria**:
+- `avaliacoes` — Avaliações entre usuários
+- `status` — Estados de registros
+- `telefones` — Contatos
+- `enderecos` — Endereços
+- `auditoria_*` — Logs de todas as alterações
+
+### Qual é a convenção de ID?
+
+- **Coleta**: COL-YYYYMMDD-XXXXX
+- **Fardo**: FAR-YYYYMMDD-XXXXX
+- **Pedido**: PED-YYYYMMDD-XXXXX
+
+Todos os IDs principais usam UUID no banco de dados.
+
+### Existem índices de performance?
+
+Sim. Índices UNIQUE garantem:
+- Email e CPF únicos por usuário
+- Empresa/Categoria única por empresa_material_interesse
+- Empresa/Cooperativa única por favorita
+- Cooperativa/Material única por estoque
+- Cooperativa/Mês única por rateio
+
+### O sistema registra alterações?
+
+Sim. Existem **tabelas de auditoria** para cada entidade principal:
+- `auditoria_usuarios`
+- `auditoria_coletas`
+- `auditoria_pedidos`
+- `auditoria_negociacoes`
+- E muitas outras...
+
+Cada auditoria registra:
+- Qual operação (INSERT, UPDATE, DELETE)
+- Dados antigos e novos (JSONB)
+- Campos atualizados (array de TEXT)
+- Usuário que executou
+- Data/hora da alteração
+
+### Quais são as constraints de integridade?
+
+- **Chaves Estrangeiras**: Garantem relacionamentos válidos
+- **CHECK**: Validam valores (ex: data_nascimento < hoje, peso > 0)
+- **UNIQUE**: Previnem duplicatas
+- **NOT NULL**: Campos obrigatórios
+
+Exemplos:
+- `email` UNIQUE NOT NULL
+- `quantidade_kg` CHECK (quantidade_kg > 0)
+- `data_conclusao >= data_pedido`
+- `avaliador_id ≠ avaliado_id`
+
+---
+
+## Perguntas Frequentes Adicionais
+
+### O Renovaí funciona offline?
+
+Atualmente, o Renovaí é uma plataforma online. Para usar, é necessária conexão com a internet. Funcionalidades offline podem ser adicionadas em futuras versões.
+
+### Como começo a usar o Renovaí?
+
+1. Acesse a plataforma
+2. Escolha "Cadastro de Cooperativa" ou "Cadastro de Empresa"
+3. Preencha os dados iniciais
+4. Confirme o e-mail
+5. Faça login
+6. Configure seu perfil e comece a usar
+
+### O Renovaí cobra alguma taxa?
+
+Essa informação não está disponível neste FAQ. Entre em contato com o suporte do Renovaí para detalhes sobre preços e planos.
+
+### Posso ter múltiplas cooperativas na mesma conta?
+
+Essa funcionalidade não está descrita na documentação atual. Consulte o suporte para clareza.
+
+### Como recupero uma senha perdida?
+
+1. Na tela de login, clique em "Esqueci a Senha"
+2. Informe seu e-mail cadastrado
+3. Você receberá um link para redefinir
+4. Crie uma nova senha e confirme
+
+### Posso editar uma coleta após registrada?
+
+Essa funcionalidade não está descrita explicitamente. Consulte o suporte ou teste na plataforma.
+
+### O sistema gera relatórios automáticos?
+
+Não. O gestor deve criar relatórios manualmente através da seção "Criar Novo Relatório" com as duas opções disponíveis (Negociações e Impacto Ambiental).
+
+### Como as cooperativas são avaliadas?
+
+Existem avaliações entre usuários após pedidos. Uma avaliação contém:
+- Nota (1-5)
+- Comentário
+- Data
+
+Ambos avaliador e avaliado podem ser consultados.
+
+### O Renovaí oferece suporte técnico?
+
+Essa informação não está disponível neste FAQ. Procure pelos canais de contato oficiais do Renovaí.
+
+### Há manual de treinamento para os cooperados?
+
+Essa informação não está disponível neste FAQ. Consulte o Admin da Cooperativa para materiais de treinamento.
+
+### Como funciona a integração com Google Maps?
+
+O Motorista acessa um mapa interativo com:
+- Traçado completo da rota
+- Navegação turn-by-turn
+- Cronometragem automática
+- Integração com GPS do dispositivo
+
+### É possível filtrar relatórios por data?
+
+A funcionalidade de filtro por data não está descrita na documentação atual. Verifique a plataforma.
+
+### O sistema suporta múltiplas moedas?
+
+Não está descrito. Atualmente, presume-se que funciona em Real (R$) brasileiro.
+
+---
+
+## Resumo Executivo
+
+O **Renovaí** é uma plataforma de gestão operacional e comercial para a cadeia da reciclagem no Brasil. Conecta **cooperativas**, **empresas** e **recicladoras** em um único ecossistema digital.
+
+**Para Cooperativas**: Registro de coletas, triagens, armazenamento, distribuição de rateios e acesso a pedidos de empresas.
+
+**Para Empresas**: Busca facilitada de materiais, envio de pedidos, negociação integrada e histórico de avaliações.
+
+**Tecnologia**: Backend em PostgreSQL com auditoria completa, autenticação segura, e interface mobile-first com design intuitivo.
+
+**Missão**: Transformar resíduos em oportunidades e digitalizar a gestão das cooperativas de reciclagem de forma humana, eficiente e sustentável.
+
+---
+
+**Documento versão 1.0**  
+**Baseado em: Documentação oficial do Renovaí**  
+**Data: 2026**
