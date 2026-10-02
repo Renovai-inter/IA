@@ -8,7 +8,7 @@ from app.repository.postgresql.perfil_repository import PerfilContext
 
 
 class MongoMemory(MemoryStore):
-    def __init__(self, repository, resumo_service: ResumoService, janela: int = 10):
+    def __init__(self, repository, resumo_service, janela: int = 10):
         super().__init__(repository, resumo_service, janela)
 
     def preparar_turno(
@@ -88,7 +88,7 @@ class MongoMemory(MemoryStore):
         doc_id = ObjectId(sessao.id)
 
         resumo = ''
-        resumo = self.resumo_service.gerar_resumo(sessao.mensagens, sessao.resumo)
+        resumo = self.llm_service.gerar_resumo(sessao.mensagens, sessao.resumo)
         self.repository.marcar_encerrada(ObjectId(sessao.id), resumo=resumo)
 
         sessao_atualizada = self.repository.buscar_por_id(doc_id)
