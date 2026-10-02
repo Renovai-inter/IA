@@ -16,7 +16,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from app.llms.resumo_service import ResumoService
+from app.llms.embedding_service import EmbeddingService
 from app.repository.qdrant.faq_chunks_repository import FaqChunksRepository
 
 
@@ -28,9 +28,9 @@ class FaqChunkCtx(BaseModel):
 
 
 class FaqRetriever:
-    def __init__(self, repository: FaqChunksRepository, resumo_service: ResumoService, k: int = 6):
+    def __init__(self, repository: FaqChunksRepository, embedding_service: EmbeddingService, k: int = 6):
         self.repository = repository
-        self.resumo_service = resumo_service
+        self.embedding_service = embedding_service
         self.k = k
 
     def buscar(self, pergunta: str, k: Optional[int] = None) -> List[FaqChunkCtx]:
@@ -41,7 +41,7 @@ class FaqRetriever:
         com "nada encontrado" (responder que não sabe, escalar, etc.) é a
         tool/agente, não o retriever.
         """
-        embedding = self.resumo_service.gerar_embedding(pergunta)
+        embedding = self.embedding_service.gerar_embedding(pergunta)
         resultados = self.repository.buscar_faq(embedding, k or self.k)
 
         if not resultados:

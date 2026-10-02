@@ -5,7 +5,7 @@ from app.repository.qdrant.faq_chunks_repository import FaqChunksRepository
 from app.tools.base import Toolkit
 
 
-class FaqToolkit(Toolkit):
+class FaqChunksToolkit(Toolkit):
     nome = 'memoria_toolkit'
     descricao = 'Tools de consulta de conversas anteriores do usuário.'
     repositories = {
