@@ -4,7 +4,7 @@ Script de ingestão do FAQ no Qdrant.
 Lê o PDF, faz split em chunks, gera embeddings e insere na collection
 'faq_chunks' do Qdrant. Deve ser executado UMA VEZ (ou sempre que o PDF mudar):
 
-    uv run python -m app.rag.ingest_faq
+    uv run python -m app.rag.ingestion
 
 Ele limpa a collection antes de reinserir, então é seguro rodar várias vezes.
 """

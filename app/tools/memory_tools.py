@@ -19,7 +19,7 @@ class MemoriaToolkit(Toolkit):
         'resumo_repository': ResumoRepository
     }
 
-    def __init__(self, memory_stores = Dict[str, MemoryStore]):
+    def __init__(self, memory_stores: Dict[str, MemoryStore]):
         self.mongo_memory = memory_stores.get('mongo_memory', None)
         self.qdrant_memory = memory_stores.get('qdrant_memory', None)
 

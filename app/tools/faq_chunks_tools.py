@@ -5,9 +5,9 @@ from app.repository.qdrant.faq_chunks_repository import FaqChunksRepository
 from app.tools.base import Toolkit
 
 
-class FaqChunksToolkit(Toolkit):
-    nome = 'memoria_toolkit'
-    descricao = 'Tools de consulta de conversas anteriores do usuário.'
+class FaqToolkit(Toolkit):
+    nome = 'faq_toolkit'
+    descricao = 'Tools de consulta ao FAQ institucional do Renovaí.'
     repositories = {
         'faq_chunks_repository': FaqChunksRepository,
     }
@@ -15,24 +15,25 @@ class FaqChunksToolkit(Toolkit):
     def __init__(self, retriever: FaqRetriever):
         self.retriever = retriever
 
-    def faq_retriever(self, pergunta: str):
+    def faq_retriever(self, pergunta: str) -> dict:
         """Busca no FAQ oficial do Renovaí os trechos mais relevantes para responder a pergunta."""
-        resultados = self.retriever.buscar(pergunta)
-
         if pergunta in (None, ''):
             return {'status': 'error', 'message': 'Pergunta não relacionada ao faq.'}
 
-        retriever_output = {
+        resultados = self.retriever.buscar(pergunta)
+
+        if not resultados:
+            return {'status': 'error', 'message': 'Nenhum trecho do FAQ relevante foi encontrado.'}
+
+        return {
             'status': 'ok',
-            'chunks': len(resultados)
+            'chunks': [
+                {'fonte': r.fonte, 'conteudo': r.conteudo}
+                for r in resultados
+            ],
         }
 
-        return retriever_output | {
-            r.pagina: r.conteudo
-            for r in resultados
-        }
-
-    def get_tools(self):
+    def get_tools(self) -> list[StructuredTool]:
         return [
             StructuredTool.from_function(
                 func=self.faq_retriever,
