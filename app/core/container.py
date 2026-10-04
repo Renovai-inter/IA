@@ -1,11 +1,13 @@
 from app.core.config import Settings
 from app.graph.registro import RegistroEspecialista
 from app.llms.factory import LLMFactory
+from app.llms.embedding_service import EmbeddingService
 from app.memory.base import MemoryStore
 from app.memory.mongo_memory import MongoMemory
 from app.memory.qdrant_memory import QdrantMemory
-from app.memory.resumo_service import ResumoService
+from app.llms.resumo_service import ResumoService
 from app.prompts import (
+    FAQ_PROMPT_COMPLETO,
     ROUTER_PROMPT_COMPLETO,
     MATERIAL_ESTOQUE_PROMPT_COMPLETO,
     ORQUESTRADOR_PROMPT_COMPLETO
@@ -16,6 +18,7 @@ from app.llms.groq_provider import GroqProvider
 
 from app.agents.base import BaseAgent
 from app.agents.router_agent import RouterAgent
+from app.agents.faq_agent import FaqAgent
 from app.agents.material_estoque_agent import MaterialEstoqueAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
 
@@ -32,7 +35,10 @@ from app.repository.postgresql.movimentacao_estoque_repository import Movimentac
 
 from app.repository.qdrant.db import QdrantConnectionFactory
 from app.repository.qdrant.resumo_repository import ResumoRepository
+from app.repository.qdrant.faq_chunks_repository import FaqChunksRepository
+from app.rag.retriever import FaqRetriever
 from app.tools.memory_tools import MemoriaToolkit
+from app.tools.faq_chunks_tools import FaqToolkit
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
 from typing import Any, Dict, Tuple
@@ -57,8 +63,9 @@ def build_container(settings: Settings) -> Container:
         'estoque_repository':              EstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
 
-        'sessao_repository':               SessaoRepository(db=_FACTORIES_MAP.get('mongo_factory')[1]),
-        'resumo_repository':               ResumoRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1]),
+        'sessao_repository':               SessaoRepository(db=_FACTORIES_MAP.get('mongo_factory')[1], collection=settings.MONGO_COLLECTION_SESSAO),
+        'resumo_repository':               ResumoRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1], collection=settings.QDRANT_COLLECTION_MEMORIA),
+        'faq_chunks_repository':           FaqChunksRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1], collection=settings.QDRANT_COLLECTION_FAQ),
     }
 
     providers = {
@@ -67,23 +74,45 @@ def build_container(settings: Settings) -> Container:
     }
     llm_factory = LLMFactory(providers)
 
+    # ResumoService (resume conversa) e EmbeddingService (vetoriza texto) são os
+    # dois LLMService concretos: cada MemoryStore/retriever recebe o que
+    # precisa de verdade, nunca os dois pelo mesmo nome de parâmetro.
     resumo_service = ResumoService(llm_factory, *settings.AGENT_LLM_MAP['resumo_agent'])
+    embedding_service = EmbeddingService(settings.GEMINI_API_KEY)
+
     mongo_memory = MongoMemory(_REPOSITORIES_MAP['sessao_repository'], resumo_service)
-    qdrant_memory = QdrantMemory(_REPOSITORIES_MAP['resumo_repository'], resumo_service)
+    qdrant_memory = QdrantMemory(_REPOSITORIES_MAP['resumo_repository'], embedding_service)
 
     _MEMORY_STORE_MAP = {
         'mongo_memory': mongo_memory,
         'qdrant_memory': qdrant_memory,
     }
 
+    faq_retriever = FaqRetriever(_REPOSITORIES_MAP['faq_chunks_repository'], embedding_service)
+
     memoria_toolkit = MemoriaToolkit(_MEMORY_STORE_MAP)
+    faq_toolkit = FaqToolkit(faq_retriever)
     material_estoque_toolkit = MaterialEstoqueToolkit()
+
+    _TOOLKITS_MAP = {
+        'memoria_toolkit': memoria_toolkit,
+        'faq_toolkit': faq_toolkit,
+    }
 
     _AGENT_REGISTRY: dict[str, dict] = {
         'router_agent': {
             'cls': RouterAgent,
             'prompt': ROUTER_PROMPT_COMPLETO,
             'tools': memoria_toolkit.get_tools()
+        },
+        'faq_agent': {
+            # o prompt do roteador (prompts.py) emite 'ROUTE=rag_faq' — essa
+            # chave tem que ser idêntica, senão _decisao_roteador devolve uma
+            # rota que não existe em route_node_map e o grafo quebra.
+            'route': 'rag_faq',
+            'cls': FaqAgent,
+            'prompt': FAQ_PROMPT_COMPLETO,
+            'tools': faq_toolkit.get_tools()
         },
         'material_estoque_agent': {
             'route': 'estoque',
@@ -129,7 +158,8 @@ def build_container(settings: Settings) -> Container:
         agentes=agents,
         factories=_FACTORIES_MAP,
         repositories=_REPOSITORIES_MAP,
-        memory_stores=_MEMORY_STORE_MAP
+        memory_stores=_MEMORY_STORE_MAP,
+        toolkits=_TOOLKITS_MAP
     )
 
 
@@ -140,10 +170,12 @@ class Container:
         agentes: Dict[str, BaseAgent],
         factories: Dict[str, Tuple[ConnectionFactory, Any]],
         repositories: Dict[str, Repository],
-        memory_stores = Dict[str, MemoryStore]
+        memory_stores: Dict[str, MemoryStore],
+        toolkits: Dict[str, Any]
     ):
         self.graph = graph
         self.agentes = agentes
         self.factories = factories
         self.repositories = repositories
         self.memory_stores = memory_stores
+        self.toolkits = toolkits

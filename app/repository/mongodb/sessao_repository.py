@@ -59,14 +59,15 @@ class SessaoRepository(Repository[Sessao, Database]):
     por quem chama e só executa o comando correspondente no Mongo.
 
     Observação: `db` precisa ser um `pymongo.database.Database`, não um
-    `MongoClient` — `self._db['sessao']` só retorna a Collection certa se
+    `MongoClient` — `self._db['_collection']` só retorna a Collection certa se
     `self._db` já for o Database (indexar um MongoClient por nome de string
     devolve um Database, não uma Collection, e ia quebrar no primeiro
     `create_index`).
     """
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, collection: str):
         super().__init__(db)
+        self._collection = collection
         self._col_sessao = None
         self._indexes_created = False
 
@@ -74,7 +75,7 @@ class SessaoRepository(Repository[Sessao, Database]):
         if self._col_sessao is not None:
             return self._col_sessao
 
-        self._col_sessao = self._db['sessao']
+        self._col_sessao = self._db[self._collection]
 
         if not self._indexes_created:
             self._col_sessao.create_index('session_id')
