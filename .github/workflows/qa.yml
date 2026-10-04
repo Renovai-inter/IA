@@ -1,0 +1,38 @@
+name: QA
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+jobs:
+  deploy-qa:
+    name: Deploy to QA
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: QA
+      url: ${{ vars.QA_URL || 'https://qa.example.com' }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to QA
+        env:
+          QA_WEBHOOK_URL: ${{ secrets.QA_DEPLOY_WEBHOOK_URL }}
+          QA_DEPLOY_TOKEN: ${{ secrets.QA_DEPLOY_TOKEN }}
+        shell: bash
+        run: |
+          if [ -n "${QA_WEBHOOK_URL}" ]; then
+            echo "Deploying commit ${GITHUB_SHA} to QA"
+            curl -fsS -X POST "${QA_WEBHOOK_URL}" \
+              -H "Authorization: Bearer ${QA_DEPLOY_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"status":"success","environment":"qa","ref":"'"${GITHUB_SHA}"'"}'
+          else
+            echo "QA webhook not configured. Skipping deploy."
+          fi
