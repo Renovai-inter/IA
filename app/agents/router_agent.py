@@ -20,7 +20,7 @@ class RouterAgent(BaseAgent):
 
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
         resultado = self._runnable.invoke(
-            {'messages': list(state['messages'])},
+            {'messages': self._mensagens_recentes(state)},
             config=(config or {}).get('configurable', {})
             )
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])

@@ -20,7 +20,7 @@ class OrchestratorAgent(BaseAgent):
 
     def run(self, state: GraphState, config: RunnableConfig):
         resultado = self._runnable.invoke(
-            {'messages': list(state['messages'])},
+            {'messages': self._mensagens_recentes(state)},
             config=(config or {}).get('configurable', {})
         )
         

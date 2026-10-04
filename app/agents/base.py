@@ -8,11 +8,20 @@ from typing import List
 from abc import ABC, abstractmethod
 
 class BaseAgent(ABC):
+    # Quantas mensagens recentes do thread cada agente enxerga. O MemorySaver
+    # acumula o thread inteiro; sem janela, o custo de tokens cresce a cada turno.
+    # 6 cobre o turno atual (pergunta + handoff do roteador + JSON do especialista)
+    # mais um turno anterior de contexto.
+    janela_mensagens: int = 6
+
     def __init__(self, llm: BaseChatModel, system_prompt: str, tools: List[StructuredTool] | None = None):
         self.llm = llm
         self.system_prompt = system_prompt
         self.tools = tools or []
         self._runnable = create_agent(model=self.llm, tools=self.tools, system_prompt=self.system_prompt)
+
+    def _mensagens_recentes(self, state: GraphState) -> list:
+        return list(state['messages'])[-self.janela_mensagens:]
 
     def _obter_texto_mensagem(self, msg) -> str:
         content = msg.content
