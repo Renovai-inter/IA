@@ -9,6 +9,9 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
+import logging
+log = logging.getLogger(__name__)
+
 class Material(BaseModel):
     material_id: UUID
     categoria_id: UUID
@@ -51,7 +54,7 @@ class MaterialRepository(SnapshotRepository[Material, ConnectionPool]):
         super().__init__(db)
 
     def get_snapshot(self, cooperativa_id: UUID) -> MaterialSnapshot:
-        print('[DEBUG]: chegou no material_repository e tirou snapshot')
+        log.debug('chegou no material_repository e tirou snapshot')
         with self._db.connection() as conn:
             with conn.cursor() as cur:                
                 cur.execute(_QUERY_MATERIAL_POR_COOPERATIVA, [cooperativa_id])

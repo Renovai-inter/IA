@@ -16,6 +16,9 @@ import unicodedata
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 
+import logging
+log = logging.getLogger(__name__)
+
 
 class ConsultarEstoqueArgs(BaseModel):
     material_ids: Optional[List[UUID]] = Field(
@@ -354,7 +357,7 @@ class MaterialEstoqueToolkit(Toolkit):
                 - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material 
                   ou saldo de estoque encontrado).
         """
-        print('[DEBUG]: acessou tool - consultar_estoque')
+        log.debug('acessou tool - consultar_estoque')
 
         snapshots = config['configurable']['snapshots']
         estoque_snapshot: EstoqueSnapshot = snapshots['estoque_snapshot']
@@ -442,7 +445,7 @@ class MaterialEstoqueToolkit(Toolkit):
                 - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material 
                   ou saldo de estoque encontrado).
         """
-        print('[DEBUG]: acessou tool - generalizar_estoque')
+        log.debug('acessou tool - generalizar_estoque')
 
         snapshots = config['configurable']['snapshots']
         estoque_snapshot: EstoqueSnapshot = snapshots['estoque_snapshot']
@@ -537,7 +540,7 @@ class MaterialEstoqueToolkit(Toolkit):
                   e a lista 'itens' com os detalhes de cada movimentação.
                 - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material ou item encontrado).
         """
-        print('[DEBUG]: acessou tool - buscar_estoque_historico')
+        log.debug('acessou tool - buscar_estoque_historico')
         
         snapshots = config['configurable']['snapshots']
         material_snapshot = snapshots['material_snapshot']
@@ -637,7 +640,7 @@ class MaterialEstoqueToolkit(Toolkit):
                 - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material ou 
                   movimentação encontrada na janela informada).
         """
-        print('[DEBUG]: acessou tool - consultar_estoque_granular')
+        log.debug('acessou tool - consultar_estoque_granular')
         
         snapshots = config['configurable']['snapshots']
         material_snapshot = snapshots['material_snapshot']
