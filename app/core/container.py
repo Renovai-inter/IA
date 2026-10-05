@@ -103,7 +103,7 @@ def build_container(settings: Settings) -> Container:
         'router_agent': {
             'cls': RouterAgent,
             'prompt': ROUTER_PROMPT_COMPLETO,
-            'tools': memoria_toolkit.get_tools()
+            'tools': []
         },
         'faq_agent': {
             'route': 'rag_faq',

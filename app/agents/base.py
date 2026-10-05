@@ -1,7 +1,6 @@
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
-from langchain.agents import create_agent
 from app.graph.state import GraphState
 
 from typing import List
@@ -18,7 +17,6 @@ class BaseAgent(ABC):
         self.llm = llm
         self.system_prompt = system_prompt
         self.tools = tools or []
-        self._runnable = create_agent(model=self.llm, tools=self.tools, system_prompt=self.system_prompt)
 
     def _mensagens_recentes(self, state: GraphState) -> list:
         return list(state['messages'])[-self.janela_mensagens:]
