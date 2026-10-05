@@ -121,7 +121,7 @@ class MongoMemory(MemoryStore):
                 sessao_id=sessao.session_id,
                 resumo=sessao.resumo,
                 data_inicio=sessao.data_inicio,
-                mensagens_recentes=sessao.mensagens[-self.janela],
+                mensagens_recentes=sessao.mensagens[-self.janela:],
                 agentes_chamados=sessao.agentes_chamados,
             )
             for sessao in sessoes

@@ -1,8 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from qdrant_client.grpc import FieldCondition, Filter
-from qdrant_client.models import MatchValue
+from qdrant_client.models import FieldCondition, Filter, MatchValue
 
 from app.memory.base import MemoriaCtx, MemoryStore
 from app.repository.qdrant.resumo_repository import ResumoPayload
