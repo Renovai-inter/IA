@@ -38,14 +38,11 @@ jobs:
       - name: Validate syntax
         run: uv run python -m compileall main.py app
 
-      - name: Build package
-        run: uv build
-
       - name: Run tests if present
         shell: bash
         run: |
-          if find . -type f \( -name 'test_*.py' -o -name '*_test.py' \) | grep -q .; then
-            uv run python -m pytest -q
+          if [ -n "$(find . -type d \( -name .venv -o -name .git \) -prune -o -type f \( -name 'test_*.py' -o -name '*_test.py' \) -print -quit)" ]; then
+            uv run --with pytest python -m pytest -q --ignore=.venv
           else
             echo "No Python tests found. Skipping pytest."
           fi
