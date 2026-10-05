@@ -106,9 +106,6 @@ def build_container(settings: Settings) -> Container:
             'tools': memoria_toolkit.get_tools()
         },
         'faq_agent': {
-            # o prompt do roteador (prompts.py) emite 'ROUTE=rag_faq' — essa
-            # chave tem que ser idêntica, senão _decisao_roteador devolve uma
-            # rota que não existe em route_node_map e o grafo quebra.
             'route': 'rag_faq',
             'cls': FaqAgent,
             'prompt': FAQ_PROMPT_COMPLETO,
