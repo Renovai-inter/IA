@@ -10,14 +10,10 @@ from decimal import Decimal
 from uuid import UUID
 from datetime import datetime, time, timedelta
 from typing import Optional, List
-import time as tm, functools, logging
 
 import unicodedata
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
-
-import logging
-log = logging.getLogger(__name__)
 
 
 class ConsultarEstoqueArgs(BaseModel):
@@ -277,47 +273,7 @@ class MaterialEstoqueToolkit(Toolkit):
         return True
 
 
-    def timed(categoria, nome):
-        log = logging.getLogger("latency")
-        def deco(fn):
-
-            if inspect.iscoroutinefunction(fn):
-
-                @functools.wraps(fn)
-                async def async_wrapper(*a, **kw):
-                    t = tm.perf_counter()
-
-                    try:
-                        return await fn(*a, **kw)
-                    finally:
-                        log.warning(
-                            "timing category=%s name=%s duration=%.2fs",
-                            categoria,
-                            nome,
-                            tm.perf_counter() - t,
-                        )
-
-                return async_wrapper
-
-            @functools.wraps(fn)
-            def sync_wrapper(*a, **kw):
-                t = tm.perf_counter()
-
-                try:
-                    return fn(*a, **kw)
-                finally:
-                    log.warning(
-                        "timing category=%s name=%s duration=%.2fs",
-                        categoria,
-                        nome,
-                        tm.perf_counter() - t,
-                    )
-
-            return sync_wrapper
-
-        return deco
-
-    @timed(categoria='tool', nome='consultar_estoque')
+    @Toolkit.timed(categoria='tool', nome='consultar_estoque')
     def consultar_estoque(
         self,
         config: RunnableConfig,
@@ -357,7 +313,7 @@ class MaterialEstoqueToolkit(Toolkit):
                 - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material 
                   ou saldo de estoque encontrado).
         """
-        log.debug('acessou tool - consultar_estoque')
+        Toolkit.log.debug('acessou tool - consultar_estoque')
 
         snapshots = config['configurable']['snapshots']
         estoque_snapshot: EstoqueSnapshot = snapshots['estoque_snapshot']
@@ -403,7 +359,7 @@ class MaterialEstoqueToolkit(Toolkit):
             'itens': detalhes,
         }
 
-    @timed(categoria='tool', nome='generalizar_estoque')
+    @Toolkit.timed(categoria='tool', nome='generalizar_estoque')
     def generalizar_estoque(
         self,
         config: RunnableConfig,
@@ -445,7 +401,7 @@ class MaterialEstoqueToolkit(Toolkit):
                 - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material 
                   ou saldo de estoque encontrado).
         """
-        log.debug('acessou tool - generalizar_estoque')
+        Toolkit.log.debug('acessou tool - generalizar_estoque')
 
         snapshots = config['configurable']['snapshots']
         estoque_snapshot: EstoqueSnapshot = snapshots['estoque_snapshot']
@@ -499,7 +455,7 @@ class MaterialEstoqueToolkit(Toolkit):
             'itens': detalhes,
         }
 
-    @timed(categoria='tool', nome='buscar_estoque_historico')
+    @Toolkit.timed(categoria='tool', nome='buscar_estoque_historico')
     def buscar_estoque_historico(
         self,
         config: RunnableConfig,
@@ -540,7 +496,7 @@ class MaterialEstoqueToolkit(Toolkit):
                   e a lista 'itens' com os detalhes de cada movimentação.
                 - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material ou item encontrado).
         """
-        log.debug('acessou tool - buscar_estoque_historico')
+        Toolkit.log.debug('acessou tool - buscar_estoque_historico')
         
         snapshots = config['configurable']['snapshots']
         material_snapshot = snapshots['material_snapshot']
@@ -595,7 +551,7 @@ class MaterialEstoqueToolkit(Toolkit):
         }
 
 
-    @timed(categoria='tool', nome='consultar_estoque_granular')
+    @Toolkit.timed(categoria='tool', nome='consultar_estoque_granular')
     def consultar_estoque_granular(
         self,
         config: RunnableConfig,
@@ -640,7 +596,7 @@ class MaterialEstoqueToolkit(Toolkit):
                 - Se falha: 'message' descrevendo a razão do erro (ex: nenhum material ou 
                   movimentação encontrada na janela informada).
         """
-        log.debug('acessou tool - consultar_estoque_granular')
+        Toolkit.log.debug('acessou tool - consultar_estoque_granular')
         
         snapshots = config['configurable']['snapshots']
         material_snapshot = snapshots['material_snapshot']

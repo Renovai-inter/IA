@@ -22,7 +22,7 @@ class FaqAgent(BaseAgent):
         resultado = self._runnable.invoke(
             {'messages': self._mensagens_recentes(state)},
             config=(config or {}).get('configurable', {})
-            )
+        )
 
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
         faq_output = EspecialistaOutput(

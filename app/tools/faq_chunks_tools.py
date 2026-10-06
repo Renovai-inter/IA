@@ -15,8 +15,11 @@ class FaqToolkit(Toolkit):
     def __init__(self, retriever: FaqRetriever):
         self.retriever = retriever
 
+    @Toolkit.timed(categoria='tool', nome='faq_retriever')
     def faq_retriever(self, pergunta: str) -> dict:
         """Busca no FAQ oficial do Renovaí os trechos mais relevantes para responder a pergunta."""
+        Toolkit.log.debug('acessou tool - faq_retriever')
+
         if pergunta in (None, ''):
             return {'status': 'error', 'message': 'Pergunta não relacionada ao faq.'}
 

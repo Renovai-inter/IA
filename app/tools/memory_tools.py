@@ -1,12 +1,10 @@
-from typing import Annotated, Dict
+from typing import Dict
 
-from langchain.tools import InjectedState
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 
 from app.memory.base import MemoryStore
 from app.repository.mongodb.sessao_repository import SessaoRepository
-from app.memory.mongo_memory import MongoMemory
 from app.repository.qdrant.resumo_repository import ResumoRepository
 from app.tools.base import Toolkit
 
@@ -23,6 +21,7 @@ class MemoriaToolkit(Toolkit):
         self.mongo_memory = memory_stores.get('mongo_memory', None)
         self.qdrant_memory = memory_stores.get('qdrant_memory', None)
 
+    @Toolkit.timed(categoria='tool', nome='faq_retriever')
     def buscar_historico(self, config: RunnableConfig, busca: str = '') -> dict:
         """Consulta conversas ANTERIORES do usuário (sessões já encerradas).
 
@@ -30,6 +29,8 @@ class MemoriaToolkit(Toolkit):
         — preferências, decisões ou planos que o usuário mencionou antes.
         NÃO use para dados que estão no banco : para isso
         já existem as tools de consulta específicas"""
+        Toolkit.log.debug('acessou tool - buscar_historico')
+
         config = (config or {}).get('configurable', {})
         user_id = config.get('user_id')
         perfil_id = config.get('perfil_id', None)

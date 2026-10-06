@@ -249,11 +249,6 @@ MATERIAL_ESTOQUE_PROMPT_COMPLETO = (
 
 # ==============================================================================
 # ORQUESTRADOR
-# Entrada : JSON(s) dos agentes especialistas
-# Saída   : resposta final formatada para o usuário
-# ==============================================================================
-# ==============================================================================
-# ORQUESTRADOR
 # Entrada : JSON retornado pelo agente especialista
 # Saída   : resposta final apresentada ao usuário
 # ==============================================================================
@@ -281,9 +276,10 @@ corretamente o resultado.
 
 ### ENTRADA
 
-Você receberá um JSON produzido por um Agente Especialista.
-
-O JSON pode conter, entre outras, as seguintes chaves:
+Você receberá a PERGUNTA_DO_USUARIO e a SAIDA_DO_ESPECIALISTA. A saída pode ser um JSON
+estruturado ou um texto já pronto (ex.: resposta do FAQ). Se for texto, apresente-o de forma
+natural ao usuário, preservando a linha "Fonte: ..." quando existir. Responda SEMPRE ao
+usuário em linguagem natural, nunca em JSON e nunca repetindo o protocolo ROUTE/PERGUNTA_ORIGINAL.
 
 - dominio
 - intencao
