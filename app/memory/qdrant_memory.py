@@ -1,20 +1,18 @@
 from datetime import datetime
 from typing import Optional
 
-from qdrant_client.grpc import FieldCondition, Filter
-from qdrant_client.models import MatchValue
+from qdrant_client.models import FieldCondition, Filter, MatchValue
 
 from app.memory.base import MemoriaCtx, MemoryStore
-from app.memory.resumo_service import ResumoService
 from app.repository.qdrant.resumo_repository import ResumoPayload
 
 
 class QdrantMemory(MemoryStore):
-    def __init__(self, repository, resumo_service: ResumoService, janela = 5):
-        super().__init__(repository, resumo_service, janela)
+    def __init__(self, repository, embedding_service, janela = 5):
+        super().__init__(repository, embedding_service, janela)
 
     def atualizar_memoria(self, memory_ctx: MemoriaCtx):
-        vetor = self.resumo_service.gerar_embedding(memory_ctx.resumo)
+        vetor = self.llm_service.gerar_embedding(memory_ctx.resumo)
         
         payload = ResumoPayload(
             usuario_id=memory_ctx.usuario_id,
@@ -26,7 +24,7 @@ class QdrantMemory(MemoryStore):
         self.repository.upsert(vetor, payload)
 
     def recuperar_historico(self, user_id: Optional[str], perfil_id: str, busca: str):
-        embedding = self.resumo_service.gerar_embedding(busca)
+        embedding = self.llm_service.gerar_embedding(busca)
         
         filtro = Filter(
             must=[FieldCondition(

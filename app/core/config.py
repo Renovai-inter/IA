@@ -2,7 +2,7 @@
 Módulo de configurações globais da aplicação.
 
 Gerencia as variáveis de ambiente e parâmetros de configuração do sistema
-utilizando o Pydantic Settings, garantindo validação de tipos, valores padrão 
+utilizando o Pydantic Settings, garantindo validação de tipos, valores padrão
 e carregamento automático do arquivo '.env'.
 
 Classes:
@@ -32,8 +32,15 @@ class Settings(BaseSettings):
     QDRANT_URL: str
     MONGODB_URI: str
 
+    FAQ_PATH: str
+
+    MONGO_COLLECTION_SESSAO:   str = 'sessao'
+    QDRANT_COLLECTION_MEMORIA: str = 'memoria_resumos'
+    QDRANT_COLLECTION_FAQ:     str = 'faq_chunks'
+
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'router_agent':           ('GROQ',   'LOW'),
+        'faq_agent':              ('GEMINI', 'MEDIUM'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
         'orchestrator_agent':     ('GROQ',   'LOW'),
         'resumo_agent':           ('GROQ',   'LOW'),
@@ -54,4 +61,4 @@ class Settings(BaseSettings):
         for nome in self._CAMPOS_OBRIGATORIOS:
             if not getattr(self, nome, None):
                 problemas.append(f"Variável ausente no .env: {nome}")
-        return problemas 
+        return problemas

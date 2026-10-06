@@ -12,6 +12,7 @@ from langgraph.graph import (
     END,
 )
 from langgraph.checkpoint.base import BaseCheckpointSaver
+import time, functools, logging
 
 
 class GraphBuilder:
@@ -29,22 +30,37 @@ class GraphBuilder:
         self._repositories = repositories
         self._checkpointer = checkpointer
 
+        self.log = logging.getLogger("latency")
+
     def _decisao_roteador(self, state: GraphState) -> str:
         """Lê o protocolo do roteador e devolve o nome do próximo nó.
         VAI TER QUE MUDAR - roteador deve poder chamar mais de um agente (mudar prompt e run() também)"""
         return state['proximo_agente']
 
+
+    def timed(self, nome):
+        def deco(fn):
+            @functools.wraps(fn)
+            def wrapper(*a, **kw):
+                t = time.perf_counter()
+                try:
+                    return fn(*a, **kw)
+                finally:
+                    self.log.warning("node=%s %.2fs", nome, time.perf_counter() - t)
+            return wrapper
+        return deco
+
     def build_graph(self) -> CompiledStateGraph:
         graph = StateGraph(GraphState)
-        graph.add_node('router_agent', self._router_agent.run)
-        graph.add_node('orchestrator_agent', self._orchestrator_agent.run)
+        graph.add_node('router_agent', self.timed('router')(self._router_agent.run))
+        graph.add_node('orchestrator_agent', self.timed('orchestrator')(self._orchestrator_agent.run))
 
         route_node_map: Dict[str, str] = {}
         for registro in self._specialists:
             agent_repos = {nome: self._repositories[nome] for nome in registro.repositories}
             node = make_repo_backed_node(registro.agente, agent_repos)
 
-            graph.add_node(registro.node_name, node)
+            graph.add_node(registro.node_name, self.timed(registro.node_name)(node))
             graph.add_edge(registro.node_name, 'orchestrator_agent') # troca por 'juiz' quando ele existir
             route_node_map[registro.rota] = registro.node_name
 

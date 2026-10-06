@@ -53,22 +53,28 @@ QUERY_MOVIMENTACOES_POR_COOPERATIVA = """
     LEFT JOIN categorias_materiais cm2
         ON cm.categoria_pai_id = cm2.categoria_id
     WHERE e.cooperativa_id = %s
+      AND (%s::int IS NULL OR mv.data_movimentacao >= now() - make_interval(days => %s::int))
     ORDER BY mv.data_movimentacao DESC;
 """
 
 
 class MovimentacaoEstoqueRepository(SnapshotRepository[MovimentacaoEstoque, ConnectionPool]):
-    def __init__(self, db: ConnectionPool):
+    # Janela de histórico carregada a cada turno. None = sem limite (comportamento antigo).
+    def __init__(self, db: ConnectionPool, dias_historico: Optional[int] = 365):
         super().__init__(db)
+        self._dias_historico = dias_historico
 
     def get_snapshot(self, cooperativa_id: UUID) -> MovimentacaoEstoqueSnapshot:
         with self._db.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(QUERY_MOVIMENTACOES_POR_COOPERATIVA, [cooperativa_id])
+                cur.execute(
+                    QUERY_MOVIMENTACOES_POR_COOPERATIVA,
+                    [cooperativa_id, self._dias_historico, self._dias_historico],
+                )
                 itens = [MovimentacaoEstoque(**item) for item in cur.fetchall()]
 
         return MovimentacaoEstoqueSnapshot(
             cooperativa_id=cooperativa_id,
             capturado_em=datetime.now(),
             itens=itens,
-        )
+        )
