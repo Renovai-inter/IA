@@ -12,6 +12,8 @@ from app.llms.base import LLMProvider
 
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
+from app.llms.tuning import kwargs_suportados
+
 class GeminiProvider(LLMProvider):
     def __init__(self, api_key):
         super().__init__(api_key)
@@ -20,13 +22,25 @@ class GeminiProvider(LLMProvider):
                 model='gemini-3.5-flash',
                 temperature=0.7,
                 top_p=0.95,
-                api_key=self.api_key
+                api_key=self.api_key,
+                **kwargs_suportados(
+                    ChatGoogleGenerativeAI,
+                    thinking_level='low',
+                    max_retries=1,
+                    timeout=40,
+                ),
             ),
             'MEDIUM': ChatGoogleGenerativeAI(
                 model='gemini-2.5-flash',
                 temperature=0.7,
                 top_p=0.95,
-                api_key=self.api_key
+                api_key=self.api_key,
+                **kwargs_suportados(
+                    ChatGoogleGenerativeAI,
+                    thinking_budget=256,
+                    max_retries=1,
+                    timeout=40,
+                ),
             ),
             'EMBEDDING': GoogleGenerativeAIEmbeddings(
                 model="gemini-embedding-2-preview",

@@ -9,6 +9,9 @@ from typing import Optional
 
 from app.repository.base import Snapshot, SnapshotRepository
 
+import logging
+log = logging.getLogger(__name__)
+
 
 class Estoque(BaseModel):
     estoque_id: UUID
@@ -56,7 +59,7 @@ class EstoqueRepository(SnapshotRepository[Estoque, ConnectionPool]):
         super().__init__(db)
 
     def get_snapshot(self, cooperativa_id: UUID) -> EstoqueSnapshot:
-        print('[DEBUG]: chegou no estoque_repository e tirou snapshot')
+        log.debug('chegou no estoque_repository e tirou snapshot')
         with self._db.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(QUERY_ESTOQUE_POR_COOPERATIVA, [cooperativa_id])

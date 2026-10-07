@@ -12,6 +12,8 @@ from app.llms.base import LLMProvider
 
 from langchain_groq import ChatGroq
 
+from app.llms.tuning import kwargs_suportados
+
 class GroqProvider(LLMProvider):
     def __init__(self, api_key):
         super().__init__(api_key)
@@ -26,10 +28,18 @@ class GroqProvider(LLMProvider):
                     temperature=0.7,
                     api_key=self.api_key
                 ),
+                # LOW = router/orquestrador: saída curta, sem necessidade de raciocínio longo
                 'LOW' : ChatGroq(
                     model='openai/gpt-oss-20b',
                     temperature=0.0,
-                    api_key=self.api_key
+                    api_key=self.api_key,
+                    **kwargs_suportados(
+                        ChatGroq,
+                        reasoning_effort='low',
+                        max_tokens=1024,
+                        timeout=20,
+                        max_retries=1,
+                    ),
                 ),
             }
 
