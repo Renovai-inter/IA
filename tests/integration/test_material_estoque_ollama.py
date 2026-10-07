@@ -17,8 +17,9 @@ propositalmente tolerantes ao texto exato da resposta.
 """
 from __future__ import annotations
 
-from types import SimpleNamespace
 from uuid import uuid4
+
+from app.repository.postgresql.perfil_repository import PerfilContext
 
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
@@ -36,27 +37,32 @@ from app.prompts import (
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
 from tests.integration.fakes import cenario_papelao
-from tests.integration.ollama_helpers import requires_ollama
+from tests.integration.ollama_helpers import check_modelo_ou_skip, requires_ollama
 
 
 @requires_ollama
 def test_fluxo_estoque_com_ollama(ollama_llm_factory):
+    llm_low = ollama_llm_factory.get("OLLAMA", "LOW")
+    llm_high = ollama_llm_factory.get("OLLAMA", "HIGH")
+    check_modelo_ou_skip(llm_low, tier="LOW")
+    check_modelo_ou_skip(llm_high, tier="HIGH")
+
     cooperativa_id = uuid4()
     repositories = cenario_papelao(cooperativa_id)
     toolkit = MaterialEstoqueToolkit()
 
     router = RouterAgent(
-        llm=ollama_llm_factory.get("OLLAMA", "LOW"),
+        llm=llm_low,
         system_prompt=ROUTER_PROMPT_COMPLETO,
         tools=[],
     )
     especialista = MaterialEstoqueAgent(
-        llm=ollama_llm_factory.get("OLLAMA", "HIGH"),
+        llm=llm_high,
         system_prompt=MATERIAL_ESTOQUE_PROMPT_COMPLETO,
         tools=toolkit.get_tools(),
     )
     orchestrator = OrchestratorAgent(
-        llm=ollama_llm_factory.get("OLLAMA", "LOW"),
+        llm=llm_low,
         system_prompt=ORQUESTRADOR_PROMPT_COMPLETO,
         tools=[],
     )
@@ -83,7 +89,12 @@ def test_fluxo_estoque_com_ollama(ollama_llm_factory):
     resultado = graph.invoke(
         {
             "messages": [HumanMessage(content="quanto de papelão temos em estoque?")],
-            "perfil_ctx": SimpleNamespace(cooperativa_id=cooperativa_id),
+            "perfil_ctx": PerfilContext(
+                perfil_id=uuid4(),
+                tipo="COOPERATIVA",
+                empresa_id=None,
+                cooperativa_id=cooperativa_id,
+            ),
         },
         config={"configurable": {"thread_id": "integracao-estoque-ollama"}},
     )

@@ -28,16 +28,21 @@ Para `tests/integration/`, além do `uv sync`:
 
 ```bash
 ollama serve                            # se ainda não estiver rodando
-ollama pull qwen2.5:14b-instruct        # tier HIGH
-ollama pull qwen2.5:7b-instruct         # tier MEDIUM
-ollama pull qwen2.5:3b-instruct         # tier LOW
+ollama pull qwen2.5:3b-instruct         # modelo leve recomendado para testes locais rápidos
 uv run pytest tests/integration
 ```
 
-Se o Ollama não estiver no ar em `http://localhost:11434`, os testes de
-integração são **pulados** automaticamente (não falham o build) — ver
-`tests/integration/ollama_helpers.py`. Pra apontar para outro host/porta,
-defina a env var `OLLAMA_BASE_URL` antes de rodar o pytest.
+O `OllamaProvider` agora detecta automaticamente os modelos instalados no seu Ollama e possui timeout de segurança (default 120s). Se você quiser usar modelos específicos por tier ou tiver outros modelos baixados (ex: `llama3.2`, `qwen2.5:7b-instruct`), pode customizar via variáveis de ambiente:
+
+```bash
+# Usar o mesmo modelo leve em todos os tiers:
+OLLAMA_MODEL="qwen2.5:3b-instruct" uv run pytest tests/integration
+
+# Ou especificar por tier:
+OLLAMA_MODEL_HIGH="qwen2.5:7b-instruct" OLLAMA_MODEL_LOW="qwen2.5:3b-instruct" uv run pytest tests/integration
+```
+
+Se o Ollama não estiver no ar em `http://localhost:11434` ou se o modelo configurado não estiver baixado, os testes de integração são **pulados** automaticamente com uma mensagem explicativa (não travam nem falham silenciosamente). Pra apontar para outro host/porta, defina `OLLAMA_BASE_URL`. Para alterar o tempo limite de inferência, defina `OLLAMA_TIMEOUT` (em segundos).
 
 Para `tests/e2e/` (bancos reais do `.env` + Ollama) — leia
 `tests/e2e/README.md` antes de rodar, ele explica a trava de segurança:

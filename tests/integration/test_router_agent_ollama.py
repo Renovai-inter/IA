@@ -16,7 +16,7 @@ from langchain_core.messages import HumanMessage
 from app.agents.router_agent import RouterAgent
 from app.prompts import ROUTER_PROMPT_COMPLETO
 
-from tests.integration.ollama_helpers import requires_ollama
+from tests.integration.ollama_helpers import check_modelo_ou_skip, requires_ollama
 
 CASOS = [
     ("quanto de papelão temos disponível no estoque?", "estoque"),
@@ -29,6 +29,7 @@ CASOS = [
 @pytest.mark.parametrize("pergunta, rota_esperada", CASOS)
 def test_router_agent_classifica_com_ollama(ollama_llm_factory, pergunta, rota_esperada):
     llm = ollama_llm_factory.get("OLLAMA", "LOW")
+    check_modelo_ou_skip(llm, tier="LOW")
     agent = RouterAgent(llm=llm, system_prompt=ROUTER_PROMPT_COMPLETO, tools=[])
 
     resultado = agent.run({"messages": [HumanMessage(content=pergunta)]}, config={})
