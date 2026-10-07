@@ -20,8 +20,8 @@
 ## Rodando
 
 ```bash
-uv sync                      # instala pytest, httpx, langchain-ollama etc (dependency-groups.dev)
-uv run pytest tests/unit     # rápido, roda sempre, sem pré-requisito nenhum
+uv sync
+uv run pytest tests/unit
 ```
 
 Para `tests/integration/`, além do `uv sync`:

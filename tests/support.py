@@ -29,7 +29,7 @@ class StubAgent(BaseAgent):
         self._respostas = list(respostas)
         self._chamadas = 0
 
-    def run(self, state: dict, config: RunnableConfig | None = None) -> dict:
+    def run(self, state: dict, config: RunnableConfig = None) -> dict:
         self._chamadas += 1
         indice = min(self._chamadas - 1, len(self._respostas) - 1)
         return self._respostas[indice]
