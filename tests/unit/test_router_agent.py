@@ -19,7 +19,6 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-import app.agents.base as base_module
 import app.agents.router_agent as router_agent_module
 from app.agents.router_agent import RouterAgent
 
@@ -34,7 +33,6 @@ class _StubRunnable:
 
 def _build_router_agent(monkeypatch: pytest.MonkeyPatch, texto_resposta: str) -> RouterAgent:
     stub = _StubRunnable(texto_resposta)
-    monkeypatch.setattr(base_module, "create_agent", lambda **kwargs: stub)
     monkeypatch.setattr(router_agent_module, "create_agent", lambda **kwargs: stub)
     return RouterAgent(llm=None, system_prompt="prompt de teste", tools=[])
 

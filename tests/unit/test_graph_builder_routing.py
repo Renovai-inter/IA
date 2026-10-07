@@ -12,8 +12,9 @@ Cobre:
 """
 from __future__ import annotations
 
-from types import SimpleNamespace
 from uuid import uuid4
+
+from app.repository.postgresql.perfil_repository import PerfilContext
 
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
@@ -79,7 +80,12 @@ def test_rota_conhecida_chega_no_especialista_e_no_orquestrador():
     resultado = graph.invoke(
         {
             "messages": [HumanMessage(content="quanto de papelão temos?")],
-            "perfil_ctx": SimpleNamespace(cooperativa_id=cooperativa_id),
+            "perfil_ctx": PerfilContext(
+                perfil_id=uuid4(),
+                tipo="COOPERATIVA",
+                empresa_id=None,
+                cooperativa_id=cooperativa_id,
+            ),
         },
         config={"configurable": {"thread_id": "teste-rota-conhecida"}},
     )

@@ -7,7 +7,6 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-import app.agents.base as base_module
 import app.agents.material_estoque_agent as material_estoque_module
 from app.agents.material_estoque_agent import MaterialEstoqueAgent
 
@@ -26,7 +25,6 @@ def test_material_estoque_agent_monta_especialista_output(monkeypatch: pytest.Mo
         '"resposta":"Há 3.450 kg de papelão disponível."}'
     )
     stub = _StubRunnable(texto_json)
-    monkeypatch.setattr(base_module, "create_agent", lambda **kwargs: stub)
     monkeypatch.setattr(material_estoque_module, "create_agent", lambda **kwargs: stub)
 
     agent = MaterialEstoqueAgent(llm=None, system_prompt="prompt de teste", tools=[])
