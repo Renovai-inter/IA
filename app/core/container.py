@@ -80,9 +80,6 @@ def build_container(
     llm_factory = LLMFactory(providers)
     llm_map = agent_llm_map or settings.AGENT_LLM_MAP
 
-    # ResumoService (resume conversa) e EmbeddingService (vetoriza texto) são os
-    # dois LLMService concretos: cada MemoryStore/retriever recebe o que
-    # precisa de verdade, nunca os dois pelo mesmo nome de parâmetro.
     resumo_service = ResumoService(llm_factory, *llm_map['resumo_agent'])
     embedding_service = EmbeddingService(settings.GEMINI_API_KEY)
 
