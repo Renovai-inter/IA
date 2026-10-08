@@ -35,7 +35,12 @@ class GraphBuilder:
     def _decisao_roteador(self, state: GraphState) -> str:
         """Lê o protocolo do roteador e devolve o nome do próximo nó.
         VAI TER QUE MUDAR - roteador deve poder chamar mais de um agente (mudar prompt e run() também)"""
-        return state['proximo_agente']
+        proximo = state.get('proximo_agente')
+        rotas_especialistas = {registro.rota for registro in self._specialists}
+        if proximo in rotas_especialistas:
+            return proximo
+        return 'fim'
+
 
 
     def timed(self, nome):
