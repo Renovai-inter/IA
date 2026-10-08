@@ -46,7 +46,11 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
 
-def build_container(settings: Settings) -> Container:
+def build_container(
+    settings: Settings,
+    providers: Dict[str, Any] | None = None,
+    agent_llm_map: Dict[str, Tuple[str, str]] | None = None,
+) -> Container:
     pg_factory = PostgresConnectionFactory(dsn=settings.DATABASE_URL)
     mongo_factory = MongoConnectionFactory(dsn=settings.MONGODB_URI, db_name='mongo_dbrenovai')
     qdrant_factory = QdrantConnectionFactory(dsn=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
@@ -68,16 +72,18 @@ def build_container(settings: Settings) -> Container:
         'faq_chunks_repository':           FaqChunksRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1], collection=settings.QDRANT_COLLECTION_FAQ),
     }
 
-    providers = {
-        'GEMINI': GeminiProvider(settings.GEMINI_API_KEY),
-        'GROQ':   GroqProvider(settings.GROQ_API_KEY),
-    }
+    if providers is None:
+        providers = {
+            'GEMINI': GeminiProvider(settings.GEMINI_API_KEY),
+            'GROQ':   GroqProvider(settings.GROQ_API_KEY),
+        }
     llm_factory = LLMFactory(providers)
+    llm_map = agent_llm_map or settings.AGENT_LLM_MAP
 
     # ResumoService (resume conversa) e EmbeddingService (vetoriza texto) são os
     # dois LLMService concretos: cada MemoryStore/retriever recebe o que
     # precisa de verdade, nunca os dois pelo mesmo nome de parâmetro.
-    resumo_service = ResumoService(llm_factory, *settings.AGENT_LLM_MAP['resumo_agent'])
+    resumo_service = ResumoService(llm_factory, *llm_map['resumo_agent'])
     embedding_service = EmbeddingService(settings.GEMINI_API_KEY)
 
     mongo_memory = MongoMemory(_REPOSITORIES_MAP['sessao_repository'], resumo_service)
@@ -127,7 +133,7 @@ def build_container(settings: Settings) -> Container:
     specialists: list[RegistroEspecialista] = []
     agents = {}
     for name, spec in _AGENT_REGISTRY.items():
-        llm = llm_factory.get(*settings.AGENT_LLM_MAP[name])
+        llm = llm_factory.get(*llm_map[name])
         agent_repos = settings.AGENT_REPOSITORY_MAP.get(name, [])
         agent = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'])
         agents[name] = agent
