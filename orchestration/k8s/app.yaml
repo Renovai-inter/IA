@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: renovai-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ia-api
+  namespace: renovai-api
+spec:
+  replicas: 1
+  # ponytail: checkpoints locais; persistir MemorySaver antes de escalar. Reinícios perdem checkpoints.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ia-api
+  template:
+    metadata:
+      labels:
+        app: ia-api
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: ia-api
+          image: "${ECR_IMAGE}"
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: FAQ_PATH
+              value: /app/data/FAQ_RENOVAI_COMPLETO.txt
+          envFrom:
+            - secretRef:
+                name: ia-api-secrets
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ia-api-service
+  namespace: renovai-api
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+  labels:
+    app: ia-api
+spec:
+  type: LoadBalancer
+  selector:
+    app: ia-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

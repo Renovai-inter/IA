@@ -1,40 +1,72 @@
-name: PROD
+name: Deploy to AWS EKS
 
 on:
   push:
-    branches:
-      - main
-  release:
-    types: [published]
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-aws-prod
+  cancel-in-progress: false
+
 jobs:
-  deploy-prod:
-    name: Deploy to PROD
-    if: github.ref == 'refs/heads/main' || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+  build-and-deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment:
-      name: prod
-      url: ${{ vars.PROD_URL || 'https://prod.example.com' }}
-    permissions:
-      contents: read
+    timeout-minutes: 30
+    environment: prod
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'renovai-api-ia' }}
+      IMAGE_TAG: ${{ github.sha }}
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy to production
-        env:
-          PROD_WEBHOOK_URL: ${{ secrets.PROD_DEPLOY_WEBHOOK_URL }}
-          PROD_DEPLOY_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
-        shell: bash
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install PostgreSQL build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential libpq-dev
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: '0.9.0'
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-dev
+
+      - name: Validate and test
         run: |
-          if [ -n "${PROD_WEBHOOK_URL}" ]; then
-            echo "Deploying commit ${GITHUB_SHA} to production"
-            curl -fsS -X POST "${PROD_WEBHOOK_URL}" \
-              -H "Authorization: Bearer ${PROD_DEPLOY_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d '{"status":"success","environment":"prod","ref":"'"${GITHUB_SHA}"'"}'
-          else
-            echo "Production webhook not configured. Skipping deploy."
-          fi
+          uv run --frozen --no-dev python -m compileall app
+          uv run --frozen --no-dev python -m unittest discover -s tests -v
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read EKS version
+        id: cluster
+        run: |
+          VERSION=$(aws eks describe-cluster --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION" --query 'cluster.version' --output text)
+          echo "kubectl-version=v${VERSION}.0" >> "$GITHUB_OUTPUT"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: ${{ steps.cluster.outputs.kubectl-version }}
+
+      - name: Build, push to ECR and deploy to EKS
+        run: bash orchestration/deploy.sh

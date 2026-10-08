@@ -1,5 +1,61 @@
 # Projeto Interdisciplinar - Instituto J&F Germinatech
 
+## Deploy automático AWS (GitHub Actions / EKS)
+
+A pipeline `.github/workflows/prod.yml` executa testes, constrói a imagem,
+publica no ECR e atualiza o EKS a cada push na `main`. Também pode ser
+acionada em **Actions > Deploy to AWS EKS > Run workflow**, selecionando `main`.
+Um teste que falha interrompe o job antes de configurar as credenciais AWS.
+
+Antes do primeiro deploy, crie o repositório ECR `renovai-api-ia` e configure
+o Secret Kubernetes `ia-api-secrets` no namespace `renovai-api`,
+usando `orchestration/secret.template.yaml`. O Deployment define `FAQ_PATH=/app/data/FAQ_RENOVAI_COMPLETO.txt`; o arquivo
+versionado do FAQ é incluído na imagem. Os bancos e provedores continuam
+externos. As credenciais das aplicações ficam no Secret Kubernetes.
+
+Configure em **Settings > Secrets and variables > Actions**, nos dois repositórios:
+
+| Secret | Valor |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Credencial AWS com acesso ao ECR e EKS |
+| `AWS_SECRET_ACCESS_KEY` | Chave secreta correspondente |
+| `AWS_SESSION_TOKEN` | Obrigatório para credenciais temporárias, como AWS Academy |
+| `AWS_REGION` | Região do cluster, igual à usada pela API Spring |
+| `EKS_CLUSTER_NAME` | Nome do mesmo cluster da API Spring |
+
+A variável `ECR_REPOSITORY` é opcional; os nomes padrão estão no workflow.
+Credenciais temporárias precisam ser atualizadas quando expirarem. Na IA, o job
+mantém o environment `prod`; suas regras de aprovação e seus Secrets continuam
+valendo.
+
+A identidade AWS usada pelo GitHub precisa ter acesso ao cluster Kubernetes e
+permissão de publicar imagens no ECR. O runner precisa alcançar o endpoint EKS;
+para um endpoint privado, use um runner com acesso à VPC. Os scripts não alteram
+permissões ou a configuração de rede do cluster.
+
+O workflow chama `orchestration/deploy.sh`. Ele gera o contexto Docker usando
+o `.gitignore`, publica uma imagem identificada pelo SHA do commit e aguarda
+o rollout. Não há `.dockerignore`. O mesmo script pode ser executado manualmente
+com `AWS_REGION` e `EKS_CLUSTER_NAME` definidos.
+
+O Service usa um Network Load Balancer público na porta 80, encaminhando para
+8000 no container. Após o deploy, aguarde o endereço externo:
+
+```bash
+kubectl get service ia-api-service -n renovai-api -w
+```
+
+Use o hostname exibido em `EXTERNAL-IP` para chamar `http://HOSTNAME/health`,
+`http://HOSTNAME/docs` e as rotas da API. Se continuar `<pending>`, consulte
+`kubectl describe service ia-api-service -n renovai-api` para verificar os eventos.
+O cluster precisa permitir o provisionamento do NLB em subnets públicas.
+
+O acesso é HTTP, sem TLS e sem autenticação nesta etapa. Chamadas públicas ao chat
+podem consumir a cota dos provedores de IA. O NLB gera cobrança adicional na AWS.
+Para chamadas de um frontend em outra origem, configure também o CORS da aplicação.
+
+Mantenha uma réplica e um worker; os checkpoints em memória são perdidos nos reinícios.
+
 Solucao tecnologica desenvolvida como projeto interdisciplinar pelos alunos do 1o e 2o ano do Instituto J&F Germinatech. O projeto integra disciplinas de backend, frontend, dados, mobile, inteligencia artificial, UX e gestao de projetos em uma unica plataforma coesa.
 
 ---
