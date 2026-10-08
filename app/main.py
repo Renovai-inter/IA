@@ -3,7 +3,8 @@ from app.api.routes import chat, sessions
 from app.core.config import Settings
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, logger
+from fastapi import FastAPI, Request
+from fastapi.logger import logger
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
