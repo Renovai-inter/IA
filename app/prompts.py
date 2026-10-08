@@ -161,7 +161,7 @@ MATERIAL_ESTOQUE_PROMPT = f"""
 
 
 ### OBJETIVO
-Interpretar a PERGUNTA_ORIGINAL sobre materiais recicláveis, classificação de resíduos e gestão de estoque de cooperativas/empresas para operar as ferramentas (tools) de `estoque` e `materiais` e retornar a resposta formatada.
+Interpretar a pergunta do usuário (a última mensagem do usuário no histórico) sobre materiais recicláveis, classificação de resíduos e gestão de estoque de cooperativas/empresas para operar as ferramentas (tools) de `estoque` e `materiais` e retornar a resposta formatada.
 A saída SEMPRE é JSON para o Orquestrador.
 
 
@@ -212,23 +212,19 @@ MATERIAL_ESTOQUE_SHOTS_OPEN = (
 )
 
 MATERIAL_ESTOQUE_SHOT_1 = """
-Roteador: ROUTE=estoque
-PERGUNTA_ORIGINAL=[quanto de papelão temos estocado atualmente na cooperativa?]
+Usuário: [quanto de papelão temos estocado atualmente na cooperativa?]
 MaterialEstoque: {"dominio":"material_estoque","intencao":"consultar","resposta":"Atualmente há 3.450 kg de 'papel_papelao' disponível no estoque principal.","recomendacao":"Verifique se há pedidos de compra abertos para liberar espaço no galpão.","indicadores":{"peso_total_kg":3450},"janela_tempo":{"de":"2026-09-02","ate":"2026-09-02","rotulo":"hoje"}}"""
 
 MATERIAL_ESTOQUE_SHOT_2 = """
-Roteador: ROUTE=estoque
-PERGUNTA_ORIGINAL=[registra a entrada de 500kg de garrafas PET no estoque]
+Usuário: [registra a entrada de 500kg de garrafas PET no estoque]
 MaterialEstoque: {"dominio":"material_estoque","intencao":"inserir","resposta":"Cadastrada entrada de 500 kg de 'plástico' (PET) no estoque.","recomendacao":"Certifique-se de realizar a triagem e prensagem antes de associar a um lote de venda.","escrita":{"operacao":"adicionar","id":892},"indicadores":{"quantidade_adicionada_kg":500}}"""
 
 MATERIAL_ESTOQUE_SHOT_3 = """
-Roteador: ROUTE=estoque
-PERGUNTA_ORIGINAL=[dar baixa no lote de alumínio que vendemos]
+Usuário: [dar baixa no lote de alumínio que vendemos]
 MaterialEstoque: {"dominio":"material_estoque","intencao":"deletar","resposta":"Preciso do identificador do lote ou da quantidade vendida para dar baixa.","recomendacao":"","esclarecer":"Qual o número/ID do lote ou o peso exato (em kg) de alumínio a ser baixado?"}"""
 
 MATERIAL_ESTOQUE_SHOT_4 = """
-Roteador: ROUTE=estoque
-PERGUNTA_ORIGINAL=[qual é a melhor rota para o caminhão fazer as coletas hoje?]
+Usuário: [qual é a melhor rota para o caminhão fazer as coletas hoje?]
 MaterialEstoque: {"dominio":"material_estoque","intencao":"consultar","resposta":"Essa solicitação envolve planejamento logístico e otimização de rotas, fora do escopo direto de estoque.","recomendacao":"Por favor, selecione ou direcione a pergunta ao agente de Logística & Rotas."}"""
 
 MATERIAL_ESTOQUE_SHOTS_CUT = (
@@ -548,9 +544,8 @@ ORQUESTRADOR_PROMPT_COMPLETO = (
 
 FAQ_PROMPT = """
 ### ENTRADA
-Você recebe o protocolo de encaminhamento do Roteador no formato:
-ROUTE=rag_faq
-PERGUNTA_ORIGINAL=[dúvida do usuário sobre o Renovaí]
+Você recebe a conversa já encaminhada pelo Roteador para este domínio. A pergunta
+a responder é a última mensagem do usuário no histórico.
 
 
 ### OBJETIVO
@@ -562,7 +557,7 @@ do sistema, com base EXCLUSIVAMENTE no conteúdo do FAQ oficial do Renovaí.
 
 
 ### REGRAS
-- SEMPRE chame a tool `faq_retriever` passando o texto de PERGUNTA_ORIGINAL antes de responder.
+- SEMPRE chame a tool `faq_retriever` passando o texto da pergunta do usuário antes de responder.
 - Responda SOMENTE com base no retorno da tool. Nunca use conhecimento próprio.
 - Se a tool não retornar informação relevante, responda exatamente:
   "Não encontrei essa informação no FAQ do Renovaí."
@@ -582,13 +577,11 @@ FAQ_SHOTS_OPEN = (
 )
 
 FAQ_SHOT_1 = """
-Roteador: ROUTE=rag_faq
-PERGUNTA_ORIGINAL=[dúvida sobre as permissões de um cargo dentro da cooperativa]
+Usuário: [dúvida sobre as permissões de um cargo dentro da cooperativa]
 FAQ: [chama faq_retriever com a pergunta → lê o retorno → responde com base no conteúdo encontrado → cita a fonte]"""
 
 FAQ_SHOT_2 = """
-Roteador: ROUTE=rag_faq
-PERGUNTA_ORIGINAL=[dúvida sobre tema não coberto pelo FAQ do Renovaí]
+Usuário: [dúvida sobre tema não coberto pelo FAQ do Renovaí]
 FAQ: Não encontrei essa informação no FAQ do Renovaí."""
 
 FAQ_SHOTS_CUT = (

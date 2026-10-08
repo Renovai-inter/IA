@@ -21,7 +21,7 @@ class RouterAgent(BaseAgent):
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
         resultado = self._runnable.invoke(
             {'messages': self._mensagens_recentes(state)},
-            config=(config or {}).get('configurable', {})
+            config=self._config_interno(config)
         )
 
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
@@ -32,8 +32,18 @@ class RouterAgent(BaseAgent):
                 rota = linha.split('=', 1)[1].strip()
                 break
 
+        # O protocolo ROUTE=.../PERGUNTA_ORIGINAL=... é comunicação interna
+        # roteador -> grafo: só vira mensagem no histórico quando o roteador
+        # está respondendo direto ao usuário (saudação / fora de escopo).
+        # Quando encaminha, o especialista lê a pergunta do próprio
+        # HumanMessage, e a rota segue em `proximo_agente`.
+        mensagens = (
+            [{'role': 'assistant', 'content': texto_resposta}]
+            if rota == 'fim' else []
+        )
+
         return {
-            'messages'        : [{'role': 'assistant', 'content': texto_resposta}],
+            'messages'        : mensagens,
             'proximo_agente'  : rota,
             'agentes_chamados': [self.nome_agente],
         }
