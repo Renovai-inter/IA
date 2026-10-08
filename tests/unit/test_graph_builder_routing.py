@@ -5,10 +5,9 @@ Cobre:
 - uma rota conhecida ('estoque', presente em _ROUTE_NODE_MAP via
   RegistroEspecialista) chega no especialista certo e depois no orquestrador;
 - uma rota que o roteador conhece (está no prompt) mas que ainda não tem nó
-  registrado (ex.: 'financeiro') cai direto em END — é exatamente o
-  mecanismo por trás do bug documentado em test_router_agent.py: a resposta
-  crua do roteador (com o protocolo ROUTE=...) vira a "resposta final",
-  porque não existe nó de especialista pra essa rota ainda.
+  registrado (ex.: 'financeiro') vai para o nó 'indisponivel', que responde
+  com uma mensagem amigável em vez do protocolo cru ROUTE=...;
+- perfil EMPRESA (sem cooperativa_id) não dispara snapshot de cooperativa.
 """
 from __future__ import annotations
 
@@ -30,7 +29,9 @@ def _build_graph(rota_do_roteador: str):
         "router",
         [
             {
-                "messages": [{"role": "assistant", "content": f"ROUTE={rota_do_roteador}"}],
+                # Igual ao RouterAgent real: ao encaminhar, não grava o
+                # protocolo ROUTE=... no histórico.
+                "messages": [],
                 "proximo_agente": rota_do_roteador,
                 "agentes_chamados": ["router"],
             }
@@ -95,7 +96,7 @@ def test_rota_conhecida_chega_no_especialista_e_no_orquestrador():
     assert resultado["messages"][-1].content == "resposta final formatada"
 
 
-def test_rota_nao_mapeada_cai_direto_em_end():
+def test_rota_nao_mapeada_responde_indisponivel():
     graph = _build_graph("financeiro")
 
     resultado = graph.invoke(
@@ -103,7 +104,31 @@ def test_rota_nao_mapeada_cai_direto_em_end():
         config={"configurable": {"thread_id": "teste-rota-desconhecida"}},
     )
 
-    # nenhum especialista nem orquestrador rodou — a "resposta final" é o
-    # protocolo cru do roteador, o mesmo efeito descrito no bug ativo.
+    # nenhum especialista nem orquestrador rodou; o nó 'indisponivel'
+    # responde com mensagem amigável em vez do protocolo cru do roteador.
     assert resultado["agentes_chamados"] == ["router"]
-    assert "ROUTE=financeiro" in resultado["messages"][-1].content
+    resposta = resultado["messages"][-1].content
+    assert "ROUTE=" not in resposta
+    assert resposta == GraphBuilder._MENSAGEM_INDISPONIVEL
+
+
+def test_perfil_empresa_nao_consulta_snapshot_de_cooperativa():
+    graph = _build_graph("estoque")
+
+    resultado = graph.invoke(
+        {
+            "messages": [HumanMessage(content="quanto de papelão temos?")],
+            "perfil_ctx": PerfilContext(
+                perfil_id=uuid4(),
+                tipo="EMPRESA",
+                empresa_id=uuid4(),
+                cooperativa_id=None,
+            ),
+        },
+        config={"configurable": {"thread_id": "teste-perfil-empresa"}},
+    )
+
+    # o nó do especialista responde direto (sem chamar o agente) e o
+    # orquestrador formata em seguida.
+    assert "material_estoque" in resultado["agentes_chamados"]
+    assert "orchestrator" in resultado["agentes_chamados"]

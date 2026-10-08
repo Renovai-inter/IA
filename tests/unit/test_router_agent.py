@@ -7,12 +7,10 @@ dependência de bind_tools/tool-calling da versão instalada do LangChain —
 testamos só a lógica de parsing do protocolo ROUTE=..., que é o que
 realmente pertence ao RouterAgent.
 
-Também documenta o bug ativo conhecido do roteador (ver a skill
-ia-renovai / estado_atual_codigo.md): o texto cru do protocolo
-ROUTE=.../PERGUNTA_ORIGINAL=... é sempre adicionado ao histórico de
-mensagens, mesmo quando a rota não é 'fim'. Isso não foi corrigido aqui —
-só documentado via teste xfail, pra virar verde sozinho quando alguém
-aplicar a correção mínima descrita no arquivo de referência.
+Também cobre a correção do antigo vazamento do protocolo: o texto
+ROUTE=.../PERGUNTA_ORIGINAL=... só entra no histórico de mensagens quando o
+roteador responde direto ao usuário (rota 'fim'); quando encaminha, a lista
+de mensagens volta vazia e a rota segue em `proximo_agente`.
 """
 from __future__ import annotations
 
@@ -65,17 +63,7 @@ def test_router_agent_sem_protocolo_cai_em_fim(monkeypatch: pytest.MonkeyPatch):
     assert resultado["proximo_agente"] == "fim"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Bug conhecido do RouterAgent (ver estado_atual_codigo.md): o protocolo "
-        "ROUTE=.../PERGUNTA_ORIGINAL=... cru é sempre adicionado ao histórico de "
-        "mensagens, mesmo quando a rota != 'fim'. Correção mínima: só incluir a "
-        "mensagem do roteador no histórico quando ele está respondendo diretamente "
-        "ao usuário (rota == 'fim'). Este teste passa sozinho quando isso for corrigido."
-    ),
-)
-def test_router_agent_nao_deveria_vazar_protocolo_quando_encaminha(monkeypatch: pytest.MonkeyPatch):
+def test_router_agent_nao_vaza_protocolo_quando_encaminha(monkeypatch: pytest.MonkeyPatch):
     texto = "ROUTE=estoque\nPERGUNTA_ORIGINAL=quanto de papelão temos?"
     agent = _build_router_agent(monkeypatch, texto)
 
@@ -84,5 +72,18 @@ def test_router_agent_nao_deveria_vazar_protocolo_quando_encaminha(monkeypatch: 
         config={},
     )
 
-    mensagem_no_historico = resultado["messages"][0]["content"]
-    assert "ROUTE=" not in mensagem_no_historico
+    assert resultado["proximo_agente"] == "estoque"
+    assert resultado["messages"] == []
+
+
+def test_router_agent_mantem_resposta_direta_no_historico(monkeypatch: pytest.MonkeyPatch):
+    texto = "Olá! Posso te ajudar com estoque ou dúvidas sobre o Renovaí."
+    agent = _build_router_agent(monkeypatch, texto)
+
+    resultado = agent.run(
+        {"messages": [HumanMessage(content="oi")]},
+        config={},
+    )
+
+    assert resultado["proximo_agente"] == "fim"
+    assert resultado["messages"] == [{"role": "assistant", "content": texto}]
