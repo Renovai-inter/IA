@@ -14,6 +14,11 @@ class EmbeddingService(LLMService):
         # perguntas repetidas (FAQ) não precisam de nova chamada de rede
         self._embed_cached = lru_cache(maxsize=256)(self._embed_query)
 
+    @property
+    def dim(self) -> int:
+        """Dimensão dos vetores gerados, usada para criar as collections do Qdrant."""
+        return self._dim
+
     def _embed_query(self, texto: str) -> tuple[float, ...]:
         return tuple(self._llm.embed_query(texto, output_dimensionality=self._dim))
 
@@ -21,4 +26,4 @@ class EmbeddingService(LLMService):
         return list(self._embed_cached(texto))
 
     def gerar_embeddings_batch(self, textos: list[str]) -> list[list[float]]:
-        return self._llm.embed_documents(textos, output_dimensionality=self._dim)
+        return self._llm.embed_documents(textos, output_dimensionality=self._dim)

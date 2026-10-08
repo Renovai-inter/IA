@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
-from qdrant_client.grpc import Filter, PointStruct
+from qdrant_client.models import Filter, PointStruct
 
 from app.repository.base import Repository
 
@@ -27,7 +27,7 @@ class ResumoRepository(Repository[ResumoPayload, QdrantClient]):
         self._collection = collection
 
     def upsert(self, vetor, payload: ResumoPayload):
-        self._db.upsert(self._collection, points=[PointStruct(
+        self._db.upsert(collection_name=self._collection, points=[PointStruct(
             id=str(uuid4()),
             vector=vetor,
             payload=payload.model_dump(mode="json"),

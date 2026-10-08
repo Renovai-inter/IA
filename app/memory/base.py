@@ -9,7 +9,7 @@ from app.repository.base import Repository
 
 class MemoriaCtx(BaseModel):
     doc_id: str
-    usuario_id: Optional[str]
+    usuario_id: Optional[str] = None
     perfil_id: str
     sessao_id: str
     resumo: Optional[str] = None

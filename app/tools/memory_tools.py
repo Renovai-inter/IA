@@ -21,7 +21,7 @@ class MemoriaToolkit(Toolkit):
         self.mongo_memory = memory_stores.get('mongo_memory', None)
         self.qdrant_memory = memory_stores.get('qdrant_memory', None)
 
-    @Toolkit.timed(categoria='tool', nome='faq_retriever')
+    @Toolkit.timed(categoria='tool', nome='buscar_historico')
     def buscar_historico(self, config: RunnableConfig, busca: str = '') -> dict:
         """Consulta conversas ANTERIORES do usuário (sessões já encerradas).
 
