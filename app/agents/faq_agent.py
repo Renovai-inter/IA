@@ -21,7 +21,7 @@ class FaqAgent(BaseAgent):
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
         resultado = self._runnable.invoke(
             {'messages': self._mensagens_recentes(state)},
-            config=(config or {}).get('configurable', {})
+            config=self._config_interno(config)
         )
 
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])

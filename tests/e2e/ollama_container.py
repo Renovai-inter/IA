@@ -18,6 +18,8 @@ _OLLAMA_AGENT_LLM_MAP: dict[str, tuple[str, str]] = {
     "material_estoque_agent": ("OLLAMA", "HIGH"),
     "orchestrator_agent": ("OLLAMA", "LOW"),
     "resumo_agent": ("OLLAMA", "LOW"),
+    "guardrail_entrada": ("OLLAMA", "LOW"),
+    "guardrail_saida": ("OLLAMA", "LOW"),
 }
 
 

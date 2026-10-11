@@ -9,7 +9,6 @@ Classes:
     Settings: Define o schema das variáveis de ambiente da aplicação.
 
 """
-from pydantic_settings import BaseSettings
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from typing import (
@@ -41,6 +40,8 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     FAQ_PATH: str
 
+    MONGO_DB_NAME: str = "mongo_dbrenovai"
+
     MONGO_COLLECTION_SESSAO:   str = 'sessao'
     QDRANT_COLLECTION_MEMORIA: str = 'memoria_resumos'
     QDRANT_COLLECTION_FAQ:     str = 'faq_chunks'
@@ -51,7 +52,10 @@ class Settings(BaseSettings):
         'material_estoque_agent': ('GEMINI', 'HIGH'),
         'orchestrator_agent':     ('GROQ',   'LOW'),
         'resumo_agent':           ('GROQ',   'LOW'),
+        'guardrail_entrada':      ('GROQ',   'LOW'),
+        'guardrail_saida':        ('GROQ',   'LOW'),
     }
+    GUARDRAIL_ROTAS_REVISAO: Tuple[str, ...] = ('financeiro',)
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {
         'material_estoque_agent': ['material_repository','estoque_repository', 'movimentacao_estoque_repository']
     }

@@ -5,12 +5,9 @@ from app.repository.base import Repository
 
 from app.graph.nodes import make_repo_backed_node
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.graph import (
-    StateGraph,
-    END,
-)
+from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.base import BaseCheckpointSaver
 import time, functools, logging
 
@@ -23,24 +20,18 @@ class GraphBuilder:
         specialists: List[RegistroEspecialista],
         repositories: Dict[str, Repository],
         checkpointer: BaseCheckpointSaver,
+        guardrail_entrada: BaseAgent,
+        guardrail_saida: BaseAgent,
     ):
         self._router_agent = router_agent
         self._orchestrator_agent = orchestrator_agent
         self._specialists = specialists
         self._repositories = repositories
         self._checkpointer = checkpointer
+        self._guardrail_entrada = guardrail_entrada
+        self._guardrail_saida = guardrail_saida
 
         self.log = logging.getLogger("latency")
-
-    def _decisao_roteador(self, state: GraphState) -> str:
-        """Lê o protocolo do roteador e devolve o nome do próximo nó.
-        VAI TER QUE MUDAR - roteador deve poder chamar mais de um agente (mudar prompt e run() também)"""
-        proximo = state.get('proximo_agente')
-        rotas_especialistas = {registro.rota for registro in self._specialists}
-        if proximo in rotas_especialistas:
-            return proximo
-        return 'fim'
-
 
 
     def timed(self, nome):
@@ -55,10 +46,32 @@ class GraphBuilder:
             return wrapper
         return deco
 
+    # --------------------------------------------------------------------------
+    # Decisões
+    # --------------------------------------------------------------------------
+    def _decisao_guardrail_entrada(self, state: GraphState) -> str:
+        return 'router_agent' if state.get('passou_guardrail') else 'fim'
+
+    def _decisao_roteador(self, state: GraphState) -> str:
+        """Lê o protocolo do roteador e devolve o nome do próximo nó.
+        VAI TER QUE MUDAR - roteador deve poder chamar mais de um agente (mudar prompt e run() também)"""
+        proximo = state.get('proximo_agente')
+        rotas_especialistas = {registro.rota for registro in self._specialists}
+        if proximo in rotas_especialistas:
+            return proximo
+        return 'fim'
+
+    # --------------------------------------------------------------------------
+    # Montagem
+    # --------------------------------------------------------------------------
     def build_graph(self) -> CompiledStateGraph:
         graph = StateGraph(GraphState)
+
+        graph.add_node('guardrail_entrada', self.timed('guardrail_entrada')(self._guardrail_entrada.run))
         graph.add_node('router_agent', self.timed('router')(self._router_agent.run))
+
         graph.add_node('orchestrator_agent', self.timed('orchestrator')(self._orchestrator_agent.run))
+        graph.add_node('guardrail_saida', self.timed('guardrail_saida')(self._guardrail_saida.run))
 
         route_node_map: Dict[str, str] = {}
         for registro in self._specialists:
@@ -69,14 +82,23 @@ class GraphBuilder:
             graph.add_edge(registro.node_name, 'orchestrator_agent') # troca por 'juiz' quando ele existir
             route_node_map[registro.rota] = registro.node_name
 
-        graph.set_entry_point('router_agent')
+        # Entrada
+        graph.set_entry_point('guardrail_entrada')
+        graph.add_conditional_edges(
+            'guardrail_entrada',
+            self._decisao_guardrail_entrada,
+            {'router_agent': 'router_agent', 'fim': END},
+        )
 
+        # Roteador
         graph.add_conditional_edges(
             'router_agent',
             self._decisao_roteador,
             {**route_node_map, 'fim': END}
         )
 
-        graph.add_edge('orchestrator_agent', END)
+        # Saída
+        graph.add_edge('orchestrator_agent', 'guardrail_saida')
+        graph.add_edge('guardrail_saida', END)
 
         return graph.compile(checkpointer=self._checkpointer)

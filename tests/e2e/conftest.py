@@ -6,6 +6,8 @@ tests/integration). Sem as duas coisas, os testes são pulados, não falham.
 """
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -65,3 +67,15 @@ def cenario_estoque(settings: Settings) -> CenarioE2E:
         yield cenario
     finally:
         limpar_cenario(settings.DATABASE_URL, cenario)
+
+
+@pytest.fixture
+def session_id_e2e(e2e_app: FastAPI) -> str:
+    """session_id novo por teste. Como POST /chat agora grava a conversa na
+    collection `sessao` do Mongo real, apaga esses documentos ao final."""
+    session_id = str(uuid4())
+    try:
+        yield session_id
+    finally:
+        repo = e2e_app.state.container.repositories["sessao_repository"]
+        repo._get_collection().delete_many({"session_id": session_id})

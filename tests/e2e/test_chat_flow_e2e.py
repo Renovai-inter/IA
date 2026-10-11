@@ -8,18 +8,18 @@ ar (ver tests/e2e/e2e_helpers.py e tests/e2e/README.md).
 """
 from __future__ import annotations
 
-from uuid import uuid4
-
 from fastapi.testclient import TestClient
 
 from tests.e2e.seed import CenarioE2E
 
 
-def test_chat_estoque_ponta_a_ponta(e2e_client: TestClient, cenario_estoque: CenarioE2E):
+def test_chat_estoque_ponta_a_ponta(
+    e2e_client: TestClient, cenario_estoque: CenarioE2E, session_id_e2e: str
+):
     resposta = e2e_client.post(
         "/chat",
         json={
-            "session_id": str(uuid4()),
+            "session_id": session_id_e2e,
             "perfil_id": str(cenario_estoque.perfil_id),
             "pergunta": "quanto temos em estoque?",
         },

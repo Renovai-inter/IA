@@ -10,7 +10,9 @@ from app.prompts import (
     FAQ_PROMPT_COMPLETO,
     ROUTER_PROMPT_COMPLETO,
     MATERIAL_ESTOQUE_PROMPT_COMPLETO,
-    ORQUESTRADOR_PROMPT_COMPLETO
+    ORQUESTRADOR_PROMPT_COMPLETO,
+    GUARDRAIL_ENTRADA_PROMPT_COMPLETO,
+    GUARDRAIL_SAIDA_PROMPT_COMPLETO,
 )
 
 from app.llms.gemini_provider import GeminiProvider
@@ -21,6 +23,7 @@ from app.agents.router_agent import RouterAgent
 from app.agents.faq_agent import FaqAgent
 from app.agents.material_estoque_agent import MaterialEstoqueAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
+from app.agents.guardrail_agent import GuardrailEntradaAgent, GuardrailSaidaAgent
 
 from app.graph.builder import GraphBuilder
 from app.repository.mongodb.db import MongoConnectionFactory
@@ -52,7 +55,7 @@ def build_container(
     agent_llm_map: Dict[str, Tuple[str, str]] | None = None,
 ) -> Container:
     pg_factory = PostgresConnectionFactory(dsn=settings.DATABASE_URL)
-    mongo_factory = MongoConnectionFactory(dsn=settings.MONGODB_URI, db_name='mongo_dbrenovai')
+    mongo_factory = MongoConnectionFactory(dsn=settings.MONGODB_URI, db_name=settings.MONGO_DB_NAME)
     qdrant_factory = QdrantConnectionFactory(dsn=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
 
     _FACTORIES_MAP = {
@@ -80,9 +83,6 @@ def build_container(
     llm_factory = LLMFactory(providers)
     llm_map = agent_llm_map or settings.AGENT_LLM_MAP
 
-    # ResumoService (resume conversa) e EmbeddingService (vetoriza texto) são os
-    # dois LLMService concretos: cada MemoryStore/retriever recebe o que
-    # precisa de verdade, nunca os dois pelo mesmo nome de parâmetro.
     resumo_service = ResumoService(llm_factory, *llm_map['resumo_agent'])
     embedding_service = EmbeddingService(settings.GEMINI_API_KEY)
 
@@ -106,6 +106,11 @@ def build_container(
     }
 
     _AGENT_REGISTRY: dict[str, dict] = {
+        'guardrail_entrada': {
+            'cls': GuardrailEntradaAgent,
+            'prompt': GUARDRAIL_ENTRADA_PROMPT_COMPLETO,
+            'tools': []
+        },
         'router_agent': {
             'cls': RouterAgent,
             'prompt': ROUTER_PROMPT_COMPLETO,
@@ -128,6 +133,12 @@ def build_container(
             'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
             'tools': []
         },
+        'guardrail_saida': {
+            'cls': GuardrailSaidaAgent,
+            'prompt': GUARDRAIL_SAIDA_PROMPT_COMPLETO,
+            'tools': [],
+            'rotas_revisao': getattr(settings, 'GUARDRAIL_ROTAS_REVISAO', ('financeiro',)),
+        },
     }
 
     specialists: list[RegistroEspecialista] = []
@@ -135,7 +146,10 @@ def build_container(
     for name, spec in _AGENT_REGISTRY.items():
         llm = llm_factory.get(*llm_map[name])
         agent_repos = settings.AGENT_REPOSITORY_MAP.get(name, [])
-        agent = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'])
+        kwargs = {}
+        if 'rotas_revisao' in spec:
+            kwargs['rotas_revisao'] = spec['rotas_revisao']
+        agent = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'], **kwargs)
         agents[name] = agent
 
         if 'route' in spec:
@@ -153,7 +167,9 @@ def build_container(
         orchestrator_agent=agents['orchestrator_agent'],
         specialists=specialists,
         repositories=_REPOSITORIES_MAP,
-        checkpointer=MemorySaver()
+        checkpointer=MemorySaver(),
+        guardrail_entrada=agents['guardrail_entrada'],
+        guardrail_saida=agents['guardrail_saida'],
     ).build_graph()
 
     return Container(

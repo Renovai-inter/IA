@@ -21,7 +21,7 @@ class MaterialEstoqueAgent(BaseAgent):
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
         resultado = self._runnable.invoke(
             {'messages': self._mensagens_recentes(state)},
-            config=(config or {}).get('configurable', {}) | {'snapshots': state['snapshots']}
+            config=self._config_interno(config, snapshots=state['snapshots'])
         )
 
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])

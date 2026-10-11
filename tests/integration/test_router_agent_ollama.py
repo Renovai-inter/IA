@@ -37,5 +37,5 @@ def test_router_agent_classifica_com_ollama(ollama_llm_factory, pergunta, rota_e
     assert resultado["proximo_agente"] == rota_esperada, (
         f"modelo local classificou {pergunta!r} como "
         f"{resultado['proximo_agente']!r}, esperado {rota_esperada!r} "
-        f"— resposta crua do modelo: {resultado['messages'][0]['content']!r}"
+        f"— mensagens devolvidas: {resultado['messages']!r}"
     )

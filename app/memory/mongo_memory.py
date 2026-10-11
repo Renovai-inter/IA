@@ -1,15 +1,34 @@
 from typing import Dict, List, Optional
 
-from bson import ObjectId
-
 from app.memory.base import MemoriaCtx, MemoryStore
 from app.llms.resumo_service import ResumoService
 from app.repository.postgresql.perfil_repository import PerfilContext
 
 
 class MongoMemory(MemoryStore):
-    def __init__(self, repository, resumo_service, janela: int = 10):
+    """
+    Os `_id` da collection `sessao` são strings UUID (gerados em `Sessao.id`
+    e gravados assim por `SessaoRepository.criar_sessao`), então nada aqui
+    converte para `ObjectId`.
+
+    Os métodos devolvem `None` quando não há sessão sobre a qual operar —
+    quem chama decide o que fazer (ex.: 404 no endpoint de encerrar).
+    """
+
+    def __init__(self, repository, resumo_service: ResumoService, janela: int = 10):
         super().__init__(repository, resumo_service, janela)
+
+    def _para_ctx(self, sessao) -> MemoriaCtx:
+        return MemoriaCtx(
+            doc_id=sessao.id,
+            usuario_id=sessao.usuario_id,
+            perfil_id=sessao.perfil_id,
+            sessao_id=sessao.session_id,
+            resumo=sessao.resumo,
+            data_inicio=sessao.data_inicio,
+            mensagens_recentes=sessao.mensagens[-self.janela:],
+            agentes_chamados=sessao.agentes_chamados,
+        )
 
     def preparar_turno(
         self,
@@ -17,94 +36,72 @@ class MongoMemory(MemoryStore):
         perfil_ctx: PerfilContext,
         session_id: str,
         usuario_id: Optional[str] = None,
-    ) -> MemoriaCtx:
+    ) -> Optional[MemoriaCtx]:
         """
-        Chamado pelo Guardrail de entrada antes do roteamento: garante que
-        existe sessão ativa (criando se necessário) e registra a pergunta
-        do usuário. Devolve o contexto que o resto do grafo pode precisar.
+        Garante que existe sessão ativa (criando se necessário) e registra a
+        pergunta do usuário. Devolve o contexto que o resto do grafo pode
+        precisar.
+
+        Hoje é chamado por `api/routes/chat.py` antes do `graph.ainvoke`;
+        quando o Guardrail de entrada existir, a chamada passa para ele.
         """
         sessao = self.repository.buscar_sessao_ativa(session_id)
         if sessao is None:
-            doc_id = self.repository.criar_sessao(session_id, perfil_ctx.perfil_id, usuario_id=usuario_id)
+            doc_id = self.repository.criar_sessao(
+                session_id, str(perfil_ctx.perfil_id), usuario_id=usuario_id
+            )
         else:
-            doc_id = ObjectId(sessao.id)
+            doc_id = sessao.id
 
         self.repository.adicionar_mensagem(doc_id, role="usuario", content=pergunta)
 
         sessao_atualizada = self.repository.buscar_por_id(doc_id)
         if sessao_atualizada is None:
-            return MemoriaCtx()
-
-        return MemoriaCtx(
-            doc_id=sessao_atualizada.id,
-            usuario_id=sessao_atualizada.usuario_id,
-            perfil_id=sessao_atualizada.perfil_id,
-            sessao_id=sessao_atualizada.session_id,
-            resumo=sessao_atualizada.resumo,
-            data_inicio=sessao_atualizada.data_inicio,
-            mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
-            agentes_chamados=sessao_atualizada.agentes_chamados,
-        )
+            return None
+        return self._para_ctx(sessao_atualizada)
 
     def registrar_resposta(
         self,
         resposta: str,
         session_id: str,
-        agentes: Optional[List[str]] = [],
+        agentes: Optional[List[str]] = None,
         meta: Optional[Dict] = None,
-    ) -> MemoriaCtx:
-        """Chamado pelo Orquestrador ao final do turno."""
+    ) -> Optional[MemoriaCtx]:
+        """
+        Registra a resposta final do turno.
+
+        Hoje é chamado por `api/routes/chat.py` depois do `graph.ainvoke`;
+        quando o Orquestrador assumir isso, a chamada passa para ele.
+        """
         sessao = self.repository.buscar_sessao_ativa(session_id)
         if sessao is None:
-            return MemoriaCtx()
+            return None
 
-        doc_id = ObjectId(sessao.id)
-        self.repository.adicionar_mensagem(doc_id, role="assistente", content=resposta, agentes=agentes, meta=meta)
-
-        sessao_atualizada = self.repository.buscar_por_id(doc_id)
-        if sessao_atualizada is None:
-            return MemoriaCtx()
-        
-        return MemoriaCtx(
-            doc_id=sessao_atualizada.id,
-            usuario_id=sessao_atualizada.usuario_id,
-            perfil_id=sessao_atualizada.perfil_id,
-            sessao_id=sessao_atualizada.session_id,
-            resumo=sessao_atualizada.resumo,
-            data_inicio=sessao_atualizada.data_inicio,
-            mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
-            agentes_chamados=sessao_atualizada.agentes_chamados,
+        self.repository.adicionar_mensagem(
+            sessao.id, role="assistente", content=resposta, agentes=agentes or [], meta=meta
         )
 
-    def encerrar_sessao(self, session_id: str) -> MemoriaCtx:
+        sessao_atualizada = self.repository.buscar_por_id(sessao.id)
+        if sessao_atualizada is None:
+            return None
+        return self._para_ctx(sessao_atualizada)
+
+    def encerrar_sessao(self, session_id: str) -> Optional[MemoriaCtx]:
         """
         Decide se vale encerrar a sessão (só encerra se ela teve pelo menos
-        uma mensagem) e, quando um resumo for fornecido, persiste junto.
+        uma mensagem), gera o resumo e persiste junto.
         """
         sessao = self.repository.buscar_sessao_ativa(session_id)
         if sessao is None or not sessao.mensagens:
-            return MemoriaCtx()
+            return None
 
-        doc_id = ObjectId(sessao.id)
-
-        resumo = ''
         resumo = self.llm_service.gerar_resumo(sessao.mensagens, sessao.resumo)
-        self.repository.marcar_encerrada(ObjectId(sessao.id), resumo=resumo)
+        self.repository.marcar_encerrada(sessao.id, resumo=resumo)
 
-        sessao_atualizada = self.repository.buscar_por_id(doc_id)
+        sessao_atualizada = self.repository.buscar_por_id(sessao.id)
         if sessao_atualizada is None:
-            return MemoriaCtx()
-        
-        return MemoriaCtx(
-            doc_id=sessao_atualizada.id,
-            usuario_id=sessao_atualizada.usuario_id,
-            perfil_id=sessao_atualizada.perfil_id,
-            sessao_id=sessao_atualizada.session_id,
-            resumo=sessao_atualizada.resumo,
-            data_inicio=sessao_atualizada.data_inicio,
-            mensagens_recentes=sessao_atualizada.mensagens[-self.janela:],
-            agentes_chamados=sessao_atualizada.agentes_chamados,
-        )
+            return None
+        return self._para_ctx(sessao_atualizada)
 
     def recuperar_historico(self, user_id: Optional[str], perfil_id: str):
         filtro = {
@@ -113,16 +110,4 @@ class MongoMemory(MemoryStore):
         }
 
         sessoes = self.repository.buscar_usuario(filtro, self.janela)
-        return [
-            MemoriaCtx(
-                doc_id=sessao.id,
-                usuario_id=sessao.usuario_id,
-                perfil_id=sessao.perfil_id,
-                sessao_id=sessao.session_id,
-                resumo=sessao.resumo,
-                data_inicio=sessao.data_inicio,
-                mensagens_recentes=sessao.mensagens[-self.janela:],
-                agentes_chamados=sessao.agentes_chamados,
-            )
-            for sessao in sessoes
-        ]
+        return [self._para_ctx(sessao) for sessao in sessoes]

@@ -148,6 +148,16 @@ class MaterialEstoqueToolkit(Toolkit):
         sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
         return sem_acento.lower().replace("_", " ").replace("-", " ").strip()
 
+    def _corresponde_nome(self, termo: str, nome_cat: str) -> bool:
+        """Verifica se termo de busca bate com nome da categoria com tolerância a plurais/substrings."""
+        if termo in nome_cat or nome_cat in termo:
+            return True
+        if termo.endswith("s") and termo[:-1] in nome_cat:
+            return True
+        if nome_cat.endswith("s") and nome_cat[:-1] in termo:
+            return True
+        return False
+
     def _resolver_materiais(
         self,
         material_snapshot: MaterialSnapshot,
@@ -168,7 +178,7 @@ class MaterialEstoqueToolkit(Toolkit):
         return [
             item for item in material_snapshot.itens
             if item.material_id in ids_set
-            or any(termo in self._normalizar(item.nome_categoria) for termo in termos)
+            or any(self._corresponde_nome(termo, self._normalizar(item.nome_categoria)) for termo in termos)
         ]
 
     def _resolver_categoria_pai_estoque(self, estoque_item) -> tuple[UUID, str]:
@@ -254,7 +264,9 @@ class MaterialEstoqueToolkit(Toolkit):
             if info_material is None or info_material.esta_disponivel != disponivel:
                 return False
 
-        if info_material and info_material.preco_sugerido is not None:
+        if preco_min is not None or preco_max is not None:
+            if info_material is None or info_material.preco_sugerido is None:
+                return False
             preco = info_material.preco_sugerido
             if preco_min is not None and preco < Decimal(str(preco_min)):
                 return False
@@ -319,8 +331,9 @@ class MaterialEstoqueToolkit(Toolkit):
         estoque_snapshot: EstoqueSnapshot = snapshots['estoque_snapshot']
         material_snapshot: MaterialSnapshot = snapshots['material_snapshot']
 
+        filtrar_material = bool(material_ids or material_nomes)
         materiais_candidatos = self._resolver_materiais(material_snapshot, material_ids, material_nomes)
-        if not materiais_candidatos:
+        if filtrar_material and not materiais_candidatos:
             return {'status': 'error', 'message': 'Nenhum material correspondente encontrado.'}
 
         material_por_id = {item.material_id: item for item in materiais_candidatos}
@@ -329,7 +342,7 @@ class MaterialEstoqueToolkit(Toolkit):
         detalhes = []
         for estoque_item in estoque_snapshot.itens:
             info_material = material_por_id.get(estoque_item.material_id)
-            if info_material is None:
+            if filtrar_material and info_material is None:
                 continue
 
             if not self._passar_filtros(
@@ -345,8 +358,8 @@ class MaterialEstoqueToolkit(Toolkit):
                 'material_id':     str(estoque_item.material_id),
                 'nome_categoria':  estoque_item.nome_categoria,
                 'quantidade_kg':   str(estoque_item.quantidade_kg),
-                'preco_sugerido':  str(info_material.preco_sugerido) if info_material.preco_sugerido else None,
-                'esta_disponivel': info_material.esta_disponivel,
+                'preco_sugerido':  str(info_material.preco_sugerido) if info_material and info_material.preco_sugerido else None,
+                'esta_disponivel': info_material.esta_disponivel if info_material else True,
             })
 
         if not detalhes:
@@ -407,8 +420,9 @@ class MaterialEstoqueToolkit(Toolkit):
         estoque_snapshot: EstoqueSnapshot = snapshots['estoque_snapshot']
         material_snapshot: MaterialSnapshot = snapshots['material_snapshot']
 
+        filtrar_material = bool(material_ids or material_nomes)
         materiais_candidatos = self._resolver_materiais(material_snapshot, material_ids, material_nomes)
-        if not materiais_candidatos:
+        if filtrar_material and not materiais_candidatos:
             return {'status': 'error', 'message': 'Nenhum material correspondente encontrado.'}
 
         material_por_id = {item.material_id: item for item in materiais_candidatos}
@@ -418,7 +432,7 @@ class MaterialEstoqueToolkit(Toolkit):
         detalhes = []
         for estoque_item in estoque_snapshot.itens:
             info_material = material_por_id.get(estoque_item.material_id)
-            if info_material is None:
+            if filtrar_material and info_material is None:
                 continue
 
             cat_pai_id, nome_cat_pai = self._resolver_categoria_pai_estoque(estoque_item)
@@ -441,8 +455,8 @@ class MaterialEstoqueToolkit(Toolkit):
                 'nome_categoria_pai': nome_cat_pai,
                 'nome_categoria':     estoque_item.nome_categoria,
                 'quantidade_kg':      str(estoque_item.quantidade_kg),
-                'preco_sugerido':     str(info_material.preco_sugerido) if info_material.preco_sugerido else None,
-                'esta_disponivel':    info_material.esta_disponivel,
+                'preco_sugerido':     str(info_material.preco_sugerido) if info_material and info_material.preco_sugerido else None,
+                'esta_disponivel':    info_material.esta_disponivel if info_material else True,
             })
 
         if not detalhes:
@@ -501,20 +515,21 @@ class MaterialEstoqueToolkit(Toolkit):
         snapshots = config['configurable']['snapshots']
         material_snapshot = snapshots['material_snapshot']
         movimentacao_estoque_snapshot = snapshots['movimentacao_estoque_snapshot']
-        
+
+        filtrar_material = bool(material_ids or material_nomes)
         materiais_candidatos = self._resolver_materiais(material_snapshot, material_ids, material_nomes)
-        if not materiais_candidatos:
+        if filtrar_material and not materiais_candidatos:
             return {'status': 'error', 'message': 'Nenhum material correspondente encontrado.'}
 
         material_por_id = {item.material_id: item for item in materiais_candidatos}
-        data_inicio, data_fim = self._resolver_intervalo_data(data_inicio=data_inicio,data_fim=data_fim)
+        data_inicio, data_fim = self._resolver_intervalo_data(data_inicio=data_inicio, data_fim=data_fim)
 
         quantidade_por_categoria: dict[str, Decimal] = defaultdict(Decimal)
         quantidade_por_tipo_mov: dict[str, Decimal] = defaultdict(Decimal)
         detalhes = []
         for movimentacao_item in movimentacao_estoque_snapshot.itens:
             info_material = material_por_id.get(movimentacao_item.material_id)
-            if info_material is None:
+            if filtrar_material and info_material is None:
                 continue
 
             if not self._passar_filtros(
@@ -534,8 +549,8 @@ class MaterialEstoqueToolkit(Toolkit):
                 'nome_categoria':    movimentacao_item.nome_categoria,
                 'quantidade_kg':     str(abs(movimentacao_item.quantidade_kg)),
                 'tipo_movimentacao': movimentacao_item.tipo_movimentacao,
-                'preco_sugerido':    str(info_material.preco_sugerido) if info_material.preco_sugerido else None,
-                'esta_disponivel':   info_material.esta_disponivel,
+                'preco_sugerido':    str(info_material.preco_sugerido) if info_material and info_material.preco_sugerido else None,
+                'esta_disponivel':   info_material.esta_disponivel if info_material else True,
                 'data_movimentacao': str(movimentacao_item.data_movimentacao),
             })
         
@@ -601,20 +616,21 @@ class MaterialEstoqueToolkit(Toolkit):
         snapshots = config['configurable']['snapshots']
         material_snapshot = snapshots['material_snapshot']
         movimentacao_estoque_snapshot = snapshots['movimentacao_estoque_snapshot']
-        
+
+        filtrar_material = bool(material_ids or material_nomes)
         materiais_candidatos = self._resolver_materiais(material_snapshot, material_ids, material_nomes)
-        if not materiais_candidatos:
+        if filtrar_material and not materiais_candidatos:
             return {'status': 'error', 'message': 'Nenhum material correspondente encontrado.'}
 
         material_por_id = {item.material_id: item for item in materiais_candidatos}
-        data_inicio, data_fim = self._resolver_intervalo_data(data_referencia=data_referencia,granularidade=granularidade)
+        data_inicio, data_fim = self._resolver_intervalo_data(data_referencia=data_referencia, granularidade=granularidade)
 
         quantidade_por_categoria: dict[str, Decimal] = defaultdict(Decimal)
         quantidade_por_tipo_mov: dict[str, Decimal] = defaultdict(Decimal)
         detalhes = []
         for movimentacao_item in movimentacao_estoque_snapshot.itens:
             info_material = material_por_id.get(movimentacao_item.material_id)
-            if info_material is None:
+            if filtrar_material and info_material is None:
                 continue
 
             if not self._passar_filtros(
@@ -634,14 +650,14 @@ class MaterialEstoqueToolkit(Toolkit):
                 'nome_categoria':    movimentacao_item.nome_categoria,
                 'quantidade_kg':     str(abs(movimentacao_item.quantidade_kg)),
                 'tipo_movimentacao': movimentacao_item.tipo_movimentacao,
-                'preco_sugerido':    str(info_material.preco_sugerido) if info_material.preco_sugerido else None,
-                'esta_disponivel':   info_material.esta_disponivel,
+                'preco_sugerido':    str(info_material.preco_sugerido) if info_material and info_material.preco_sugerido else None,
+                'esta_disponivel':   info_material.esta_disponivel if info_material else True,
                 'data_movimentacao': str(movimentacao_item.data_movimentacao),
             })
-        
+
         if not detalhes:
             return {'status': 'error', 'message': 'Nenhum item de estoque bateu com os filtros informados.'}
-        
+
         return {
             'status': 'ok',
             'quantidade_por_categoria_kg': {k: str(v) for k, v in quantidade_por_categoria.items()},

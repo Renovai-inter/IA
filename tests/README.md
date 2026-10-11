@@ -53,17 +53,13 @@ E2E_CONFIRM=1 uv run pytest tests/e2e -v
 
 ## O que NÃO está coberto ainda
 
-- O agente Roteador tem um bug ativo conhecido (vaza o protocolo
-  `ROUTE=...` no histórico de mensagens quando encaminha para um
-  especialista) — documentado como teste `xfail` em
-  `tests/unit/test_router_agent.py::test_router_agent_nao_deveria_vazar_protocolo_quando_encaminha`.
-  Esse teste vira verde sozinho quando a correção for aplicada.
-- Guardrail, Juiz, RAG e os demais agentes do roadmap não têm teste ainda
-  porque não existem no código (ver a skill `ia-renovai` /
-  `estado_atual_codigo.md` / `roadmap.md`).
-- `tests/e2e/ollama_container.py` é uma cópia de `app/core/container.py`
-  com o provider trocado, não um import com override — se
-  `build_container` mudar (novo agente, novo repository), esta cópia pode
-  ficar desatualizada. A alternativa seria adicionar um parâmetro
-  `providers=` opcional em `build_container`; não fiz isso pra não mexer
-  em código de produção sem você pedir explicitamente.
+- Juiz e os demais agentes de negócio do roadmap não têm teste
+  porque ainda não existem no código.
+- `MongoMemory` / `QdrantMemory` (gravação da conversa, encerramento de
+  sessão, resumo vetorizado) só são exercitados pelo e2e, contra os bancos
+  reais — não há teste unitário com dublê para eles ainda.
+- `tests/e2e/ollama_container.py` não é mais uma cópia de
+  `app/core/container.py`: ele chama o próprio `build_container` passando
+  `providers=` e `agent_llm_map=` com Ollama, então acompanha
+  automaticamente qualquer agente/repository novo. Só o
+  `_OLLAMA_AGENT_LLM_MAP` precisa ganhar a chave de cada agente novo.
