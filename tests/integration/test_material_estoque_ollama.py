@@ -38,6 +38,7 @@ from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
 from tests.integration.fakes import cenario_papelao
 from tests.integration.ollama_helpers import check_modelo_ou_skip, requires_ollama
+from tests.support import StubAgent
 
 
 @requires_ollama
@@ -84,6 +85,8 @@ def test_fluxo_estoque_com_ollama(ollama_llm_factory):
         ],
         repositories=repositories,
         checkpointer=MemorySaver(),
+        guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
+        guardrail_saida=StubAgent("guardrail_saida", [{}]),
     ).build_graph()
 
     resultado = graph.invoke(
