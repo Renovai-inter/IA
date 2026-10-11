@@ -18,12 +18,7 @@ class MaterialEstoqueAgent(BaseAgent):
             tools=self.tools,
         )
 
-    def run(self, state: GraphState, config: RunnableConfig) -> dict:
-        resultado = self._runnable.invoke(
-            {'messages': self._mensagens_recentes(state)},
-            config=self._config_interno(config, snapshots=state['snapshots'])
-        )
-
+    def _processar_resultado(self, resultado: dict) -> dict:
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
         material_estoque_output = EspecialistaOutput(
             conteudo=texto_resposta,
@@ -35,3 +30,17 @@ class MaterialEstoqueAgent(BaseAgent):
             'agentes_chamados'    : [self.nome_agente],
             'especialista_outputs': {self.nome_agente: material_estoque_output},
         }
+
+    def run(self, state: GraphState, config: RunnableConfig) -> dict:
+        resultado = self._runnable.invoke(
+            {'messages': self._mensagens_recentes(state)},
+            config=self._config_interno(config, snapshots=state['snapshots'])
+        )
+        return self._processar_resultado(resultado)
+
+    async def arun(self, state: GraphState, config: RunnableConfig) -> dict:
+        resultado = await self._runnable.ainvoke(
+            {'messages': self._mensagens_recentes(state)},
+            config=self._config_interno(config, snapshots=state['snapshots'])
+        )
+        return self._processar_resultado(resultado)
