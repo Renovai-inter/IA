@@ -34,6 +34,9 @@ class StubAgent(BaseAgent):
         indice = min(self._chamadas - 1, len(self._respostas) - 1)
         return self._respostas[indice]
 
+    async def arun(self, state: dict, config: RunnableConfig = None) -> dict:
+        return self.run(state, config)
+
 
 class StubRepository:
     """Repository-dublê: devolve sempre o mesmo snapshot, sem tocar em Postgres.
