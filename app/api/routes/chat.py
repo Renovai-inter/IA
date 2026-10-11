@@ -1,5 +1,6 @@
 from app.api.schemas.chat_request import ChatRequest
 from app.api.schemas.chat_response import ChatResponse
+from app.guardrails.pii import anonimizar
 
 import asyncio
 from fastapi import APIRouter, Request
@@ -23,22 +24,29 @@ async def chat(request: Request, body: ChatRequest):
     container = request.app.state.container
     mongo_memory = container.memory_stores['mongo_memory']
 
+    pergunta, mapa_pii = anonimizar(body.pergunta)
+
     perfil_ctx = await asyncio.to_thread(
         container.repositories['perfil_repository'].resolve_perfil, body.perfil_id
     )
 
     await asyncio.to_thread(
         mongo_memory.preparar_turno,
-        body.pergunta, perfil_ctx, body.session_id, body.user_id,
+        pergunta, perfil_ctx, body.session_id, body.user_id,
     )
 
-    config = {'configurable': {'thread_id': body.session_id, 'user_id': body.user_id, 'perfil_id': body.perfil_id}}
+    config = {'configurable': {
+        'thread_id': body.session_id,
+        'user_id':   body.user_id,
+        'perfil_id': body.perfil_id,
+        'mapa_pii':  mapa_pii,
+    }}
 
     estado_anterior = await container.graph.aget_state(config)
     qtd_anteriores = len((estado_anterior.values or {}).get('agentes_chamados', []))
 
     resultado = await container.graph.ainvoke(
-        {'messages': [HumanMessage(content=body.pergunta)], 'perfil_ctx': perfil_ctx},
+        {'messages': [HumanMessage(content=pergunta)], 'perfil_ctx': perfil_ctx},
         config=config,
     )
 
