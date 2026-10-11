@@ -53,7 +53,7 @@ E2E_CONFIRM=1 uv run pytest tests/e2e -v
 
 ## O que NÃO está coberto ainda
 
-- Guardrail, Juiz e os demais agentes de negócio do roadmap não têm teste
+- Juiz e os demais agentes de negócio do roadmap não têm teste
   porque ainda não existem no código.
 - `MongoMemory` / `QdrantMemory` (gravação da conversa, encerramento de
   sessão, resumo vetorizado) só são exercitados pelo e2e, contra os bancos

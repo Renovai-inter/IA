@@ -5,8 +5,8 @@ Cobre:
 - uma rota conhecida ('estoque', presente em _ROUTE_NODE_MAP via
   RegistroEspecialista) chega no especialista certo e depois no orquestrador;
 - uma rota que o roteador conhece (está no prompt) mas que ainda não tem nó
-  registrado (ex.: 'financeiro') vai para o nó 'indisponivel', que responde
-  com uma mensagem amigável em vez do protocolo cru ROUTE=...;
+  registrado (ex.: 'financeiro') cai em 'fim' sem resposta do assistente e
+  sem vazar o protocolo cru ROUTE=...;
 - perfil EMPRESA (sem cooperativa_id) não dispara snapshot de cooperativa.
 """
 from __future__ import annotations
@@ -70,6 +70,8 @@ def _build_graph(rota_do_roteador: str):
         ],
         repositories={"material_repository": StubRepository(snapshot={"itens": []})},
         checkpointer=MemorySaver(),
+        guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
+        guardrail_saida=StubAgent("guardrail_saida", [{}]),
     )
     return builder.build_graph()
 
@@ -96,7 +98,7 @@ def test_rota_conhecida_chega_no_especialista_e_no_orquestrador():
     assert resultado["messages"][-1].content == "resposta final formatada"
 
 
-def test_rota_nao_mapeada_responde_indisponivel():
+def test_rota_nao_mapeada_cai_direto_em_fim():
     graph = _build_graph("financeiro")
 
     resultado = graph.invoke(
@@ -104,12 +106,12 @@ def test_rota_nao_mapeada_responde_indisponivel():
         config={"configurable": {"thread_id": "teste-rota-desconhecida"}},
     )
 
-    # nenhum especialista nem orquestrador rodou; o nó 'indisponivel'
-    # responde com mensagem amigável em vez do protocolo cru do roteador.
+    # nenhum especialista nem orquestrador rodou; o grafo encerra em 'fim'
+    # sem resposta do assistente (mantém a pergunta), e sem vazar o protocolo.
     assert resultado["agentes_chamados"] == ["router"]
     resposta = resultado["messages"][-1].content
     assert "ROUTE=" not in resposta
-    assert resposta == GraphBuilder._MENSAGEM_INDISPONIVEL
+    assert resposta == "qual o rateio desse mês?"
 
 
 def test_perfil_empresa_nao_consulta_snapshot_de_cooperativa():
