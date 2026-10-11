@@ -82,8 +82,8 @@ class GuardrailSaidaAgent(BaseAgent):
 
         texto, motivo = saida.higienizar(original, mapa_pii)
 
-        rota = state.get("proximo_agente")
-        revisar = "*" in self._rotas_revisao or rota in self._rotas_revisao
+        rotas_ativas = state.get("proximos_agentes") or []
+        revisar = "*" in self._rotas_revisao or any(r in self._rotas_revisao for r in rotas_ativas)
         if revisar and motivo != "vazamento_protocolo":
             resposta = self.llm.invoke(
                 [SystemMessage(content=self.system_prompt),

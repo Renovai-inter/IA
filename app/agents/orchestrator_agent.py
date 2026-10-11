@@ -14,13 +14,27 @@ class OrchestratorAgent(BaseAgent):
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
         msgs = list(state['messages'])
         pergunta = next((m for m in reversed(msgs) if m.type == 'human'), None)
-        saida_especialista = msgs[-1]
+        texto_pergunta = self._obter_texto_mensagem(pergunta) if pergunta else ''
+
+        especialista_outputs = state.get('especialista_outputs', {})
+
+        if especialista_outputs:
+            blocos = []
+            for nome_esp, output in especialista_outputs.items():
+                fonte_info = f" (Fonte: {output.fonte})" if output.fonte else ""
+                blocos.append(
+                    f"--- ESPECIALISTA: {nome_esp}{fonte_info} ---\n{output.conteudo}"
+                )
+            corpo_saidas = "\n\n".join(blocos)
+        else:
+            saida_especialista = msgs[-1] if msgs else None
+            corpo_saidas = self._obter_texto_mensagem(saida_especialista) if saida_especialista else ''
 
         entrada = HumanMessage(content=(
             "PERGUNTA_DO_USUARIO:\n"
-            f"{self._obter_texto_mensagem(pergunta) if pergunta else ''}\n\n"
-            "SAIDA_DO_ESPECIALISTA:\n"
-            f"{self._obter_texto_mensagem(saida_especialista)}"
+            f"{texto_pergunta}\n\n"
+            "SAIDAS_DOS_ESPECIALISTAS:\n"
+            f"{corpo_saidas}"
         ))
 
         resultado = self.llm.invoke(
