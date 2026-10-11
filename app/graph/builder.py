@@ -52,14 +52,17 @@ class GraphBuilder:
     def _decisao_guardrail_entrada(self, state: GraphState) -> str:
         return 'router_agent' if state.get('passou_guardrail') else 'fim'
 
-    def _decisao_roteador(self, state: GraphState) -> str:
-        """Lê o protocolo do roteador e devolve o nome do próximo nó.
-        VAI TER QUE MUDAR - roteador deve poder chamar mais de um agente (mudar prompt e run() também)"""
-        proximo = state.get('proximo_agente')
+    def _decisao_roteador(self, state: GraphState) -> list[str] | str:
+        """Lê o protocolo do roteador e devolve a lista de rotas especialistas a invokar.
+        Se nenhuma rota mapeada for informada, devolve 'fim'."""
+        rotas = state.get('proximos_agentes') or []
+        if not rotas:
+            return 'fim'
+
         rotas_especialistas = {registro.rota for registro in self._specialists}
-        if proximo in rotas_especialistas:
-            return proximo
-        return 'fim'
+        rotas_validas = [r for r in rotas if r in rotas_especialistas]
+
+        return rotas_validas if rotas_validas else 'fim'
 
     # --------------------------------------------------------------------------
     # Montagem

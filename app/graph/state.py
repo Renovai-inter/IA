@@ -28,7 +28,7 @@ def merge_especialista_outputs(
 
 class GraphState(MessagesState):
     perfil_ctx :          Optional[PerfilContext]
-    proximo_agente :      Optional[str]
+    proximos_agentes :    Optional[List[str]]
     agentes_chamados :    Annotated[list[str], operator.add]
     especialista_outputs: Annotated[dict[str, EspecialistaOutput], merge_especialista_outputs]
     chunk_contexto :      Optional[List[str]]
