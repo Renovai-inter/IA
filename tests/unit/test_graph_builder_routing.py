@@ -20,6 +20,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from app.graph.builder import GraphBuilder
 from app.graph.registro import RegistroEspecialista
+from app.graph.state import EspecialistaOutput
 
 from tests.support import StubAgent, StubRepository
 
@@ -32,7 +33,7 @@ def _build_graph(rota_do_roteador: str):
                 # Igual ao RouterAgent real: ao encaminhar, não grava o
                 # protocolo ROUTE=... no histórico.
                 "messages": [],
-                "proximo_agente": rota_do_roteador,
+                "proximos_agentes": [rota_do_roteador] if rota_do_roteador and rota_do_roteador != "fim" else [],
                 "agentes_chamados": ["router"],
             }
         ],
@@ -134,3 +135,162 @@ def test_perfil_empresa_nao_consulta_snapshot_de_cooperativa():
     # orquestrador formata em seguida.
     assert "material_estoque" in resultado["agentes_chamados"]
     assert "orchestrator" in resultado["agentes_chamados"]
+
+
+def test_multiplas_rotas_executam_especialistas_em_paralelo_e_convergem_no_orquestrador():
+    router = StubAgent(
+        "router",
+        [
+            {
+                "messages": [],
+                "proximos_agentes": ["estoque", "rag_faq"],
+                "agentes_chamados": ["router"],
+            }
+        ],
+    )
+    especialista_estoque = StubAgent(
+        "material_estoque",
+        [
+            {
+                "messages": [{"role": "assistant", "content": '{"dominio":"material_estoque"}'}],
+                "agentes_chamados": ["material_estoque"],
+                "especialista_outputs": {
+                    "material_estoque": EspecialistaOutput(conteudo="500kg PET", fonte="material_estoque")
+                },
+            }
+        ],
+    )
+    especialista_faq = StubAgent(
+        "faq",
+        [
+            {
+                "messages": [{"role": "assistant", "content": "Normas de reciclagem."}],
+                "agentes_chamados": ["faq"],
+                "especialista_outputs": {
+                    "faq": EspecialistaOutput(conteudo="Normas de reciclagem.", fonte="faq")
+                },
+            }
+        ],
+    )
+    orchestrator = StubAgent(
+        "orchestrator",
+        [
+            {
+                "messages": [{"role": "assistant", "content": "resposta compilada"}],
+                "agentes_chamados": ["orchestrator"],
+            }
+        ],
+    )
+
+    builder = GraphBuilder(
+        router_agent=router,
+        orchestrator_agent=orchestrator,
+        specialists=[
+            RegistroEspecialista(
+                rota="estoque",
+                node_name="material_estoque_agent",
+                agente=especialista_estoque,
+                repositories=["material_repository"],
+            ),
+            RegistroEspecialista(
+                rota="rag_faq",
+                node_name="faq_agent",
+                agente=especialista_faq,
+                repositories=[],
+            ),
+        ],
+        repositories={"material_repository": StubRepository(snapshot={"itens": []})},
+        checkpointer=MemorySaver(),
+        guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
+        guardrail_saida=StubAgent("guardrail_saida", [{}]),
+    )
+    graph = builder.build_graph()
+
+    resultado = graph.invoke(
+        {
+            "messages": [HumanMessage(content="quanto PET temos e qual a norma?")],
+            "perfil_ctx": PerfilContext(
+                perfil_id=uuid4(),
+                tipo="COOPERATIVA",
+                empresa_id=None,
+                cooperativa_id=uuid4(),
+            ),
+        },
+        config={"configurable": {"thread_id": "teste-multiplas-rotas"}},
+    )
+
+    assert "material_estoque" in resultado["agentes_chamados"]
+    assert "faq" in resultado["agentes_chamados"]
+    assert "orchestrator" in resultado["agentes_chamados"]
+    assert "material_estoque" in resultado["especialista_outputs"]
+    assert "faq" in resultado["especialista_outputs"]
+    assert resultado["messages"][-1].content == "resposta compilada"
+
+
+def test_rotas_parcialmente_mapeadas_executam_apenas_as_existentes():
+    router = StubAgent(
+        "router",
+        [
+            {
+                "messages": [],
+                "proximos_agentes": ["estoque", "financeiro"],
+                "agentes_chamados": ["router"],
+            }
+        ],
+    )
+    especialista_estoque = StubAgent(
+        "material_estoque",
+        [
+            {
+                "messages": [{"role": "assistant", "content": '{"dominio":"material_estoque"}'}],
+                "agentes_chamados": ["material_estoque"],
+                "especialista_outputs": {
+                    "material_estoque": EspecialistaOutput(conteudo="500kg PET", fonte="material_estoque")
+                },
+            }
+        ],
+    )
+    orchestrator = StubAgent(
+        "orchestrator",
+        [
+            {
+                "messages": [{"role": "assistant", "content": "resposta compilada"}],
+                "agentes_chamados": ["orchestrator"],
+            }
+        ],
+    )
+
+    builder = GraphBuilder(
+        router_agent=router,
+        orchestrator_agent=orchestrator,
+        specialists=[
+            RegistroEspecialista(
+                rota="estoque",
+                node_name="material_estoque_agent",
+                agente=especialista_estoque,
+                repositories=["material_repository"],
+            )
+        ],
+        repositories={"material_repository": StubRepository(snapshot={"itens": []})},
+        checkpointer=MemorySaver(),
+        guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
+        guardrail_saida=StubAgent("guardrail_saida", [{}]),
+    )
+    graph = builder.build_graph()
+
+    resultado = graph.invoke(
+        {
+            "messages": [HumanMessage(content="quanto PET e qual rateio?")],
+            "perfil_ctx": PerfilContext(
+                perfil_id=uuid4(),
+                tipo="COOPERATIVA",
+                empresa_id=None,
+                cooperativa_id=uuid4(),
+            ),
+        },
+        config={"configurable": {"thread_id": "teste-rotas-parciais"}},
+    )
+
+    assert "material_estoque" in resultado["agentes_chamados"]
+    assert "orchestrator" in resultado["agentes_chamados"]
+    assert resultado["messages"][-1].content == "resposta compilada"

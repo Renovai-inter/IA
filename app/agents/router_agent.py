@@ -18,32 +18,50 @@ class RouterAgent(BaseAgent):
             tools=self.tools,
         )
 
+    def _processar_resultado(self, resultado: dict) -> dict:
+        texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
+
+        rotas: list[str] = []
+        for linha in texto_resposta.splitlines():
+            linha_strip = linha.strip()
+            if linha_strip.startswith('ROUTES='):
+                payload = linha_strip.split('=', 1)[1].strip().strip('[]')
+                rotas = [r.strip().strip("'\"") for r in payload.split(',') if r.strip()]
+                break
+            elif linha_strip.startswith('ROUTE='):
+                payload = linha_strip.split('=', 1)[1].strip().strip('[]')
+                rotas = [r.strip().strip("'\"") for r in payload.split(',') if r.strip()]
+                break
+
+        rotas = [r for r in rotas if r not in ('fim', 'fim_direto')]
+        eh_fim = len(rotas) == 0
+
+        # O protocolo ROUTES=.../PERGUNTA_ORIGINAL=... é comunicação interna
+        # roteador -> grafo: só vira mensagem no histórico quando o roteador
+        # está respondendo direto ao usuário (saudação / fora de escopo).
+        # Quando encaminha, os especialistas leem a pergunta do próprio
+        # HumanMessage, e as rotas seguem em `proximos_agentes`.
+        mensagens = (
+            [{'role': 'assistant', 'content': texto_resposta}]
+            if eh_fim else []
+        )
+
+        return {
+            'messages'        : mensagens,
+            'proximos_agentes': rotas,
+            'agentes_chamados': [self.nome_agente],
+        }
+
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
         resultado = self._runnable.invoke(
             {'messages': self._mensagens_recentes(state)},
             config=self._config_interno(config)
         )
+        return self._processar_resultado(resultado)
 
-        texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
-
-        rota = 'fim'
-        for linha in texto_resposta.splitlines():
-            if linha.startswith('ROUTE='):
-                rota = linha.split('=', 1)[1].strip()
-                break
-
-        # O protocolo ROUTE=.../PERGUNTA_ORIGINAL=... é comunicação interna
-        # roteador -> grafo: só vira mensagem no histórico quando o roteador
-        # está respondendo direto ao usuário (saudação / fora de escopo).
-        # Quando encaminha, o especialista lê a pergunta do próprio
-        # HumanMessage, e a rota segue em `proximo_agente`.
-        mensagens = (
-            [{'role': 'assistant', 'content': texto_resposta}]
-            if rota == 'fim' else []
+    async def arun(self, state: GraphState, config: RunnableConfig) -> dict:
+        resultado = await self._runnable.ainvoke(
+            {'messages': self._mensagens_recentes(state)},
+            config=self._config_interno(config)
         )
-
-        return {
-            'messages'        : mensagens,
-            'proximo_agente'  : rota,
-            'agentes_chamados': [self.nome_agente],
-        }
+        return self._processar_resultado(resultado)

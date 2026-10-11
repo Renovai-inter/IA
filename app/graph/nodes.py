@@ -1,6 +1,7 @@
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables import RunnableConfig, RunnableLambda
 
 from app.repository.base import Repository
 from app.agents.base import BaseAgent
@@ -12,7 +13,7 @@ _SNAPSHOT_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix='snapshot'
 
 
 def make_repo_backed_node(agent: BaseAgent, repos: dict[str, Repository]):
-    def node(state: GraphState, config: RunnableConfig) -> dict:
+    def sync_node(state: GraphState, config: RunnableConfig) -> dict:
         perfil_ctx = state.get('perfil_ctx')
         cooperativa_id = perfil_ctx.cooperativa_id if perfil_ctx else None
 
@@ -39,4 +40,46 @@ def make_repo_backed_node(agent: BaseAgent, repos: dict[str, Repository]):
             state={**state, 'snapshots': snapshots},
             config=config
         )
-    return node
+
+    async def async_node(state: GraphState, config: RunnableConfig) -> dict:
+        perfil_ctx = state.get('perfil_ctx')
+        cooperativa_id = perfil_ctx.cooperativa_id if perfil_ctx else None
+
+        if repos and cooperativa_id is None:
+            texto = (
+                'Essa consulta está disponível apenas para perfis de cooperativa. '
+                'Se você representa uma empresa, posso ajudar com dúvidas sobre '
+                'como o Renovaí funciona.'
+            )
+            return {
+                'messages'            : [{'role': 'assistant', 'content': texto}],
+                'agentes_chamados'    : [agent.nome_agente],
+                'especialista_outputs': {
+                    agent.nome_agente: EspecialistaOutput(conteudo=texto, fonte=agent.nome_agente)
+                },
+            }
+
+        if repos:
+            tarefas = [
+                asyncio.to_thread(repo.get_snapshot, cooperativa_id)
+                for repo in repos.values()
+            ]
+            resultados = await asyncio.gather(*tarefas)
+            snapshots = {
+                nome.replace('repository', 'snapshot'): res
+                for nome, res in zip(repos.keys(), resultados)
+            }
+        else:
+            snapshots = {}
+
+        if hasattr(agent, "arun"):
+            return await agent.arun(
+                state={**state, 'snapshots': snapshots},
+                config=config
+            )
+        return agent.run(
+            state={**state, 'snapshots': snapshots},
+            config=config
+        )
+
+    return RunnableLambda(sync_node, afunc=async_node)

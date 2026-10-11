@@ -152,7 +152,7 @@ from tests.support import StubAgent, StubRepository
 
 
 def _grafo(categoria: str, resposta_orquestrador: str):
-    router = StubAgent("router", [{"messages": [], "proximo_agente": "estoque",
+    router = StubAgent("router", [{"messages": [], "proximos_agentes": ["estoque"],
                                    "agentes_chamados": ["router"]}])
     especialista = StubAgent("material_estoque", [{
         "messages": [{"role": "assistant", "content": '{"dominio":"material_estoque"}'}],
@@ -206,7 +206,7 @@ def test_fluxo_aprovado_passa_pela_saida_e_substitui_mensagem():
 def test_rota_sem_no_registrado_encerra_direto_no_fim():
     # O roteador encaminha para 'financeiro' (ainda sem nó): o grafo cai em 'fim' sem
     # resposta do assistente e encerra direto no router, mantendo a pergunta do usuário.
-    router = StubAgent("router", [{"messages": [], "proximo_agente": "financeiro",
+    router = StubAgent("router", [{"messages": [], "proximos_agentes": ["financeiro"],
                                    "agentes_chamados": ["router"]}])
     g = GraphBuilder(
         router_agent=router,

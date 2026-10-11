@@ -11,25 +11,51 @@ class OrchestratorAgent(BaseAgent):
     def __init__(self, llm, system_prompt, tools = None):
         super().__init__(llm, system_prompt, tools)
 
-    def run(self, state: GraphState, config: RunnableConfig) -> dict:
+    def _montar_entrada(self, state: GraphState) -> HumanMessage:
         msgs = list(state['messages'])
         pergunta = next((m for m in reversed(msgs) if m.type == 'human'), None)
-        saida_especialista = msgs[-1]
+        texto_pergunta = self._obter_texto_mensagem(pergunta) if pergunta else ''
 
-        entrada = HumanMessage(content=(
+        especialista_outputs = state.get('especialista_outputs', {})
+
+        if especialista_outputs:
+            blocos = []
+            for nome_esp, output in especialista_outputs.items():
+                fonte_info = f" (Fonte: {output.fonte})" if output.fonte else ""
+                blocos.append(
+                    f"--- ESPECIALISTA: {nome_esp}{fonte_info} ---\n{output.conteudo}"
+                )
+            corpo_saidas = "\n\n".join(blocos)
+        else:
+            saida_especialista = msgs[-1] if msgs else None
+            corpo_saidas = self._obter_texto_mensagem(saida_especialista) if saida_especialista else ''
+
+        return HumanMessage(content=(
             "PERGUNTA_DO_USUARIO:\n"
-            f"{self._obter_texto_mensagem(pergunta) if pergunta else ''}\n\n"
-            "SAIDA_DO_ESPECIALISTA:\n"
-            f"{self._obter_texto_mensagem(saida_especialista)}"
+            f"{texto_pergunta}\n\n"
+            "SAIDAS_DOS_ESPECIALISTAS:\n"
+            f"{corpo_saidas}"
         ))
 
+    def run(self, state: GraphState, config: RunnableConfig) -> dict:
+        entrada = self._montar_entrada(state)
         resultado = self.llm.invoke(
             [SystemMessage(content=self.system_prompt), entrada],
             config=config,
         )
-        
         texto_resposta = self._obter_texto_mensagem(resultado)
-        
+        return {
+            'messages'        : [{'role': 'assistant', 'content': texto_resposta}],
+            'agentes_chamados': [self.nome_agente],
+        }
+
+    async def arun(self, state: GraphState, config: RunnableConfig) -> dict:
+        entrada = self._montar_entrada(state)
+        resultado = await self.llm.ainvoke(
+            [SystemMessage(content=self.system_prompt), entrada],
+            config=config,
+        )
+        texto_resposta = self._obter_texto_mensagem(resultado)
         return {
             'messages'        : [{'role': 'assistant', 'content': texto_resposta}],
             'agentes_chamados': [self.nome_agente],

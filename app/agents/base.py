@@ -50,3 +50,7 @@ class BaseAgent(ABC):
     @abstractmethod
     def run(self, state: GraphState, config: RunnableConfig):
         raise NotImplementedError
+
+    @abstractmethod
+    async def arun(self, state: GraphState, config: RunnableConfig):
+        raise NotImplementedError

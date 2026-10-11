@@ -1,15 +1,15 @@
+import inspect, time, functools, logging
+from typing import Dict, List, Optional
+from langchain_core.runnables import RunnableLambda
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.base import BaseCheckpointSaver
+
 from app.graph.registro import RegistroEspecialista
 from app.graph.state import GraphState
 from app.agents.base import BaseAgent
 from app.repository.base import Repository
-
 from app.graph.nodes import make_repo_backed_node
-
-from typing import Dict, List, Optional
-from langgraph.graph.state import CompiledStateGraph
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.base import BaseCheckpointSaver
-import time, functools, logging
 
 
 class GraphBuilder:
@@ -34,16 +34,31 @@ class GraphBuilder:
         self.log = logging.getLogger("latency")
 
 
-    def timed(self, nome):
+    def timed(self, nome: str):
         def deco(fn):
-            @functools.wraps(fn)
-            def wrapper(*a, **kw):
-                t = time.perf_counter()
-                try:
-                    return fn(*a, **kw)
-                finally:
-                    self.log.warning("node=%s %.2fs", nome, time.perf_counter() - t)
-            return wrapper
+            if isinstance(fn, RunnableLambda):
+                return RunnableLambda(
+                    deco(fn.func) if fn.func else None,
+                    afunc=deco(fn.afunc) if fn.afunc else None,
+                )
+            if inspect.iscoroutinefunction(fn):
+                @functools.wraps(fn)
+                async def async_wrapper(*a, **kw):
+                    t = time.perf_counter()
+                    try:
+                        return await fn(*a, **kw)
+                    finally:
+                        self.log.warning("node=%s %.2fs", nome, time.perf_counter() - t)
+                return async_wrapper
+            else:
+                @functools.wraps(fn)
+                def sync_wrapper(*a, **kw):
+                    t = time.perf_counter()
+                    try:
+                        return fn(*a, **kw)
+                    finally:
+                        self.log.warning("node=%s %.2fs", nome, time.perf_counter() - t)
+                return sync_wrapper
         return deco
 
     # --------------------------------------------------------------------------
@@ -52,14 +67,24 @@ class GraphBuilder:
     def _decisao_guardrail_entrada(self, state: GraphState) -> str:
         return 'router_agent' if state.get('passou_guardrail') else 'fim'
 
-    def _decisao_roteador(self, state: GraphState) -> str:
-        """Lê o protocolo do roteador e devolve o nome do próximo nó.
-        VAI TER QUE MUDAR - roteador deve poder chamar mais de um agente (mudar prompt e run() também)"""
-        proximo = state.get('proximo_agente')
+    def _decisao_roteador(self, state: GraphState) -> list[str] | str:
+        """Lê o protocolo do roteador e devolve a lista de rotas especialistas a invokar.
+        Se nenhuma rota mapeada for informada, devolve 'fim'."""
+        rotas = state.get('proximos_agentes') or []
+        if not rotas:
+            return 'fim'
+
         rotas_especialistas = {registro.rota for registro in self._specialists}
-        if proximo in rotas_especialistas:
-            return proximo
-        return 'fim'
+        rotas_validas = [r for r in rotas if r in rotas_especialistas]
+
+        return rotas_validas if rotas_validas else 'fim'
+
+    def _make_agent_node(self, agent: BaseAgent):
+        sync_fn = agent.run
+        async_fn = getattr(agent, "arun", None)
+        if async_fn is not None:
+            return RunnableLambda(sync_fn, afunc=async_fn)
+        return sync_fn
 
     # --------------------------------------------------------------------------
     # Montagem
@@ -67,11 +92,11 @@ class GraphBuilder:
     def build_graph(self) -> CompiledStateGraph:
         graph = StateGraph(GraphState)
 
-        graph.add_node('guardrail_entrada', self.timed('guardrail_entrada')(self._guardrail_entrada.run))
-        graph.add_node('router_agent', self.timed('router')(self._router_agent.run))
+        graph.add_node('guardrail_entrada', self.timed('guardrail_entrada')(self._make_agent_node(self._guardrail_entrada)))
+        graph.add_node('router_agent', self.timed('router')(self._make_agent_node(self._router_agent)))
 
-        graph.add_node('orchestrator_agent', self.timed('orchestrator')(self._orchestrator_agent.run))
-        graph.add_node('guardrail_saida', self.timed('guardrail_saida')(self._guardrail_saida.run))
+        graph.add_node('orchestrator_agent', self.timed('orchestrator')(self._make_agent_node(self._orchestrator_agent)))
+        graph.add_node('guardrail_saida', self.timed('guardrail_saida')(self._make_agent_node(self._guardrail_saida)))
 
         route_node_map: Dict[str, str] = {}
         for registro in self._specialists:

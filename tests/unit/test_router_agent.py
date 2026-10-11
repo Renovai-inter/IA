@@ -10,7 +10,7 @@ realmente pertence ao RouterAgent.
 Também cobre a correção do antigo vazamento do protocolo: o texto
 ROUTE=.../PERGUNTA_ORIGINAL=... só entra no histórico de mensagens quando o
 roteador responde direto ao usuário (rota 'fim'); quando encaminha, a lista
-de mensagens volta vazia e a rota segue em `proximo_agente`.
+de mensagens volta vazia e as rotas seguem em `proximos_agentes`.
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def test_router_agent_extrai_rota_do_protocolo(monkeypatch: pytest.MonkeyPatch):
         config={},
     )
 
-    assert resultado["proximo_agente"] == "estoque"
+    assert resultado["proximos_agentes"] == ["estoque"]
     assert resultado["agentes_chamados"] == ["router"]
 
 
@@ -60,7 +60,7 @@ def test_router_agent_sem_protocolo_cai_em_fim(monkeypatch: pytest.MonkeyPatch):
         config={},
     )
 
-    assert resultado["proximo_agente"] == "fim"
+    assert resultado["proximos_agentes"] == []
 
 
 def test_router_agent_nao_vaza_protocolo_quando_encaminha(monkeypatch: pytest.MonkeyPatch):
@@ -72,7 +72,7 @@ def test_router_agent_nao_vaza_protocolo_quando_encaminha(monkeypatch: pytest.Mo
         config={},
     )
 
-    assert resultado["proximo_agente"] == "estoque"
+    assert resultado["proximos_agentes"] == ["estoque"]
     assert resultado["messages"] == []
 
 
@@ -85,5 +85,32 @@ def test_router_agent_mantem_resposta_direta_no_historico(monkeypatch: pytest.Mo
         config={},
     )
 
-    assert resultado["proximo_agente"] == "fim"
+    assert resultado["proximos_agentes"] == []
     assert resultado["messages"] == [{"role": "assistant", "content": texto}]
+
+
+def test_router_agent_extrai_multiplas_rotas(monkeypatch: pytest.MonkeyPatch):
+    texto = "ROUTES=estoque, rag_faq\nPERGUNTA_ORIGINAL=quanto de PET temos e qual a norma de armazenamento?"
+    agent = _build_router_agent(monkeypatch, texto)
+
+    resultado = agent.run(
+        {"messages": [HumanMessage(content="quanto de PET temos e qual a norma?")]},
+        config={},
+    )
+
+    assert resultado["proximos_agentes"] == ["estoque", "rag_faq"]
+    assert resultado["messages"] == []
+    assert resultado["agentes_chamados"] == ["router"]
+
+
+def test_router_agent_extrai_multiplas_rotas_com_colchetes(monkeypatch: pytest.MonkeyPatch):
+    texto = "ROUTES=['estoque', 'rag_faq']\nPERGUNTA_ORIGINAL=pergunta teste"
+    agent = _build_router_agent(monkeypatch, texto)
+
+    resultado = agent.run(
+        {"messages": [HumanMessage(content="pergunta teste")]},
+        config={},
+    )
+
+    assert resultado["proximos_agentes"] == ["estoque", "rag_faq"]
+    assert resultado["messages"] == []
