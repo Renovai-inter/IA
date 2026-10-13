@@ -36,6 +36,8 @@ class PerfilRepository(Repository[PerfilContext, ConnectionPool]):
 
                 cur.execute(query, params)
                 row = cur.fetchone()
+                if not row:
+                    raise ValueError(f"Perfil {perfil_id} não encontrado no banco de dados.")
                 tipo = 'EMPRESA' if row['empresa_id'] else 'COOPERATIVA'
                 
                 return PerfilContext(
