@@ -1,9 +1,20 @@
 import unittest
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from app.main import app
+
+
+_CHECKPOINTER_FAKE = object()
+
+
+@asynccontextmanager
+async def _abrir_checkpointer_fake(_settings):
+    # Settings é um MagicMock neste teste: REDIS_URL viraria um valor "truthy"
+    # e o lifespan tentaria conectar num Redis de verdade.
+    yield _CHECKPOINTER_FAKE
 
 
 class StartupTest(unittest.TestCase):
@@ -15,7 +26,8 @@ class StartupTest(unittest.TestCase):
             'second': (healthy, 'second-connection'),
         })
         with patch('app.main.Settings'), \
-             patch('app.main.build_container', return_value=container), \
+             patch('app.main.abrir_checkpointer', _abrir_checkpointer_fake), \
+             patch('app.main.build_container', return_value=container) as build, \
              self.assertLogs('fastapi', level='ERROR'):
             with TestClient(app) as client:
                 response = client.get('/health')
@@ -23,6 +35,8 @@ class StartupTest(unittest.TestCase):
                 self.assertEqual(response.json(), {'status': 'ok'})
                 self.assertIs(app.state.container, container)
         healthy.close.assert_called_once_with('second-connection')
+        # o checkpointer aberto no lifespan é o que chega no container
+        self.assertIs(build.call_args.kwargs['checkpointer'], _CHECKPOINTER_FAKE)
 
 
 if __name__ == '__main__':

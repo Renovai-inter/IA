@@ -42,6 +42,18 @@ OLLAMA_MODEL="qwen2.5:3b-instruct" uv run pytest tests/integration
 OLLAMA_MODEL_HIGH="qwen2.5:7b-instruct" OLLAMA_MODEL_LOW="qwen2.5:3b-instruct" uv run pytest tests/integration
 ```
 
+`tests/integration/test_checkpointer_redis.py` é a exceção: não usa Ollama,
+e sim o **Redis real** do `REDIS_URL` (lido do ambiente ou do `.env`). Ele
+confirma que o estado do grafo faz a ida e volta pelo Redis (incluindo
+`PerfilContext`/`EspecialistaOutput`), que um grafo novo lê o estado de outro
+(cenário de várias réplicas), o reset de `especialista_outputs` e o
+`adelete_thread`. Cada teste usa um `thread_id` próprio e apaga o que criou;
+sem `REDIS_URL`, é pulado.
+
+```bash
+uv run pytest tests/integration/test_checkpointer_redis.py -v
+```
+
 Se o Ollama não estiver no ar em `http://localhost:11434` ou se o modelo configurado não estiver baixado, os testes de integração são **pulados** automaticamente com uma mensagem explicativa (não travam nem falham silenciosamente). Pra apontar para outro host/porta, defina `OLLAMA_BASE_URL`. Para alterar o tempo limite de inferência, defina `OLLAMA_TIMEOUT` (em segundos).
 
 Para `tests/e2e/` (bancos reais do `.env` + Ollama) — leia
@@ -55,9 +67,11 @@ E2E_CONFIRM=1 uv run pytest tests/e2e -v
 
 - Juiz e os demais agentes de negócio do roadmap não têm teste
   porque ainda não existem no código.
-- `MongoMemory` / `QdrantMemory` (gravação da conversa, encerramento de
-  sessão, resumo vetorizado) só são exercitados pelo e2e, contra os bancos
-  reais — não há teste unitário com dublê para eles ainda.
+- `MongoMemory` / `QdrantMemory` (gravação da conversa, resumo vetorizado)
+  só são exercitados pelo e2e, contra os bancos reais — não há teste
+  unitário com dublê para eles ainda. A rota de encerrar sessão tem teste
+  unitário (`tests/unit/test_sessions_route.py`), mas com as memórias
+  substituídas por dublês.
 - `tests/e2e/ollama_container.py` não é mais uma cópia de
   `app/core/container.py`: ele chama o próprio `build_container` passando
   `providers=` e `agent_llm_map=` com Ollama, então acompanha
