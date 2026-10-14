@@ -10,6 +10,7 @@ from app.graph.state import GraphState
 from app.agents.base import BaseAgent
 from app.repository.base import Repository
 from app.graph.nodes import make_repo_backed_node
+from app.core.observabilidade import timed as obs_timed
 
 
 class GraphBuilder:
@@ -31,35 +32,10 @@ class GraphBuilder:
         self._guardrail_entrada = guardrail_entrada
         self._guardrail_saida = guardrail_saida
 
-        self.log = logging.getLogger("latency")
-
+        self.log = logging.getLogger("renovai.observabilidade")
 
     def timed(self, nome: str):
-        def deco(fn):
-            if isinstance(fn, RunnableLambda):
-                return RunnableLambda(
-                    deco(fn.func) if fn.func else None,
-                    afunc=deco(fn.afunc) if fn.afunc else None,
-                )
-            if inspect.iscoroutinefunction(fn):
-                @functools.wraps(fn)
-                async def async_wrapper(*a, **kw):
-                    t = time.perf_counter()
-                    try:
-                        return await fn(*a, **kw)
-                    finally:
-                        self.log.warning("node=%s %.2fs", nome, time.perf_counter() - t)
-                return async_wrapper
-            else:
-                @functools.wraps(fn)
-                def sync_wrapper(*a, **kw):
-                    t = time.perf_counter()
-                    try:
-                        return fn(*a, **kw)
-                    finally:
-                        self.log.warning("node=%s %.2fs", nome, time.perf_counter() - t)
-                return sync_wrapper
-        return deco
+        return obs_timed(nome=nome, categoria="grafo")
 
     # --------------------------------------------------------------------------
     # Decisões

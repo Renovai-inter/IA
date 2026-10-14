@@ -12,15 +12,15 @@ Classes:
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from typing import (
-    ClassVar, Dict, Tuple, List
+    ClassVar, Dict, Tuple, List, Any
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / ".env",
-        env_file_encoding="utf-8",
+        env_file=BASE_DIR / '.env',
+        env_file_encoding='utf-8',
     )
 
     GEMINI_API_KEY: str
@@ -37,10 +37,22 @@ class Settings(BaseSettings):
     # direto da env var OLLAMA_BASE_URL (default http://localhost:11434), pra
     # não depender do restante do Settings (GEMINI/GROQ/Postgres/Mongo/Qdrant)
     # só pra rodar contra um LLM local.
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
     FAQ_PATH: str
 
-    MONGO_DB_NAME: str = "mongo_dbrenovai"
+    LANGSMITH_TRACING: bool = False
+    LANGSMITH_API_KEY: str | None = None
+    LANGSMITH_PROJECT: str = 'renovai-ia'
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.LANGSMITH_TRACING:
+            import os
+            os.environ['LANGSMITH_TRACING'] = 'true'
+            if self.LANGSMITH_API_KEY:
+                os.environ['LANGSMITH_API_KEY'] = self.LANGSMITH_API_KEY
+            if self.LANGSMITH_PROJECT:
+                os.environ['LANGSMITH_PROJECT'] = self.LANGSMITH_PROJECT
+
+    MONGO_DB_NAME: str = 'mongo_dbrenovai'
 
     MONGO_COLLECTION_SESSAO:   str = 'sessao'
     QDRANT_COLLECTION_MEMORIA: str = 'memoria_resumos'
@@ -61,9 +73,9 @@ class Settings(BaseSettings):
     }
 
     _CAMPOS_OBRIGATORIOS: ClassVar[tuple[str, ...]] = (
-        "GEMINI_API_KEY",
-        "GROQ_API_KEY",
-        "DATABASE_URL",
+        'GEMINI_API_KEY',
+        'GROQ_API_KEY',
+        'DATABASE_URL',
     )
 
     def validar_config(self) -> list[str]:
@@ -71,5 +83,5 @@ class Settings(BaseSettings):
         problemas = []
         for nome in self._CAMPOS_OBRIGATORIOS:
             if not getattr(self, nome, None):
-                problemas.append(f"Variável ausente no .env: {nome}")
+                problemas.append(f'Variável ausente no .env: {nome}')
         return problemas

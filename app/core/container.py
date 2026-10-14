@@ -1,4 +1,5 @@
 from app.core.config import Settings
+from app.core.observabilidade import Observabilidade
 from app.graph.registro import RegistroEspecialista
 from app.llms.factory import LLMFactory
 from app.llms.embedding_service import EmbeddingService
@@ -80,6 +81,10 @@ def build_container(
             'GEMINI': GeminiProvider(settings.GEMINI_API_KEY),
             'GROQ':   GroqProvider(settings.GROQ_API_KEY),
         }
+
+    observabilidade = Observabilidade()
+    observabilidade.acoplar_provedores(providers)
+
     llm_factory = LLMFactory(providers)
     llm_map = agent_llm_map or settings.AGENT_LLM_MAP
 
@@ -178,7 +183,8 @@ def build_container(
         factories=_FACTORIES_MAP,
         repositories=_REPOSITORIES_MAP,
         memory_stores=_MEMORY_STORE_MAP,
-        toolkits=_TOOLKITS_MAP
+        toolkits=_TOOLKITS_MAP,
+        observabilidade=observabilidade,
     )
 
 
@@ -190,7 +196,8 @@ class Container:
         factories: Dict[str, Tuple[ConnectionFactory, Any]],
         repositories: Dict[str, Repository],
         memory_stores: Dict[str, MemoryStore],
-        toolkits: Dict[str, Any]
+        toolkits: Dict[str, Any],
+        observabilidade: Observabilidade | None = None,
     ):
         self.graph = graph
         self.agentes = agentes
@@ -198,3 +205,4 @@ class Container:
         self.repositories = repositories
         self.memory_stores = memory_stores
         self.toolkits = toolkits
+        self.observabilidade = observabilidade or Observabilidade()
