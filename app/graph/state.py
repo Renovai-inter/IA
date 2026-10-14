@@ -1,17 +1,19 @@
-from app.repository.postgresql.perfil_repository import PerfilContext
-
-from pydantic import BaseModel
-from langgraph.graph import MessagesState
+from dataclasses import dataclass
 from typing import (
     Annotated,
-    Optional,
+    Dict,
     List,
     Literal,
-    Dict
+    Optional,
 )
 import operator
+from langgraph.graph import MessagesState
 
-class EspecialistaOutput(BaseModel):
+from app.repository.postgresql.perfil_repository import PerfilContext
+
+
+@dataclass(slots=True)
+class EspecialistaOutput:
     conteudo: str
     fonte: Optional[str] = None
     veredito_juiz: Literal["pendente", "aprovado", "reprovado"] = "pendente"

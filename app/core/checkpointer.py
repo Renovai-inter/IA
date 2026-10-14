@@ -15,8 +15,10 @@ from app.repository.postgresql.perfil_repository import PerfilContext
 
 log = logging.getLogger(__name__)
 
-# Modelos pydantic que vivem dentro do GraphState.
-TIPOS_DO_ESTADO: tuple[type[BaseModel], ...] = (PerfilContext, EspecialistaOutput)
+import dataclasses
+
+# Modelos do GraphState (Pydantic ou dataclass).
+TIPOS_DO_ESTADO: tuple[type, ...] = (PerfilContext, EspecialistaOutput)
 
 
 def _id_lc(cls: type) -> tuple[str, ...]:
@@ -24,15 +26,21 @@ def _id_lc(cls: type) -> tuple[str, ...]:
     return (*cls.__module__.split('.'), cls.__name__)
 
 
+def _reconstruir_objeto(cls: type, kwargs: dict[str, Any]) -> Any:
+    if isinstance(cls, type) and issubclass(cls, BaseModel):
+        return cls.model_validate(kwargs)
+    return cls(**kwargs)
+
+
 class RenovaiRedisSerializer(JsonPlusRedisSerializer):
-    """JsonPlusRedisSerializer que reconstrói os modelos pydantic do GraphState.
+    """JsonPlusRedisSerializer que reconstrói os modelos do GraphState.
 
     Só as classes de TIPOS_DO_ESTADO são reconstruídas (sem import dinâmico
     de nada que venha do Redis); qualquer outro envelope segue o fluxo
     normal do serializador do pacote.
     """
 
-    def __init__(self, tipos: tuple[type[BaseModel], ...] = TIPOS_DO_ESTADO):
+    def __init__(self, tipos: tuple[type, ...] = TIPOS_DO_ESTADO):
         super().__init__()
         self._tipos_por_id = {_id_lc(t): t for t in tipos}
 
@@ -44,12 +52,11 @@ class RenovaiRedisSerializer(JsonPlusRedisSerializer):
         ):
             cls = self._tipos_por_id.get(tuple(obj.get('id') or ()))
             if cls is not None:
-                # pydantic converte de volta os tipos que viraram string (UUID etc.)
                 kwargs = {
                     k: self._revive_if_needed(v)
                     for k, v in (obj.get('kwargs') or {}).items()
                 }
-                return cls.model_validate(kwargs)
+                return _reconstruir_objeto(cls, kwargs)
         return super()._revive_if_needed(obj)
 
 
@@ -58,7 +65,7 @@ def criar_serializer() -> RenovaiRedisSerializer:
 
 
 # Patch idempotente no JsonPlusRedisSerializer e no BaseRedisSaver para que
-# QUALQUER instância de AsyncShallowRedisSaver reconstrua os modelos pydantic do GraphState
+# QUALQUER instância de AsyncShallowRedisSaver reconstrua os modelos do GraphState
 _orig_jsonplus_revive = JsonPlusRedisSerializer._revive_if_needed
 
 def _patched_jsonplus_revive(self: Any, obj: Any) -> Any:
@@ -76,7 +83,7 @@ def _patched_jsonplus_revive(self: Any, obj: Any) -> Any:
                 k: self._revive_if_needed(v)
                 for k, v in (obj.get('kwargs') or {}).items()
             }
-            return cls.model_validate(kwargs)
+            return _reconstruir_objeto(cls, kwargs)
     return _orig_jsonplus_revive(self, obj)
 
 if not getattr(JsonPlusRedisSerializer, '_renovai_patched', False):
