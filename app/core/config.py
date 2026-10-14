@@ -26,9 +26,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     GROQ_API_KEY: str
     QDRANT_API_KEY: str
+    LANGSMITH_API_KEY: str | None = None
 
     DATABASE_URL: str
     QDRANT_URL: str
+    REDIS_URL: str = ''
     MONGODB_URI: str
 
     # Opcional: só é lido se/quando você decidir registrar 'OLLAMA' como
@@ -40,8 +42,9 @@ class Settings(BaseSettings):
     FAQ_PATH: str
 
     LANGSMITH_TRACING: bool = False
-    LANGSMITH_API_KEY: str | None = None
     LANGSMITH_PROJECT: str = 'renovai-ia'
+
+    SESSAO_TTL_MIN: int = 120
 
     def model_post_init(self, __context: Any) -> None:
         if self.LANGSMITH_TRACING:
