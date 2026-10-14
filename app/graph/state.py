@@ -22,6 +22,7 @@ class EspecialistaOutput:
 
 
 RESET_OUTPUTS = '__reset__'
+RESET_AGENTES = '__reset__'
 
 def merge_especialista_outputs(
     existente: Dict[str, EspecialistaOutput],
@@ -32,11 +33,20 @@ def merge_especialista_outputs(
     return {**(existente or {}), **(novo or {})}
 
 
+def merge_agentes_chamados(
+    existente: list[str],
+    novo: list[str],
+) -> list[str]:
+    if novo and RESET_AGENTES in novo:
+        return [item for item in novo if item != RESET_AGENTES]
+    return (existente or []) + (novo or [])
+
+
 class GraphState(MessagesState):
     perfil_ctx :          Optional[PerfilContext]
     proximos_agentes :    Optional[List[str]]
-    agentes_chamados :    Annotated[list[str], operator.add]
+    agentes_chamados :    Annotated[list[str], merge_agentes_chamados]
     especialista_outputs: Annotated[dict[str, EspecialistaOutput], merge_especialista_outputs]
     chunk_contexto :      Optional[List[str]]
     passou_guardrail :    Optional[bool]
-    motivo_guardrail :    Optional[str]
+    motivo_guardrail :    Optional[str]

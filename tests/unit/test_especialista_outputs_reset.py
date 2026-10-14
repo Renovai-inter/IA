@@ -12,7 +12,13 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from app.graph.builder import GraphBuilder
 from app.graph.registro import RegistroEspecialista
-from app.graph.state import RESET_OUTPUTS, EspecialistaOutput, merge_especialista_outputs
+from app.graph.state import (
+    RESET_OUTPUTS,
+    RESET_AGENTES,
+    EspecialistaOutput,
+    merge_especialista_outputs,
+    merge_agentes_chamados,
+)
 
 from tests.support import StubAgent
 
@@ -41,6 +47,15 @@ def test_merge_tolera_none():
 
     assert merge_especialista_outputs(None, {'faq': a}) == {'faq': a}
     assert merge_especialista_outputs({'faq': a}, None) == {'faq': a}
+
+
+def test_merge_agentes_chamados_acumula_sem_reset():
+    assert merge_agentes_chamados(['router'], ['material_estoque']) == ['router', 'material_estoque']
+
+
+def test_merge_agentes_chamados_com_reset_descarta_anteriores():
+    assert merge_agentes_chamados(['router', 'material_estoque'], [RESET_AGENTES]) == []
+    assert merge_agentes_chamados(['router', 'material_estoque'], [RESET_AGENTES, 'guardrail_entrada']) == ['guardrail_entrada']
 
 
 # ------------------------------------------------------------------------------

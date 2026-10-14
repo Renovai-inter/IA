@@ -1,7 +1,7 @@
 from app.api.schemas.chat_request import ChatRequest
 from app.api.schemas.chat_response import ChatResponse
 from app.guardrails.pii import anonimizar
-from app.graph.state import RESET_OUTPUTS
+from app.graph.state import RESET_OUTPUTS, RESET_AGENTES
 
 import asyncio
 from fastapi import APIRouter, Request
@@ -49,17 +49,17 @@ async def chat(request: Request, body: ChatRequest):
             'mapa_pii':  mapa_pii,
         }}
 
-        estado_anterior = await container.graph.aget_state(config)
-        qtd_anteriores = len((estado_anterior.values or {}).get('agentes_chamados', []))
-
         resultado = await container.graph.ainvoke(
             {
                 'messages': [HumanMessage(content=pergunta)],
                 'perfil_ctx': perfil_ctx,
                 'especialista_outputs': {RESET_OUTPUTS: True},
+                'agentes_chamados': [RESET_AGENTES],
             },
             config=config,
         )
+
+        agentes_turno = resultado.get('agentes_chamados', [])
 
         passou_guardrail = resultado.get('passou_guardrail', True)
         if not passou_guardrail:
@@ -71,12 +71,9 @@ async def chat(request: Request, body: ChatRequest):
             if rotas:
                 rota = ", ".join(rotas)
             else:
-                agentes_totais = resultado.get('agentes_chamados', [])
-                agentes_turno_temp = agentes_totais[qtd_anteriores:]
-                rota = agentes_turno_temp[-1] if agentes_turno_temp else "fim"
+                rota = agentes_turno[-1] if agentes_turno else "fim"
 
         resposta = _obter_texto_mensagem(resultado['messages'][-1])
-        agentes_turno = resultado.get('agentes_chamados', [])[qtd_anteriores:]
 
         await asyncio.to_thread(
             mongo_memory.registrar_resposta,
