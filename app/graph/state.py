@@ -19,11 +19,15 @@ class EspecialistaOutput(BaseModel):
     tentativas: int = 0
 
 
+RESET_OUTPUTS = '__reset__'
+
 def merge_especialista_outputs(
     existente: Dict[str, EspecialistaOutput],
     novo: Dict[str, EspecialistaOutput],
 ) -> Dict[str, EspecialistaOutput]:
-    return {**existente, **novo}
+    if novo and RESET_OUTPUTS in novo:
+        return {}
+    return {**(existente or {}), **(novo or {})}
 
 
 class GraphState(MessagesState):

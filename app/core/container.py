@@ -47,6 +47,7 @@ from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 
 from typing import Any, Dict, Tuple
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 
 
@@ -54,7 +55,13 @@ def build_container(
     settings: Settings,
     providers: Dict[str, Any] | None = None,
     agent_llm_map: Dict[str, Tuple[str, str]] | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> Container:
+    """
+    Construção do contêiner com conexão a banco de dados.
+    """
+    checkpointer = checkpointer or MemorySaver()
+
     pg_factory = PostgresConnectionFactory(dsn=settings.DATABASE_URL)
     mongo_factory = MongoConnectionFactory(dsn=settings.MONGODB_URI, db_name=settings.MONGO_DB_NAME)
     qdrant_factory = QdrantConnectionFactory(dsn=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
@@ -172,7 +179,7 @@ def build_container(
         orchestrator_agent=agents['orchestrator_agent'],
         specialists=specialists,
         repositories=_REPOSITORIES_MAP,
-        checkpointer=MemorySaver(),
+        checkpointer=checkpointer,
         guardrail_entrada=agents['guardrail_entrada'],
         guardrail_saida=agents['guardrail_saida'],
     ).build_graph()
@@ -185,6 +192,7 @@ def build_container(
         memory_stores=_MEMORY_STORE_MAP,
         toolkits=_TOOLKITS_MAP,
         observabilidade=observabilidade,
+        checkpointer=checkpointer,
     )
 
 
@@ -198,6 +206,7 @@ class Container:
         memory_stores: Dict[str, MemoryStore],
         toolkits: Dict[str, Any],
         observabilidade: Observabilidade | None = None,
+        checkpointer: BaseCheckpointSaver | None = None,
     ):
         self.graph = graph
         self.agentes = agentes
@@ -206,3 +215,4 @@ class Container:
         self.memory_stores = memory_stores
         self.toolkits = toolkits
         self.observabilidade = observabilidade or Observabilidade()
+        self.checkpointer = checkpointer
