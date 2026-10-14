@@ -8,6 +8,10 @@ from langgraph.checkpoint.redis.ashallow import AsyncShallowRedisSaver
 from langgraph.checkpoint.redis.base import BaseRedisSaver
 from langgraph.checkpoint.redis.jsonplus_redis import JsonPlusRedisSerializer
 from pydantic import BaseModel
+from redis.asyncio.retry import Retry as AsyncRetry
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import ConnectionError as RedisConnectionError, TimeoutError as RedisTimeoutError
+from redis.retry import Retry as SyncRetry
 
 from app.core.config import Settings
 from app.graph.state import EspecialistaOutput
@@ -90,11 +94,40 @@ if not getattr(JsonPlusRedisSerializer, '_renovai_patched', False):
     JsonPlusRedisSerializer._revive_if_needed = _patched_jsonplus_revive
     JsonPlusRedisSerializer._renovai_patched = True
 
+def _obter_connection_args_resilientes(is_async: bool = True, user_args: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Retorna argumentos de conexão resilientes para o pool do Redis.
+
+    Evita que conexões ociosas caiam silenciosamente (WinError 10054 / ConnectionResetError)
+    em Redis remoto/cloud, habilitando TCP keepalive, verificação periódica de saúde (health check)
+    e retentativas automáticas com backoff exponencial.
+    """
+    retry_obj = (
+        AsyncRetry(ExponentialBackoff(cap=5, base=1), 3)
+        if is_async
+        else SyncRetry(ExponentialBackoff(cap=5, base=1), 3)
+    )
+    args: dict[str, Any] = {
+        'health_check_interval': 30,
+        'socket_keepalive': True,
+        'retry_on_timeout': True,
+        'retry_on_error': [RedisConnectionError, RedisTimeoutError, ConnectionResetError],
+        'retry': retry_obj,
+    }
+    if user_args:
+        args.update(user_args)
+    return args
+
+
 _orig_base_redis_init = BaseRedisSaver.__init__
 
+
 def _patched_base_redis_init(self: Any, *args: Any, **kwargs: Any) -> None:
+    is_async = isinstance(self, AsyncShallowRedisSaver) or hasattr(self, 'aget_tuple')
+    conn_args = kwargs.get('connection_args')
+    kwargs['connection_args'] = _obter_connection_args_resilientes(is_async=is_async, user_args=conn_args)
     _orig_base_redis_init(self, *args, **kwargs)
     self.serde = criar_serializer()
+
 
 if not getattr(BaseRedisSaver, '_renovai_patched', False):
     BaseRedisSaver.__init__ = _patched_base_redis_init
@@ -111,7 +144,12 @@ async def abrir_checkpointer(settings: Settings) -> AsyncIterator[BaseCheckpoint
         return
 
     ttl = {'default_ttl': settings.SESSAO_TTL_MIN, 'refresh_on_read': True}
-    async with AsyncShallowRedisSaver.from_conn_string(settings.REDIS_URL, ttl=ttl) as saver:
+    conn_args = _obter_connection_args_resilientes(is_async=True)
+    async with AsyncShallowRedisSaver.from_conn_string(
+        settings.REDIS_URL,
+        connection_args=conn_args,
+        ttl=ttl,
+    ) as saver:
         # O BaseRedisSaver já inicializa com criar_serializer(), garantimos explicitamente aqui.
         saver.serde = criar_serializer()
         await saver.asetup()
