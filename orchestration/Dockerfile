@@ -11,6 +11,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/.venv /app/.venv
 COPY app ./app
+COPY frontend ./frontend
 COPY data/FAQ_RENOVAI_COMPLETO.txt ./data/FAQ_RENOVAI_COMPLETO.txt
 USER 10001:10001
 EXPOSE 8000
