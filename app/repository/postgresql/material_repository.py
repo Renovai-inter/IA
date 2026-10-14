@@ -46,7 +46,7 @@ _QUERY_MATERIAL_POR_COOPERATIVA = """
         ON cm.categoria_pai_id = cm2.categoria_id
     LEFT JOIN cooperativas co 
         ON m.cooperativa_id = co.cooperativa_id
-    WHERE m.cooperativa_id = %s
+    WHERE m.cooperativa_id = %s OR m.cooperativa_id IS NULL
     ORDER BY cm.nome_categoria;
 """
 

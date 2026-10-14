@@ -23,39 +23,65 @@ def _obter_texto_mensagem(msg) -> str:
 async def chat(request: Request, body: ChatRequest):
     container = request.app.state.container
     mongo_memory = container.memory_stores['mongo_memory']
+    obs = container.observabilidade
 
-    pergunta, mapa_pii = anonimizar(body.pergunta)
+    turno_id = obs.abrir_turno(session_id=body.session_id)
+    status = "erro"
+    rota = "—"
 
-    perfil_ctx = await asyncio.to_thread(
-        container.repositories['perfil_repository'].resolve_perfil, body.perfil_id
-    )
+    try:
+        pergunta, mapa_pii = anonimizar(body.pergunta)
 
-    await asyncio.to_thread(
-        mongo_memory.preparar_turno,
-        pergunta, perfil_ctx, body.session_id, body.user_id,
-    )
+        perfil_ctx = await asyncio.to_thread(
+            container.repositories['perfil_repository'].resolve_perfil, body.perfil_id
+        )
 
-    config = {'configurable': {
-        'thread_id': body.session_id,
-        'user_id':   body.user_id,
-        'perfil_id': body.perfil_id,
-        'mapa_pii':  mapa_pii,
-    }}
+        await asyncio.to_thread(
+            mongo_memory.preparar_turno,
+            pergunta, perfil_ctx, body.session_id, body.user_id,
+        )
 
-    estado_anterior = await container.graph.aget_state(config)
-    qtd_anteriores = len((estado_anterior.values or {}).get('agentes_chamados', []))
+        config = {'configurable': {
+            'thread_id': body.session_id,
+            'user_id':   body.user_id,
+            'perfil_id': body.perfil_id,
+            'mapa_pii':  mapa_pii,
+        }}
 
-    resultado = await container.graph.ainvoke(
-        {'messages': [HumanMessage(content=pergunta)], 'perfil_ctx': perfil_ctx},
-        config=config,
-    )
+        estado_anterior = await container.graph.aget_state(config)
+        qtd_anteriores = len((estado_anterior.values or {}).get('agentes_chamados', []))
 
-    resposta = _obter_texto_mensagem(resultado['messages'][-1])
-    agentes_turno = resultado.get('agentes_chamados', [])[qtd_anteriores:]
+        resultado = await container.graph.ainvoke(
+            {'messages': [HumanMessage(content=pergunta)], 'perfil_ctx': perfil_ctx},
+            config=config,
+        )
 
-    await asyncio.to_thread(
-        mongo_memory.registrar_resposta,
-        resposta, body.session_id, agentes_turno,
-    )
+        passou_guardrail = resultado.get('passou_guardrail', True)
+        if not passou_guardrail:
+            status = "bloqueado"
+            rota = "bloqueio_guardrail"
+        else:
+            status = "ok"
+            rotas = resultado.get('proximos_agentes') or []
+            if rotas:
+                rota = ", ".join(rotas)
+            else:
+                agentes_totais = resultado.get('agentes_chamados', [])
+                agentes_turno_temp = agentes_totais[qtd_anteriores:]
+                rota = agentes_turno_temp[-1] if agentes_turno_temp else "fim"
 
-    return ChatResponse(resposta=resposta, agentes_chamados=agentes_turno)
+        resposta = _obter_texto_mensagem(resultado['messages'][-1])
+        agentes_turno = resultado.get('agentes_chamados', [])[qtd_anteriores:]
+
+        await asyncio.to_thread(
+            mongo_memory.registrar_resposta,
+            resposta, body.session_id, agentes_turno,
+        )
+
+        return ChatResponse(resposta=resposta, agentes_chamados=agentes_turno)
+    except Exception as e:
+        status = "erro"
+        obs.error(f"Falha na execução do chat: {e}", modulo="chat", exc=e)
+        raise
+    finally:
+        obs.fechar_turno(turno_id, session_id=body.session_id, rota=rota, status=status)
