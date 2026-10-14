@@ -12,15 +12,15 @@ tool/agente citar a fonte, o mesmo papel que `MemoriaCtx` cumpre para os
 `MemoryStore`s: a tool recebe o retriever (não o repository) e só enxerga
 `FaqChunkCtx`, nunca o payload bruto do Qdrant.
 """
+from dataclasses import dataclass
 from typing import List, Optional
-
-from pydantic import BaseModel
 
 from app.llms.embedding_service import EmbeddingService
 from app.repository.qdrant.faq_chunks_repository import FaqChunksRepository
 
 
-class FaqChunkCtx(BaseModel):
+@dataclass(slots=True)
+class FaqChunkCtx:
     conteudo: str
     fonte: str
     pagina: int

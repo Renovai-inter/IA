@@ -8,22 +8,24 @@ from fastapi.staticfiles import StaticFiles
 from app.core.container import build_container
 from app.api.routes import chat, sessions, monitor
 from app.core.config import Settings
+from app.core.checkpointer import abrir_checkpointer
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = Settings()
-    container = build_container(settings)
-    app.state.container = container
-
-    yield
-
-    for factory, conn in container.factories.values():
+    async with abrir_checkpointer(settings) as checkpointer:
+        container = build_container(settings, checkpointer=checkpointer)
+        app.state.container = container
         try:
-            factory.close(conn)
-        except Exception:
-            logger.exception(f"Falha ao fechar conexão de {factory.__class__.__name__}")
+            yield
+        finally:
+            for factory, conn in container.factories.values():
+                try:
+                    factory.close(conn)
+                except Exception:
+                    logger.exception(f"Falha ao fechar conexão de {factory.__class__.__name__}")
 
 app = FastAPI(
     title="Renovai IA",

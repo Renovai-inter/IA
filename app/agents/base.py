@@ -45,7 +45,10 @@ class BaseAgent(ABC):
             k: v for k, v in configurable.items()
             if not k.startswith('__') and not k.startswith('checkpoint_')
         }
-        return {'configurable': {**filtrado, **extras}}
+        novo_config = {'configurable': {**filtrado, **extras}}
+        if 'callbacks' in config:
+            novo_config['callbacks'] = config['callbacks']
+        return novo_config
 
     @abstractmethod
     def run(self, state: GraphState, config: RunnableConfig):
