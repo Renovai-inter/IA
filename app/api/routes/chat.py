@@ -1,6 +1,7 @@
 from app.api.schemas.chat_request import ChatRequest
 from app.api.schemas.chat_response import ChatResponse
 from app.guardrails.pii import anonimizar
+from app.graph.state import RESET_OUTPUTS
 
 import asyncio
 from fastapi import APIRouter, Request
@@ -52,7 +53,11 @@ async def chat(request: Request, body: ChatRequest):
         qtd_anteriores = len((estado_anterior.values or {}).get('agentes_chamados', []))
 
         resultado = await container.graph.ainvoke(
-            {'messages': [HumanMessage(content=pergunta)], 'perfil_ctx': perfil_ctx},
+            {
+                'messages': [HumanMessage(content=pergunta)],
+                'perfil_ctx': perfil_ctx,
+                'especialista_outputs': {RESET_OUTPUTS: True},
+            },
             config=config,
         )
 
