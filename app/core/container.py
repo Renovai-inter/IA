@@ -11,6 +11,7 @@ from app.prompts import (
     FAQ_PROMPT_COMPLETO,
     ROUTER_PROMPT_COMPLETO,
     MATERIAL_ESTOQUE_PROMPT_COMPLETO,
+    RECOMENDACAO_PROMPT_COMPLETO,
     ORQUESTRADOR_PROMPT_COMPLETO,
     GUARDRAIL_ENTRADA_PROMPT_COMPLETO,
     GUARDRAIL_SAIDA_PROMPT_COMPLETO,
@@ -23,12 +24,15 @@ from app.agents.base import BaseAgent
 from app.agents.router_agent import RouterAgent
 from app.agents.faq_agent import FaqAgent
 from app.agents.material_estoque_agent import MaterialEstoqueAgent
+from app.agents.recomendacao_agent import RecomendacaoAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
 from app.agents.guardrail_agent import GuardrailEntradaAgent, GuardrailSaidaAgent
 
 from app.graph.builder import GraphBuilder
 from app.repository.mongodb.db import MongoConnectionFactory
 from app.repository.mongodb.sessao_repository import SessaoRepository
+from app.repository.neo4j.db import Neo4jConnectionFactory
+from app.repository.neo4j.recomendacao_repository import RecomendacaoRepository
 from app.repository.postgresql.db import PostgresConnectionFactory
 
 from app.repository.base import ConnectionFactory, Repository
@@ -44,6 +48,7 @@ from app.rag.retriever import FaqRetriever
 from app.tools.memory_tools import MemoriaToolkit
 from app.tools.faq_chunks_tools import FaqToolkit
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
+from app.tools.recomendacao_tools import RecomendacaoToolkit
 
 from typing import Any, Dict, Tuple
 from langgraph.checkpoint.memory import MemorySaver
@@ -65,11 +70,17 @@ def build_container(
     pg_factory = PostgresConnectionFactory(dsn=settings.DATABASE_URL)
     mongo_factory = MongoConnectionFactory(dsn=settings.MONGODB_URI, db_name=settings.MONGO_DB_NAME)
     qdrant_factory = QdrantConnectionFactory(dsn=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+    neo4j_factory = Neo4jConnectionFactory(
+        dsn=settings.NEO4J_URI,
+        user=settings.NEO4J_USER,
+        password=settings.NEO4J_PASSWORD,
+    )
 
     _FACTORIES_MAP = {
         'pg_factory':     (pg_factory,     pg_factory.connect()),
         'mongo_factory':  (mongo_factory,  mongo_factory.connect()),
         'qdrant_factory': (qdrant_factory, qdrant_factory.connect()),
+        'neo4j_factory':  (neo4j_factory,  neo4j_factory.connect()),
     }
 
     _REPOSITORIES_MAP = {
@@ -78,9 +89,25 @@ def build_container(
         'estoque_repository':              EstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
 
-        'sessao_repository':               SessaoRepository(db=_FACTORIES_MAP.get('mongo_factory')[1], collection=settings.MONGO_COLLECTION_SESSAO),
-        'resumo_repository':               ResumoRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1], collection=settings.QDRANT_COLLECTION_MEMORIA),
-        'faq_chunks_repository':           FaqChunksRepository(db=_FACTORIES_MAP.get('qdrant_factory')[1], collection=settings.QDRANT_COLLECTION_FAQ),
+        'sessao_repository':       SessaoRepository(
+            db=_FACTORIES_MAP.get('mongo_factory')[1],
+            collection=settings.MONGO_COLLECTION_SESSAO
+        ),
+
+        'resumo_repository':       ResumoRepository(
+            db=_FACTORIES_MAP.get('qdrant_factory')[1],
+            collection=settings.QDRANT_COLLECTION_MEMORIA
+        ),
+
+        'faq_chunks_repository':   FaqChunksRepository(
+            db=_FACTORIES_MAP.get('qdrant_factory')[1],
+            collection=settings.QDRANT_COLLECTION_FAQ
+        ),
+
+        'recomendacao_repository':  RecomendacaoRepository(
+            db=_FACTORIES_MAP.get('neo4j_factory')[1],
+            database=getattr(settings, 'NEO4J_DATABASE', 'neo4j'),
+        ),
     }
 
     if providers is None:
@@ -110,11 +137,12 @@ def build_container(
 
     memoria_toolkit = MemoriaToolkit(_MEMORY_STORE_MAP)
     faq_toolkit = FaqToolkit(faq_retriever)
-    material_estoque_toolkit = MaterialEstoqueToolkit()
+    recomendacao_toolkit = RecomendacaoToolkit(_REPOSITORIES_MAP['recomendacao_repository'])
 
     _TOOLKITS_MAP = {
-        'memoria_toolkit': memoria_toolkit,
-        'faq_toolkit': faq_toolkit,
+        'memoria_toolkit':      memoria_toolkit,
+        'faq_toolkit':          faq_toolkit,
+        'recomendacao_toolkit': recomendacao_toolkit,
     }
 
     _AGENT_REGISTRY: dict[str, dict] = {
@@ -140,6 +168,12 @@ def build_container(
             'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
             'tools': memoria_toolkit.get_tools() + material_estoque_toolkit.get_tools()
         },
+        'recomendacao_agent': {
+            'route': 'pedidos',
+            'cls': RecomendacaoAgent,
+            'prompt': RECOMENDACAO_PROMPT_COMPLETO,
+            'tools': memoria_toolkit.get_tools() + recomendacao_toolkit.get_tools()
+        },
         'orchestrator_agent': {
             'cls': OrchestratorAgent,
             'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
@@ -156,7 +190,8 @@ def build_container(
     specialists: list[RegistroEspecialista] = []
     agents = {}
     for name, spec in _AGENT_REGISTRY.items():
-        llm = llm_factory.get(*llm_map[name])
+        provider_tier = llm_map.get(name) or settings.AGENT_LLM_MAP.get(name, ('GEMINI', 'HIGH'))
+        llm = llm_factory.get(*provider_tier)
         agent_repos = settings.AGENT_REPOSITORY_MAP.get(name, [])
         kwargs = {}
         if 'rotas_revisao' in spec:
