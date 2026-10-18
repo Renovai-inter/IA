@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = ''
     MONGODB_URI: str
 
+    NEO4J_URI: str = 'bolt://localhost:7687'
+    NEO4J_USER: str = 'neo4j'
+    NEO4J_PASSWORD: str = ''
+    NEO4J_DATABASE: str = 'neo4j'
+
     # Opcional: só é lido se/quando você decidir registrar 'OLLAMA' como
     # provider no container de produção (app/core/container.py). Os testes de
     # integração (tests/integration/) NÃO leem esse campo: eles pegam a URL
@@ -65,6 +70,7 @@ class Settings(BaseSettings):
         'router_agent':           ('GROQ',   'LOW'),
         'faq_agent':              ('GEMINI', 'MEDIUM'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
+        'recomendacao_agent':     ('GEMINI', 'HIGH'),
         'orchestrator_agent':     ('GROQ',   'LOW'),
         'resumo_agent':           ('GROQ',   'LOW'),
         'guardrail_entrada':      ('GROQ',   'LOW'),

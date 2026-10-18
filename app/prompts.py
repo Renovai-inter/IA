@@ -59,10 +59,10 @@ ROUTER_PROMPT = f"""
 
 
 ### AGENTES DISPONÍVEIS
-- estoque    : materiais disponíveis, quantidade em estoque, categorias de material, preços sugeridos.
+- estoque    : gestão do estoque interno da cooperativa (quanto tem no galpão, entradas/saídas de lotes, pesagens da própria cooperativa). NÃO usar para empresas compradoras buscando fornecedores ou cooperativas.
 - financeiro : rateio entre cooperados, despesas da cooperativa, valores de negociações e pedidos.
 - coleta     : registro e status de coletas, triagens, quantidade rejeitada, equipes responsáveis.
-- pedidos    : pedidos de empresas compradoras, itens de pedido, negociações e propostas.
+- pedidos    : empresas compradoras (ranking e recomendação de cooperativas próximas para compra de recicláveis, busca de fornecedores de material, cotações, pedidos de compra e negociações).
 - logistica  : rotas de coleta, sequência de visitas, motoristas, otimização de trajeto.
 - rag_faq    : dúvidas institucionais — regras, políticas, normativas de reciclagem, termos,
                responsabilidades, privacidade, segurança e como o Renovaí funciona.
@@ -145,6 +145,14 @@ ROUTES=estoque, rag_faq
 PERGUNTA_ORIGINAL=[mensagem completa do usuário]
 """
 
+# Exemplo 10 — Pedidos / Recomendação de Cooperativas (Empresa Compradora) → encaminhar
+ROUTER_SHOT_10 = """
+Usuário: Me dê um ranking de cooperativas próximas de mim para eu comprar 50 kg de aluminio
+Roteador:
+ROUTE=pedidos
+PERGUNTA_ORIGINAL=Me dê um ranking de cooperativas próximas de mim para eu comprar 50 kg de aluminio
+"""
+
 ROUTER_SHOTS_CUT = (
     "FIM DOS EXEMPLOS. "
     "Considere apenas as mensagens abaixo como contexto verdadeiro."
@@ -162,6 +170,7 @@ ROUTER_PROMPT_COMPLETO = (
     ROUTER_SHOT_7      + "\n\n" +
     ROUTER_SHOT_8      + "\n\n" +
     ROUTER_SHOT_9      + "\n\n" +
+    ROUTER_SHOT_10     + "\n\n" +
     ROUTER_SHOTS_CUT
 )
 
@@ -743,3 +752,86 @@ VEREDITO=<OK|PROMESSA_FINANCEIRA|ORIENTACAO_PERIGOSA>
 """
 
 GUARDRAIL_SAIDA_PROMPT_COMPLETO = GUARDRAIL_SAIDA_PROMPT
+
+
+# ==============================================================================
+# RECOMENDAÇÃO DE COOPERATIVAS (FLUXO DE EMPRESA COMPRADORA)
+# ==============================================================================
+RECOMENDACAO_PROMPT = f"""
+{PERSONA_SISTEMA}
+
+
+{_CONTEXTO_TEMPORAL}
+
+
+### OBJETIVO
+Atender empresas compradoras de materiais recicláveis na busca, recomendação e avaliação
+multicritério de cooperativas parceiras via grafo Neo4j.
+A saída SEMPRE é JSON estruturado para o Orquestrador.
+
+
+### ESCOPO
+Recomendação de cooperativas de recicláveis com base em métricas ponderadas
+(disponibilidade imediata em estoque em relação à quantidade solicitada, menor distância
+na malha viária de São Paulo, capacidade mensal de processamento, score de conformidade,
+fontes validadas de coleta e histórico de parceria/favorita).
+
+
+### TAREFAS
+- Sempre que a empresa compradora solicitar indicação, recomendação ou busca de cooperativas
+  para fornecer um material reciclável (PET, PEAD, Papelão, Alumínio, Vidro etc.), acione
+  a tool `recomendar_cooperativas`.
+- Extraia da mensagem do usuário:
+  - `material`: nome ou tipo do material solicitado;
+  - `volume_minimo_kg`: quantidade solicitada em kg (converta toneladas para kg se aplicável; padrão 500.0 se não informado);
+  - `raio_max_km`: distância máxima desejada em km (padrão 40.0 se não informado).
+- Analise o ranking retornado pela tool e sintetize as melhores cooperativas destacando
+  `estoque_atual_kg`, `distancia_km`, `capacidade_mensal_kg`, `preco_sugerido_medio` e `score_geral`.
+
+
+### REGRAS
+- Nunca invente cooperativas, distâncias, estoques ou preços que não tenham sido retornados pela tool.
+- Se o usuário pedir recomendação de cooperativas sem informar qual material deseja comprar,
+  use o campo `esclarecer` para perguntar o material e o volume aproximado.
+- Responda APENAS com o JSON abaixo, sem texto fora do JSON.
+
+
+### SAÍDA (JSON)
+Campos mínimos obrigatórios:
+  - dominio      : "recomendacao"
+  - intencao     : "consultar" | "recomendar" | "resumo"
+  - resposta     : síntese objetiva das cooperativas recomendadas com distância, estoque imediato e score
+  - recomendacao : orientação prática para abertura de pedido/proposta com a cooperativa líder do ranking
+
+Campos opcionais (incluir SOMENTE se necessário):
+  - acompanhamento : próximo passo sugerido (ex.: iniciar pedido com a cooperativa top 1)
+  - esclarecer     : pergunta mínima caso o material não tenha sido especificado
+  - indicadores    : métricas numéricas do ranking (ex.: "total_cooperativas": 3, "melhor_score": 0.94, "menor_distancia_km": 12.4)
+"""
+
+RECOMENDACAO_SHOTS_OPEN = (
+    "A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. "
+    "Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário."
+)
+
+RECOMENDACAO_SHOT_1 = """
+Usuário: [preciso comprar 2000 kg de PET em um raio de até 30 km, quais cooperativas você recomenda?]
+Recomendacao: {"dominio":"recomendacao","intencao":"recomendar","resposta":"Encontrei 2 cooperativas recomendadas para fornecimento de PET: 1) Cooperativa Recicla Paulistana (12,4 km, estoque imediato de 3.200 kg, capacidade de 8.500 kg/mês, score 0,94); 2) CoopViva Sustentável Leste (24,8 km, estoque imediato de 5.400 kg, capacidade de 14.000 kg/mês, score 0,83).","recomendacao":"Priorize a Cooperativa Recicla Paulistana pela menor distância viária (12,4 km) e disponibilidade imediata superior aos 2.000 kg solicitados.","indicadores":{"total_cooperativas":2,"melhor_score":0.94,"menor_distancia_km":12.4}}"""
+
+RECOMENDACAO_SHOT_2 = """
+Usuário: [quero recomendação de cooperativas próximas para fechar um pedido hoje]
+Recomendacao: {"dominio":"recomendacao","intencao":"recomendar","resposta":"Para recomendar as melhores cooperativas na malha viária, preciso saber qual material reciclável sua empresa procura.","recomendacao":"","esclarecer":"Qual material reciclável (ex.: PET, Papelão, Alumínio) e qual volume aproximado em kg você deseja adquirir?"}"""
+
+RECOMENDACAO_SHOTS_CUT = (
+    "FIM DOS EXEMPLOS. "
+    "Considere apenas as mensagens abaixo como contexto verdadeiro."
+)
+
+RECOMENDACAO_PROMPT_COMPLETO = (
+    RECOMENDACAO_PROMPT      + "\n\n" +
+    RECOMENDACAO_SHOTS_OPEN  + "\n\n" +
+    RECOMENDACAO_SHOT_1      + "\n\n" +
+    RECOMENDACAO_SHOT_2      + "\n\n" +
+    RECOMENDACAO_SHOTS_CUT
+)
+
