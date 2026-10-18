@@ -18,15 +18,15 @@ QUERY_RECOMENDAR_COOPERATIVAS = """
       )
     OPTIONAL MATCH (e:EmpresaCompradora {id: $empresa_id})
     OPTIONAL MATCH p = shortestPath((e)-[:CONECTADA_A*..6]-(c))
-    OPTIONAL MATCH (e)-[fav:FAVORITA]->(c)
-    OPTIONAL MATCH (c)-[col:COLETA_EM]->(:PontoColeta)
+    OPTIONAL MATCH (e)-[fav:FAVORITOU]->(c)
+    OPTIONAL MATCH (c)-[col:COLETA_DE]->(:PontoDeColeta)
     WITH c, m, proc, fav,
          count(DISTINCT col) AS fontes_validadas,
          coalesce(
              reduce(dist = 0.0, r IN relationships(p) | dist + coalesce(r.distancia_km, 0.0)),
-             c.distancia_padrao_km
+             20.0
          ) AS distancia_km
-    WHERE distancia_km IS NOT NULL AND distancia_km <= $raio_max_km
+    WHERE distancia_km <= $raio_max_km
     RETURN c.id AS cooperativa_id,
            c.nome AS cooperativa_nome,
            m.nome AS material_nome,

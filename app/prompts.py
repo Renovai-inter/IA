@@ -59,10 +59,10 @@ ROUTER_PROMPT = f"""
 
 
 ### AGENTES DISPONÍVEIS
-- estoque    : materiais disponíveis, quantidade em estoque, categorias de material, preços sugeridos.
+- estoque    : gestão do estoque interno da cooperativa (quanto tem no galpão, entradas/saídas de lotes, pesagens da própria cooperativa). NÃO usar para empresas compradoras buscando fornecedores ou cooperativas.
 - financeiro : rateio entre cooperados, despesas da cooperativa, valores de negociações e pedidos.
 - coleta     : registro e status de coletas, triagens, quantidade rejeitada, equipes responsáveis.
-- pedidos    : pedidos de empresas compradoras, itens de pedido, negociações e propostas.
+- pedidos    : empresas compradoras (ranking e recomendação de cooperativas próximas para compra de recicláveis, busca de fornecedores de material, cotações, pedidos de compra e negociações).
 - logistica  : rotas de coleta, sequência de visitas, motoristas, otimização de trajeto.
 - rag_faq    : dúvidas institucionais — regras, políticas, normativas de reciclagem, termos,
                responsabilidades, privacidade, segurança e como o Renovaí funciona.
@@ -147,10 +147,10 @@ PERGUNTA_ORIGINAL=[mensagem completa do usuário]
 
 # Exemplo 10 — Pedidos / Recomendação de Cooperativas (Empresa Compradora) → encaminhar
 ROUTER_SHOT_10 = """
-Usuário: [empresa compradora buscando recomendação de cooperativas, fornecedores de material reciclável, pedidos ou propostas]
+Usuário: Me dê um ranking de cooperativas próximas de mim para eu comprar 50 kg de aluminio
 Roteador:
 ROUTE=pedidos
-PERGUNTA_ORIGINAL=[mensagem completa do usuário]
+PERGUNTA_ORIGINAL=Me dê um ranking de cooperativas próximas de mim para eu comprar 50 kg de aluminio
 """
 
 ROUTER_SHOTS_CUT = (

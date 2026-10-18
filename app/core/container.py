@@ -139,10 +139,14 @@ def build_container(
     faq_toolkit = FaqToolkit(faq_retriever)
     recomendacao_toolkit = RecomendacaoToolkit(_REPOSITORIES_MAP['recomendacao_repository'])
 
+    material_estoque_toolkit = MaterialEstoqueToolkit()
+
     _TOOLKITS_MAP = {
         'memoria_toolkit':      memoria_toolkit,
         'faq_toolkit':          faq_toolkit,
         'recomendacao_toolkit': recomendacao_toolkit,
+
+        'material_estoque_toolkit': material_estoque_toolkit,
     }
 
     _AGENT_REGISTRY: dict[str, dict] = {
