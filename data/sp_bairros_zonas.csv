@@ -1,0 +1,38 @@
+bairro,zona,codigo_zona,latitude,longitude,fator_retencao_viaria,fator_tortuosidade
+se,CENTRO,0,-23.5505,-46.6333,1.42,1.38
+republica,CENTRO,0,-23.5440,-46.6425,1.42,1.38
+bela vista,CENTRO,0,-23.5615,-46.6458,1.42,1.38
+consolacao,CENTRO,0,-23.5535,-46.6580,1.42,1.38
+bom retiro,CENTRO,0,-23.5275,-46.6365,1.42,1.38
+bras,CENTRO,0,-23.5450,-46.6160,1.42,1.38
+cambuci,CENTRO,0,-23.5670,-46.6190,1.42,1.38
+liberdade,CENTRO,0,-23.5620,-46.6345,1.42,1.38
+santa cecilia,CENTRO,0,-23.5380,-46.6520,1.42,1.38
+santana,NORTE,1,-23.5015,-46.6250,1.25,1.32
+tucuruvi,NORTE,1,-23.4795,-46.6030,1.25,1.32
+vila guilherme,NORTE,1,-23.5155,-46.6065,1.25,1.32
+vila maria,NORTE,1,-23.5140,-46.5880,1.25,1.32
+casa verde,NORTE,1,-23.5060,-46.6560,1.25,1.32
+freguesia do o,NORTE,1,-23.4950,-46.6970,1.25,1.32
+tatuape,LESTE,2,-23.5400,-46.5760,1.34,1.35
+mooca,LESTE,2,-23.5585,-46.5960,1.34,1.35
+belenzinho,LESTE,2,-23.5410,-46.5910,1.34,1.35
+penha,LESTE,2,-23.5235,-46.5410,1.34,1.35
+itaquera,LESTE,2,-23.5420,-46.4550,1.34,1.35
+sao mateus,LESTE,2,-23.6060,-46.4760,1.34,1.35
+vila prudente,LESTE,2,-23.5830,-46.5810,1.34,1.35
+vila mariana,SUL,3,-23.5890,-46.6345,1.33,1.34
+ipiranga,SUL,3,-23.5925,-46.6065,1.33,1.34
+saude,SUL,3,-23.6150,-46.6375,1.33,1.34
+jabaquara,SUL,3,-23.6460,-46.6410,1.33,1.34
+moema,SUL,3,-23.6010,-46.6650,1.33,1.34
+itaim bibi,SUL,3,-23.5850,-46.6785,1.33,1.34
+santo amaro,SUL,3,-23.6520,-46.7070,1.33,1.34
+campo limpo,SUL,3,-23.6490,-46.7620,1.33,1.34
+pinheiros,OESTE,4,-23.5665,-46.6915,1.31,1.30
+vila madalena,OESTE,4,-23.5515,-46.6930,1.31,1.30
+perdizes,OESTE,4,-23.5365,-46.6775,1.31,1.30
+barra funda,OESTE,4,-23.5260,-46.6650,1.31,1.30
+lapa,OESTE,4,-23.5220,-46.7020,1.31,1.30
+butanta,OESTE,4,-23.5715,-46.7160,1.31,1.30
+jaguare,OESTE,4,-23.5430,-46.7450,1.31,1.30
