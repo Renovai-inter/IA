@@ -33,6 +33,8 @@ from app.repository.mongodb.db import MongoConnectionFactory
 from app.repository.mongodb.sessao_repository import SessaoRepository
 from app.repository.neo4j.db import Neo4jConnectionFactory
 from app.repository.neo4j.recomendacao_repository import RecomendacaoRepository
+from app.repository.neo4j.rota_repository import RotaRepository
+from app.ml.route_model import ModeloRotaSupervisionadoSP
 from app.repository.postgresql.db import PostgresConnectionFactory
 
 from app.repository.base import ConnectionFactory, Repository
@@ -105,6 +107,11 @@ def build_container(
         ),
 
         'recomendacao_repository':  RecomendacaoRepository(
+            db=_FACTORIES_MAP.get('neo4j_factory')[1],
+            database=getattr(settings, 'NEO4J_DATABASE', 'neo4j'),
+        ),
+
+        'rota_repository':          RotaRepository(
             db=_FACTORIES_MAP.get('neo4j_factory')[1],
             database=getattr(settings, 'NEO4J_DATABASE', 'neo4j'),
         ),
@@ -223,6 +230,8 @@ def build_container(
         guardrail_saida=agents['guardrail_saida'],
     ).build_graph()
 
+    modelo_rotas = ModeloRotaSupervisionadoSP()
+
     return Container(
         graph=graph,
         agentes=agents,
@@ -232,6 +241,7 @@ def build_container(
         toolkits=_TOOLKITS_MAP,
         observabilidade=observabilidade,
         checkpointer=checkpointer,
+        modelo_rotas=modelo_rotas,
     )
 
 
@@ -246,6 +256,7 @@ class Container:
         toolkits: Dict[str, Any],
         observabilidade: Observabilidade | None = None,
         checkpointer: BaseCheckpointSaver | None = None,
+        modelo_rotas: ModeloRotaSupervisionadoSP | None = None,
     ):
         self.graph = graph
         self.agentes = agentes
@@ -255,3 +266,4 @@ class Container:
         self.toolkits = toolkits
         self.observabilidade = observabilidade or Observabilidade()
         self.checkpointer = checkpointer
+        self.modelo_rotas = modelo_rotas or ModeloRotaSupervisionadoSP()
