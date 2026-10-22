@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.container import build_container
-from app.api.routes import chat, sessions, monitor
+from app.api.routes import chat, sessions, monitor, rotas
 from app.core.config import Settings
 from app.core.checkpointer import abrir_checkpointer
 
@@ -37,6 +37,7 @@ app = FastAPI(
 app.include_router(chat.router)
 app.include_router(sessions.router)
 app.include_router(monitor.router)
+app.include_router(rotas.router)
 
 @app.get("/health")
 async def health(request: Request) -> dict:
