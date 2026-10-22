@@ -140,6 +140,48 @@ class ModeloRotaSupervisionadoSP:
             'amostras_teste': len(X_test),
         }
 
+    def treinar_com_neo4j(
+        self,
+        rota_repository,
+        incluir_csv_base: bool = True,
+        apenas_reais: bool = False,
+        salvar_artefato: bool = True,
+    ) -> dict[str, float | int]:
+        """Retreina o pipeline supervisionado utilizando os trechos armazenados no Neo4j
+        (combinados com o dataset CSV base em IA/data/ quando incluir_csv_base=True)."""
+        X_neo4j, y_neo4j = rota_repository.buscar_trechos_treinamento(apenas_reais=apenas_reais)
+
+        X_csv: list[list[float]] = []
+        y_csv: list[float] = []
+        if incluir_csv_base or len(X_neo4j) < 20:
+            X_csv, y_csv = carregar_dataset_csv(self.dataset_path)
+
+        X = X_csv + X_neo4j
+        y = y_csv + y_neo4j
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+
+        self.pipeline = self._criar_pipeline()
+        self.pipeline.fit(X_train, y_train)
+
+        preds = self.pipeline.predict(X_test)
+        mae = float(mean_absolute_error(y_test, preds))
+        r2 = float(r2_score(y_test, preds))
+
+        if salvar_artefato:
+            self.salvar()
+
+        return {
+            'mae_min': round(mae, 3),
+            'r2_score': round(r2, 4),
+            'amostras_neo4j': len(X_neo4j),
+            'amostras_csv': len(X_csv),
+            'amostras_treino': len(X_train),
+            'amostras_teste': len(X_test),
+        }
+
     def salvar(self, caminho: Optional[Path | str] = None) -> Path:
         destino = Path(caminho) if caminho else self.model_path
         destino.parent.mkdir(parents=True, exist_ok=True)
