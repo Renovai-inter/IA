@@ -64,13 +64,10 @@ kind: Service
 metadata:
   name: ia-api-service
   namespace: renovai-api
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
   labels:
     app: ia-api
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: ia-api
   ports:
