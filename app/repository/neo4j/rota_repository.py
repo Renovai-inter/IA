@@ -104,6 +104,41 @@ QUERY_BUSCAR_TRECHOS_TREINAMENTO = """
            coalesce(rel.tempo_real_min, rel.tempo_trecho_min) AS tempo_total_min
 """
 
+QUERY_BUSCAR_DADOS_ROTA_COOPERATIVA = """
+    MATCH (c:Cooperativa {id: $cooperativa_id})
+    OPTIONAL MATCH (c)-[:POSSUI_ROTA]->(rt:Rota)-[rel:PARADA]->(pt_rota:PontoDeColeta)
+    WHERE coalesce(rt.esta_ativa, true) = true
+    OPTIONAL MATCH (c)-[:COLETA_DE]->(pt_col:PontoDeColeta)
+    RETURN c.id AS cooperativa_id,
+           c.nome AS cooperativa_nome,
+           c.bairro AS bairro,
+           c.cep AS cep,
+           c.lat AS latitude,
+           c.lng AS longitude,
+           collect(DISTINCT CASE WHEN pt_rota IS NOT NULL THEN {
+               id: pt_rota.id,
+               rota_id: rt.id,
+               nome_rota: rt.nome,
+               endereco: coalesce(pt_rota.logradouro, pt_rota.nome, pt_rota.bairro, 'Ponto de Coleta'),
+               bairro: pt_rota.bairro,
+               cep: pt_rota.cep,
+               latitude: pt_rota.lat,
+               longitude: pt_rota.lng,
+               peso_estimado_kg: coalesce(rel.peso_estimado_kg, 200.0),
+               ordem: coalesce(rel.ordem, 999)
+           } END) AS paradas_rota,
+           collect(DISTINCT CASE WHEN pt_col IS NOT NULL THEN {
+               id: pt_col.id,
+               endereco: coalesce(pt_col.logradouro, pt_col.nome, pt_col.bairro, 'Ponto de Coleta'),
+               bairro: pt_col.bairro,
+               cep: pt_col.cep,
+               latitude: pt_col.lat,
+               longitude: pt_col.lng,
+               peso_estimado_kg: 200.0,
+               ordem: 999
+           } END) AS paradas_coleta
+"""
+
 
 class RotaRepository(Repository[ResultadoRotaOtimizada, Driver]):
     def __init__(self, db: Driver, database: str = 'neo4j'):
@@ -256,3 +291,70 @@ class RotaRepository(Repository[ResultadoRotaOtimizada, Driver]):
                 y.append(float(row['tempo_total_min']))
 
         return X, y
+
+    def buscar_dados_rota_cooperativa(
+        self,
+        cooperativa_id: str,
+    ) -> dict[str, Any] | None:
+        """Busca no Neo4j a localização da cooperativa e seus pontos de coleta/paradas de rota."""
+        if not cooperativa_id:
+            return None
+
+        with self._db.session(database=self._database) as session:
+            registro = session.run(
+                QUERY_BUSCAR_DADOS_ROTA_COOPERATIVA,
+                cooperativa_id=cooperativa_id,
+            ).single()
+
+        if not registro:
+            return None
+
+        paradas_rota = [p for p in (registro['paradas_rota'] or []) if p and p.get('id')]
+        paradas_coleta = [p for p in (registro['paradas_coleta'] or []) if p and p.get('id')]
+        paradas_rota.sort(key=lambda x: int(x.get('ordem') or 999))
+
+        paradas_brutas = paradas_rota if paradas_rota else paradas_coleta
+        paradas_unicas: list[PontoParada] = []
+        vistos: set[str] = set()
+        rota_id_existente: Optional[str] = None
+        nome_rota_existente: Optional[str] = None
+
+        for p in paradas_brutas:
+            pid = str(p['id'])
+            if pid in vistos:
+                continue
+            vistos.add(pid)
+            if not rota_id_existente and p.get('rota_id'):
+                rota_id_existente = str(p['rota_id'])
+                nome_rota_existente = str(p.get('nome_rota') or 'Rota Otimizada IA')
+
+            paradas_unicas.append(
+                PontoParada(
+                    id=pid,
+                    endereco=str(p.get('endereco') or p.get('bairro') or pid),
+                    bairro=p.get('bairro'),
+                    cep=p.get('cep'),
+                    latitude=float(p['latitude']) if p.get('latitude') is not None else None,
+                    longitude=float(p['longitude']) if p.get('longitude') is not None else None,
+                    peso_estimado_kg=float(p.get('peso_estimado_kg') or 200.0),
+                )
+            )
+
+        origem = PontoParada(
+            id=str(registro['cooperativa_id']),
+            endereco=str(registro['cooperativa_nome'] or registro['bairro'] or 'Cooperativa'),
+            bairro=registro['bairro'],
+            cep=registro['cep'],
+            latitude=float(registro['latitude']) if registro['latitude'] is not None else None,
+            longitude=float(registro['longitude']) if registro['longitude'] is not None else None,
+            peso_estimado_kg=0.0,
+        )
+
+        return {
+            'cooperativa_id':   str(registro['cooperativa_id']),
+            'cooperativa_nome': str(registro['cooperativa_nome'] or 'Cooperativa'),
+            'rota_id':          rota_id_existente,
+            'nome_rota':        nome_rota_existente or 'Rota Otimizada IA',
+            'origem':           origem,
+            'paradas':          paradas_unicas,
+        }
