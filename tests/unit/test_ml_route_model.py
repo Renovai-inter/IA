@@ -240,3 +240,39 @@ def test_endpoints_rotas_otimizar_e_retreinar(tmp_path: Path):
     assert dados_retreino['status'] == 'ok'
     assert dados_retreino['tempos_reais_atualizados'] == 2
     assert dados_retreino['amostras_neo4j'] == 1
+
+
+def test_logistica_agent_no_deterministico_sem_llm(tmp_path: Path):
+    import json
+    from app.agents.logistica_agent import LogisticaAgent
+
+    modelo = ModeloRotaSupervisionadoSP(
+        model_path=tmp_path / 'sp_route_node.joblib',
+        dataset_path=DEFAULT_DATASET_PATH,
+    )
+    repo = MagicMock()
+    repo.salvar_rota_otimizada.return_value = {'rota_id': 'rota-node-1', 'paradas_salvas': 3}
+
+    agente = LogisticaAgent(modelo_rotas=modelo, rota_repository=repo)
+    assert agente.llm is None
+
+    state = {
+        'messages': [
+            {
+                'role': 'user',
+                'content': 'Qual a melhor rota saindo do Tatuapé às 18h passando por Pinheiros, Mooca e Sé?',
+            }
+        ],
+        'perfil_ctx': SimpleNamespace(cooperativa_id='coop-1'),
+    }
+    saida = agente.run(state)
+
+    assert saida['agentes_chamados'] == ['logistica']
+    payload = json.loads(saida['especialista_outputs']['logistica'].conteudo)
+    assert payload['dominio'] == 'logistica'
+    assert payload['intencao'] == 'otimizar_rota'
+    assert payload['indicadores']['hora_saida'] == 18
+    assert payload['indicadores']['qtd_paradas'] == 3
+    assert payload['indicadores']['salvo_no_neo4j'] is True
+    assert '1º Mooca' in payload['resposta']
+
