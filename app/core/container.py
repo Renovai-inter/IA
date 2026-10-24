@@ -25,6 +25,7 @@ from app.agents.router_agent import RouterAgent
 from app.agents.faq_agent import FaqAgent
 from app.agents.material_estoque_agent import MaterialEstoqueAgent
 from app.agents.recomendacao_agent import RecomendacaoAgent
+from app.agents.logistica_agent import LogisticaAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
 from app.agents.guardrail_agent import GuardrailEntradaAgent, GuardrailSaidaAgent
 
@@ -33,6 +34,8 @@ from app.repository.mongodb.db import MongoConnectionFactory
 from app.repository.mongodb.sessao_repository import SessaoRepository
 from app.repository.neo4j.db import Neo4jConnectionFactory
 from app.repository.neo4j.recomendacao_repository import RecomendacaoRepository
+from app.repository.neo4j.rota_repository import RotaRepository
+from app.ml.route_model import ModeloRotaSupervisionadoSP
 from app.repository.postgresql.db import PostgresConnectionFactory
 
 from app.repository.base import ConnectionFactory, Repository
@@ -108,6 +111,11 @@ def build_container(
             db=_FACTORIES_MAP.get('neo4j_factory')[1],
             database=getattr(settings, 'NEO4J_DATABASE', 'neo4j'),
         ),
+
+        'rota_repository':          RotaRepository(
+            db=_FACTORIES_MAP.get('neo4j_factory')[1],
+            database=getattr(settings, 'NEO4J_DATABASE', 'neo4j'),
+        ),
     }
 
     if providers is None:
@@ -149,6 +157,8 @@ def build_container(
         'material_estoque_toolkit': material_estoque_toolkit,
     }
 
+    modelo_rotas = ModeloRotaSupervisionadoSP()
+
     _AGENT_REGISTRY: dict[str, dict] = {
         'guardrail_entrada': {
             'cls': GuardrailEntradaAgent,
@@ -178,6 +188,17 @@ def build_container(
             'prompt': RECOMENDACAO_PROMPT_COMPLETO,
             'tools': memoria_toolkit.get_tools() + recomendacao_toolkit.get_tools()
         },
+        'logistica_agent': {
+            'route': 'logistica',
+            'cls': LogisticaAgent,
+            'prompt': '',
+            'tools': [],
+            'sem_llm': True,
+            'kwargs': {
+                'modelo_rotas': modelo_rotas,
+                'rota_repository': _REPOSITORIES_MAP['rota_repository'],
+            },
+        },
         'orchestrator_agent': {
             'cls': OrchestratorAgent,
             'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
@@ -194,10 +215,13 @@ def build_container(
     specialists: list[RegistroEspecialista] = []
     agents = {}
     for name, spec in _AGENT_REGISTRY.items():
-        provider_tier = llm_map.get(name) or settings.AGENT_LLM_MAP.get(name, ('GEMINI', 'HIGH'))
-        llm = llm_factory.get(*provider_tier)
+        if spec.get('sem_llm'):
+            llm = None
+        else:
+            provider_tier = llm_map.get(name) or settings.AGENT_LLM_MAP.get(name, ('GEMINI', 'HIGH'))
+            llm = llm_factory.get(*provider_tier)
         agent_repos = settings.AGENT_REPOSITORY_MAP.get(name, [])
-        kwargs = {}
+        kwargs = dict(spec.get('kwargs') or {})
         if 'rotas_revisao' in spec:
             kwargs['rotas_revisao'] = spec['rotas_revisao']
         agent = spec['cls'](llm=llm, system_prompt=spec['prompt'], tools=spec['tools'], **kwargs)
@@ -232,6 +256,7 @@ def build_container(
         toolkits=_TOOLKITS_MAP,
         observabilidade=observabilidade,
         checkpointer=checkpointer,
+        modelo_rotas=modelo_rotas,
     )
 
 
@@ -246,6 +271,7 @@ class Container:
         toolkits: Dict[str, Any],
         observabilidade: Observabilidade | None = None,
         checkpointer: BaseCheckpointSaver | None = None,
+        modelo_rotas: ModeloRotaSupervisionadoSP | None = None,
     ):
         self.graph = graph
         self.agentes = agentes
@@ -255,3 +281,4 @@ class Container:
         self.toolkits = toolkits
         self.observabilidade = observabilidade or Observabilidade()
         self.checkpointer = checkpointer
+        self.modelo_rotas = modelo_rotas or ModeloRotaSupervisionadoSP()
