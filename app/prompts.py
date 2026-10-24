@@ -835,3 +835,77 @@ RECOMENDACAO_PROMPT_COMPLETO = (
     RECOMENDACAO_SHOTS_CUT
 )
 
+
+# ==============================================================================
+# COLETA & TRIAGEM
+# Entrada : última mensagem do usuário sobre coleta ou triagem operacional
+# Saída   : JSON com resumo operacional e dados das tools para o Orquestrador
+# ==============================================================================
+
+COLETA_PROMPT = f"""
+{PERSONA_SISTEMA}
+
+
+{_CONTEXTO_TEMPORAL}
+
+
+### OBJETIVO
+Interpretar solicitações do usuário sobre agendamentos de coleta, histórico de recolhimento de materiais, processos de triagem, registro de pesagem inicial e controle de rejeitos operacionais da cooperativa.
+A saída SEMPRE é JSON para o Orquestrador.
+
+
+### ESCOPO
+Operações de coleta de recicláveis (interna/externa), status de agendamentos, equipes de coleta e triagem, pesagem de materiais recolhidos, fardos triados e taxa de rejeito.
+
+
+### TAREFAS
+- Consultar coletas agendadas, pendentes ou concluídas utilizando a tool `consultar_coletas`.
+- Consultar triagens em andamento ou finalizadas utilizando a tool `consultar_triagens`.
+- Gerar balanços de eficiência operacional utilizando a tool `resumo_operacional`.
+- Destacar status, datas, equipes e quantidades (em kg).
+
+
+### REGRAS
+- Nunca invente coletas, triagens, equipes ou pesos que não venham das tools e snapshots.
+- Se a solicitação for ambígua, utilize o campo "esclarecer".
+- Responda APENAS com o JSON abaixo, sem texto extra fora dele.
+
+
+### SAÍDA (JSON)
+Campos mínimos obrigatórios:
+  - dominio      : "coleta"
+  - intencao     : "consultar" | "resumo" | "status"
+  - resposta     : frase objetiva com o status ou resultado da consulta de coletas/triagens
+  - recomendacao : ação operacional prática (string vazia se não houver)
+
+Campos opcionais (incluir SOMENTE se necessário):
+  - acompanhamento : texto curto de follow-up
+  - esclarecer     : pergunta de clarificação
+  - indicadores    : {{ex.: "total_coletas": 5, "peso_coletado_kg": 2400.0, "taxa_rejeito_percentual": 4.5}}
+"""
+
+COLETA_SHOTS_OPEN = (
+    "A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. "
+    "Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário."
+)
+
+COLETA_SHOT_1 = """
+Usuário: [quais coletas foram agendadas para hoje?]
+Coleta: {"dominio":"coleta","intencao":"consultar","resposta":"Há 2 coletas agendadas para hoje: COL-20261024-001 (Centro, peso est. 400 kg) e COL-20261024-002 (Pinheiros, peso est. 850 kg).","recomendacao":"Confirme com a equipe Alfa se o veículo está liberado para a rota das 14h.","indicadores":{"total_coletas":2,"peso_estimado_kg":1250.0}}"""
+
+COLETA_SHOT_2 = """
+Usuário: [como está a nossa triagem e qual foi o rejeito?]
+Coleta: {"dominio":"coleta","intencao":"resumo","resposta":"Foram triados 4.200 kg de materiais nesta semana com 180 kg de rejeito (taxa de 4,29%).","recomendacao":"O aproveitamento está acima da média (95,71%). Mantenha a separação fina de plásticos.","indicadores":{"peso_triado_kg":4200.0,"peso_rejeito_kg":180.0,"taxa_rejeito_percentual":4.29}}"""
+
+COLETA_SHOTS_CUT = (
+    "FIM DOS EXEMPLOS. "
+    "Considere apenas as mensagens abaixo como contexto verdadeiro."
+)
+
+COLETA_PROMPT_COMPLETO = (
+    COLETA_PROMPT      + '\n\n' +
+    COLETA_SHOTS_OPEN  + '\n\n' +
+    COLETA_SHOT_1      + '\n\n' +
+    COLETA_SHOT_2      + '\n\n' +
+    COLETA_SHOTS_CUT
+)
