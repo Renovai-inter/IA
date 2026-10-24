@@ -13,6 +13,7 @@ from app.prompts import (
     MATERIAL_ESTOQUE_PROMPT_COMPLETO,
     RECOMENDACAO_PROMPT_COMPLETO,
     COLETA_PROMPT_COMPLETO,
+    FINANCEIRO_PROMPT_COMPLETO,
     ORQUESTRADOR_PROMPT_COMPLETO,
     GUARDRAIL_ENTRADA_PROMPT_COMPLETO,
     GUARDRAIL_SAIDA_PROMPT_COMPLETO,
@@ -26,6 +27,7 @@ from app.agents.router_agent import RouterAgent
 from app.agents.faq_agent import FaqAgent
 from app.agents.material_estoque_agent import MaterialEstoqueAgent
 from app.agents.coleta_agent import ColetaAgent
+from app.agents.financeiro_agent import FinanceiroAgent
 from app.agents.recomendacao_agent import RecomendacaoAgent
 from app.agents.logistica_agent import LogisticaAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
@@ -46,6 +48,7 @@ from app.repository.postgresql.material_repository import MaterialRepository
 from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.movimentacao_estoque_repository import MovimentacaoEstoqueRepository
 from app.repository.postgresql.coleta_repository import ColetaRepository
+from app.repository.postgresql.financeiro_repository import FinanceiroRepository
 
 from app.repository.qdrant.db import QdrantConnectionFactory
 from app.repository.qdrant.resumo_repository import ResumoRepository
@@ -56,6 +59,7 @@ from app.tools.faq_chunks_tools import FaqToolkit
 from app.tools.material_estoque_tools import MaterialEstoqueToolkit
 from app.tools.recomendacao_tools import RecomendacaoToolkit
 from app.tools.coleta_tools import ColetaToolkit
+from app.tools.financeiro_tools import FinanceiroToolkit
 
 from typing import Any, Dict, Tuple
 from langgraph.checkpoint.memory import MemorySaver
@@ -96,6 +100,7 @@ def build_container(
         'estoque_repository':              EstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'coleta_repository':               ColetaRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
+        'financeiro_repository':           FinanceiroRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
 
         'sessao_repository':       SessaoRepository(
             db=_FACTORIES_MAP.get('mongo_factory')[1],
@@ -154,6 +159,7 @@ def build_container(
 
     material_estoque_toolkit = MaterialEstoqueToolkit()
     coleta_toolkit = ColetaToolkit(_REPOSITORIES_MAP)
+    financeiro_toolkit = FinanceiroToolkit(_REPOSITORIES_MAP)
 
     _TOOLKITS_MAP = {
         'memoria_toolkit':          memoria_toolkit,
@@ -161,6 +167,7 @@ def build_container(
         'recomendacao_toolkit':     recomendacao_toolkit,
         'material_estoque_toolkit': material_estoque_toolkit,
         'coleta_toolkit':           coleta_toolkit,
+        'financeiro_toolkit':       financeiro_toolkit,
     }
 
     modelo_rotas = ModeloRotaSupervisionadoSP()
@@ -210,6 +217,12 @@ def build_container(
             'cls': ColetaAgent,
             'prompt': COLETA_PROMPT_COMPLETO,
             'tools': memoria_toolkit.get_tools() + coleta_toolkit.get_tools()
+        },
+        'financeiro_agent': {
+            'route': 'financeiro',
+            'cls': FinanceiroAgent,
+            'prompt': FINANCEIRO_PROMPT_COMPLETO,
+            'tools': memoria_toolkit.get_tools() + financeiro_toolkit.get_tools()
         },
         'orchestrator_agent': {
             'cls': OrchestratorAgent,
