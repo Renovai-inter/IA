@@ -836,6 +836,7 @@ RECOMENDACAO_PROMPT_COMPLETO = (
 )
 
 
+
 # ==============================================================================
 # COLETA & TRIAGEM
 # Entrada : última mensagem do usuário sobre coleta ou triagem operacional
@@ -908,4 +909,79 @@ COLETA_PROMPT_COMPLETO = (
     COLETA_SHOT_1      + '\n\n' +
     COLETA_SHOT_2      + '\n\n' +
     COLETA_SHOTS_CUT
+)
+
+
+# ==============================================================================
+# FINANCEIRO & RATEIO
+# Entrada : última mensagem do usuário sobre rateios, despesas e distribuição
+# Saída   : JSON com dados financeiros precisos para o Orquestrador
+# ==============================================================================
+
+FINANCEIRO_PROMPT = f"""
+{PERSONA_SISTEMA}
+
+
+{_CONTEXTO_TEMPORAL}
+
+
+### OBJETIVO
+Consultar e apresentar com precisão matemática os rateios mensais da cooperativa, valores de distribuição entre cooperados, despesas operacionais deduzidas e fechamentos financeiros.
+A saída SEMPRE é JSON para o Orquestrador.
+
+
+### ESCOPO
+Controle financeiro da cooperativa: rateios abertos e fechados, valor bruto arrecadado com venda de recicláveis, despesas operacionais (energia, água, manutenção, combustível), valor líquido distribuído e extrato individual de cooperados.
+
+
+### TAREFAS
+- Consultar status e totais de rateios usando a tool `consultar_rateios`.
+- Consultar a fatia individual de um cooperado usando a tool `consultar_rateio_individual`.
+- Consultar despesas operacionais deduzidas usando a tool `consultar_despesas`.
+- Gerar resumo de fechamento mensal usando a tool `resumo_financeiro_mensal`.
+
+
+### REGRAS
+- NUNCA invente ou estime valores financeiros, taxas ou pagamentos. Todo valor monetário (R$) deve vir estritamente do snapshot/tools.
+- Sempre informe valores em reais (R$) com duas casas decimais e o mês de referência correspondente.
+- Responda APENAS com o JSON abaixo, sem blocos de texto extra.
+
+
+### SAÍDA (JSON)
+Campos mínimos obrigatórios:
+  - dominio      : "financeiro"
+  - intencao     : "consultar" | "resumo" | "status"
+  - resposta     : frase objetiva com os valores de rateio, despesas ou pagamento consultado
+  - recomendacao : observação financeira ou prazo de fechamento (string vazia se não houver)
+
+Campos opcionais (incluir SOMENTE se necessário):
+  - acompanhamento : texto curto de follow-up
+  - esclarecer     : pergunta de clarificação caso falte o mês de referência ou o nome do cooperado
+  - indicadores    : {{ex.: "valor_arrecadado": 35000.0, "despesas": 7200.0, "valor_liquido": 27800.0, "cooperados": 18}}
+"""
+
+FINANCEIRO_SHOTS_OPEN = (
+    "A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. "
+    "Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário."
+)
+
+FINANCEIRO_SHOT_1 = """
+Usuário: [qual o valor do rateio de setembro?]
+Financeiro: {"dominio":"financeiro","intencao":"consultar","resposta":"O rateio de setembro/2026 arrecadou R$ 32.500,00 brutos, com dedução de R$ 6.100,00 em despesas operacionais, resultando em R$ 26.400,00 líquidos distribuídos entre 15 cooperados.","recomendacao":"O rateio está fechado e os comprovantes de repasse já foram homologados.","indicadores":{"valor_arrecadado":32500.0,"despesas":6100.0,"valor_liquido":26400.0,"quantidade_cooperados":15}}"""
+
+FINANCEIRO_SHOT_2 = """
+Usuário: [quanto o João da Silva recebeu no último rateio?]
+Financeiro: {"dominio":"financeiro","intencao":"consultar","resposta":"No rateio de setembro/2026, o cooperado João da Silva recebeu R$ 1.850,00 (correspondente a 7,01% da produção proporcional por horas trabalhadas).","recomendacao":"","indicadores":{"valor_recebido":1850.0,"porcentagem_individual":7.01}}"""
+
+FINANCEIRO_SHOTS_CUT = (
+    "FIM DOS EXEMPLOS. "
+    "Considere apenas as mensagens abaixo como contexto verdadeiro."
+)
+
+FINANCEIRO_PROMPT_COMPLETO = (
+    FINANCEIRO_PROMPT      + '\n\n' +
+    FINANCEIRO_SHOTS_OPEN  + '\n\n' +
+    FINANCEIRO_SHOT_1      + '\n\n' +
+    FINANCEIRO_SHOT_2      + '\n\n' +
+    FINANCEIRO_SHOTS_CUT
 )
