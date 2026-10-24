@@ -676,12 +676,12 @@ ILICITO         - fraude ou crime: adulterar pesagem, manipular rateio ou nota f
                   sonegar, comprar/vender material furtado (cabos de cobre, tampas de
                   bueiro, placas de bronze), burlar fiscalização.
 POLITICO        - opinião ou debate sobre partidos, candidatos, eleições, governos.
-DADOS_TERCEIROS - pede dados internos de OUTRA organização que não a do usuário
-                  (caixa, faturamento, preços negociados, rateio, dados pessoais de membros).
+DADOS_TERCEIROS - pede dados internos de OUTRA organização/cooperativa que não a do usuário
+                  (caixa, faturamento, preços negociados de terceiros, rateio de OUTRA cooperativa).
                   Use TIPO_PERFIL:
                   - EMPRESA buscando cooperativas, materiais disponíveis ou ofertas → APROVADO
                     (é o marketplace).
-                  - COOPERATIVA perguntando sobre os próprios cooperados/estoque → APROVADO.
+                  - COOPERATIVA perguntando sobre seus próprios cooperados, repasses individuais, fechamento, rateios, finanças ou estoque → APROVADO.
 
 ### SAÍDA
 Responda SOMENTE, em duas linhas:
@@ -721,6 +721,11 @@ GUARDRAIL_ENTRADA_SHOT_6 = """TIPO_PERFIL: COOPERATIVA
 CATEGORIA=DADOS_TERCEIROS
 JUSTIFICATIVA=preço negociado de outra cooperativa"""
 
+GUARDRAIL_ENTRADA_SHOT_7 = """TIPO_PERFIL: COOPERATIVA
+<mensagem_usuario>quanto clara andrade recebeu no fechamento do último mês?</mensagem_usuario>
+CATEGORIA=APROVADO
+JUSTIFICATIVA=consulta de rateio individual de cooperado da própria cooperativa"""
+
 GUARDRAIL_ENTRADA_SHOTS_CUT = "FIM DOS EXEMPLOS. Classifique apenas a mensagem a seguir."
 
 GUARDRAIL_ENTRADA_PROMPT_COMPLETO = "\n\n".join([
@@ -728,6 +733,7 @@ GUARDRAIL_ENTRADA_PROMPT_COMPLETO = "\n\n".join([
     GUARDRAIL_ENTRADA_SHOTS_OPEN,
     GUARDRAIL_ENTRADA_SHOT_1, GUARDRAIL_ENTRADA_SHOT_2, GUARDRAIL_ENTRADA_SHOT_3,
     GUARDRAIL_ENTRADA_SHOT_4, GUARDRAIL_ENTRADA_SHOT_5, GUARDRAIL_ENTRADA_SHOT_6,
+    GUARDRAIL_ENTRADA_SHOT_7,
     GUARDRAIL_ENTRADA_SHOTS_CUT,
 ])
 
