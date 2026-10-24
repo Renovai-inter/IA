@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {
         'material_estoque_agent': ['material_repository', 'estoque_repository', 'movimentacao_estoque_repository'],
         'coleta_agent':           ['coleta_repository'],
-        'financeiro_agent':       ['financeiro_repository'],
+        'financeiro_agent':       ['rateio_repository', 'rateio_funcionario_repository', 'despesa_repository', 'funcionario_repository'],
     }
 
     _CAMPOS_OBRIGATORIOS: ClassVar[tuple[str, ...]] = (

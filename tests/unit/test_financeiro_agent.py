@@ -33,7 +33,11 @@ def test_financeiro_agent_monta_especialista_output(monkeypatch: pytest.MonkeyPa
     resultado = agent.run(
         {
             'messages': [HumanMessage(content='qual o rateio de setembro?')],
-            'snapshots': {'financeiro_snapshot': SimpleNamespace(itens=[], itens_funcionarios=[], despesas=[])},
+            'snapshots': {
+                'rateio_snapshot': SimpleNamespace(itens=[]),
+                'rateio_funcionario_snapshot': SimpleNamespace(itens=[]),
+                'despesa_snapshot': SimpleNamespace(itens=[]),
+            },
         },
         config={},
     )
@@ -56,7 +60,11 @@ async def test_financeiro_agent_arun(monkeypatch: pytest.MonkeyPatch):
     resultado = await agent.arun(
         {
             'messages': [HumanMessage(content='quais as despesas?')],
-            'snapshots': {'financeiro_snapshot': SimpleNamespace(itens=[], itens_funcionarios=[], despesas=[])},
+            'snapshots': {
+                'rateio_snapshot': SimpleNamespace(itens=[]),
+                'rateio_funcionario_snapshot': SimpleNamespace(itens=[]),
+                'despesa_snapshot': SimpleNamespace(itens=[]),
+            },
         },
         config={},
     )
