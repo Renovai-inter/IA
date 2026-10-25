@@ -19,7 +19,7 @@ class GroqProvider(LLMProvider):
         super().__init__(api_key)
         self._LLMs = {
                 'HIGH' : ChatGroq(
-                    model='qwen/qwen3.6-27b',
+                    model='qwen/qwen3.8-27b',
                     temperature=0.7,
                     api_key=self.api_key
                 ),

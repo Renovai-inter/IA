@@ -71,7 +71,7 @@ class Settings(BaseSettings):
         'faq_agent':              ('GEMINI', 'MEDIUM'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
         'recomendacao_agent':     ('GEMINI', 'HIGH'),
-        'orchestrator_agent':     ('GROQ',   'LOW'),
+        'orchestrator_agent':     ('GROQ',   'MEDIUM'),
         'resumo_agent':           ('GROQ',   'LOW'),
         'guardrail_entrada':      ('GROQ',   'LOW'),
         'guardrail_saida':        ('GROQ',   'LOW'),
