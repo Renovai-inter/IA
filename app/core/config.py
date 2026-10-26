@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     # não depender do restante do Settings (GEMINI/GROQ/Postgres/Mongo/Qdrant)
     # só pra rodar contra um LLM local.
     FAQ_PATH: str
+    PNRS_PATH: str = str(BASE_DIR / 'data' / 'PNRS.txt')
 
     LANGSMITH_TRACING: bool = False
     LANGSMITH_PROJECT: str = 'renovai-ia'
@@ -65,6 +66,7 @@ class Settings(BaseSettings):
     MONGO_COLLECTION_SESSAO:   str = 'sessao'
     QDRANT_COLLECTION_MEMORIA: str = 'memoria_resumos'
     QDRANT_COLLECTION_FAQ:     str = 'faq_chunks'
+    QDRANT_COLLECTION_NORMAS:  str = 'normas_residuos'
 
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'router_agent':           ('GROQ',   'LOW'),

@@ -127,6 +127,11 @@ def build_container(
             collection=settings.QDRANT_COLLECTION_FAQ
         ),
 
+        'normas_repository':       FaqChunksRepository(
+            db=_FACTORIES_MAP.get('qdrant_factory')[1],
+            collection=settings.QDRANT_COLLECTION_NORMAS
+        ),
+
         'recomendacao_repository':  RecomendacaoRepository(
             db=_FACTORIES_MAP.get('neo4j_factory')[1],
             database=getattr(settings, 'NEO4J_DATABASE', 'neo4j'),
@@ -161,7 +166,11 @@ def build_container(
         'qdrant_memory': qdrant_memory,
     }
 
-    faq_retriever = FaqRetriever(_REPOSITORIES_MAP['faq_chunks_repository'], embedding_service)
+    faq_retriever = FaqRetriever(
+        repository=_REPOSITORIES_MAP['faq_chunks_repository'],
+        embedding_service=embedding_service,
+        normas_repository=_REPOSITORIES_MAP['normas_repository'],
+    )
 
     memoria_toolkit = MemoriaToolkit(_MEMORY_STORE_MAP)
     faq_toolkit = FaqToolkit(faq_retriever)
