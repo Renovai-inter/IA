@@ -103,3 +103,111 @@ def test_perfil_repository_resolve_perfil_inexistente_lanca_erro():
     repo = PerfilRepository(mock_db)
     with pytest.raises(ValueError, match="não encontrado"):
         repo.resolve_perfil(uuid4())
+
+
+def test_coleta_triagem_funcionario_equipe_repositories_get_snapshot():
+    from datetime import datetime
+    from decimal import Decimal
+    from app.repository.postgresql.coleta_repository import ColetaRepository
+    from app.repository.postgresql.triagem_repository import TriagemRepository
+    from app.repository.postgresql.funcionario_repository import FuncionarioRepository
+    from app.repository.postgresql.equipe_repository import EquipeRepository
+
+    mock_db = MagicMock()
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_db.connection.return_value.__enter__.return_value = mock_conn
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+    coop_id = uuid4()
+    func_id = uuid4()
+    eq_id = uuid4()
+    coleta_id = uuid4()
+    triagem_id = uuid4()
+    mat_id = uuid4()
+    agora = datetime(2026, 10, 24, 12, 0)
+
+    # 1. FuncionarioRepository
+    mock_cursor.fetchall.return_value = [
+        {
+            "funcionario_id": func_id,
+            "usuario_id": uuid4(),
+            "cooperativa_id": coop_id,
+            "nome": "João Cooperado",
+            "email": "joao@coop.com",
+            "cpf": "123.456.789-00",
+            "cargo_id": uuid4(),
+            "cargo": "Cooperado",
+            "status_funcionario": "ATIVO",
+            "esta_ativo": True,
+            "esta_afastado": False,
+            "data_admissao": agora,
+            "data_desligamento": None,
+        }
+    ]
+    snap_func = FuncionarioRepository(mock_db).get_snapshot(coop_id)
+    assert len(snap_func.itens) == 1
+    assert snap_func.itens[0].nome == "João Cooperado"
+
+    # 2. EquipeRepository
+    mock_cursor.fetchall.return_value = [
+        {
+            "equipe_id": eq_id,
+            "cooperativa_id": coop_id,
+            "gestor_id": func_id,
+            "nome_gestor": "João Cooperado",
+            "nome": "Equipe Alfa",
+            "descricao": "Triagem",
+            "data_criacao": agora,
+            "esta_ativa": True,
+            "cooperado_ids": [func_id],
+        }
+    ]
+    snap_eq = EquipeRepository(mock_db).get_snapshot(coop_id)
+    assert len(snap_eq.itens) == 1
+    assert snap_eq.itens[0].cooperado_ids == [func_id]
+
+    # 3. ColetaRepository
+    mock_cursor.fetchall.return_value = [
+        {
+            "coleta_id": coleta_id,
+            "cooperativa_id": coop_id,
+            "cooperado_id": func_id,
+            "cooperado_responsavel": "João Cooperado",
+            "rota_id": None,
+            "data_coleta": agora,
+            "status_id": None,
+            "status_atual": "CONCLUIDA",
+            "tipo_coleta": "EXTERNA",
+            "quantidade_kg": Decimal("450.000"),
+            "imagem_url": None,
+        }
+    ]
+    snap_col = ColetaRepository(mock_db).get_snapshot(coop_id)
+    assert len(snap_col.itens) == 1
+    assert snap_col.itens[0].coleta_id == coleta_id
+
+    # 4. TriagemRepository
+    mock_cursor.fetchall.return_value = [
+        {
+            "triagem_id": triagem_id,
+            "cooperativa_id": coop_id,
+            "equipe_id": eq_id,
+            "nome_equipe": "Equipe Alfa",
+            "coleta_id": coleta_id,
+            "material_id": mat_id,
+            "nome_categoria": "PET",
+            "categoria_pai_id": None,
+            "nome_categoria_pai": "Plástico",
+            "data_triagem": agora,
+            "status_id": None,
+            "status_atual": "CONCLUIDA",
+            "quantidade_kg": Decimal("430.000"),
+            "quantidade_rejeito_kg": Decimal("20.000"),
+            "imagem_url": None,
+        }
+    ]
+    snap_tri = TriagemRepository(mock_db).get_snapshot(coop_id)
+    assert len(snap_tri.itens) == 1
+    assert snap_tri.itens[0].coleta_id == coleta_id
+    assert snap_tri.itens[0].nome_categoria == "PET"

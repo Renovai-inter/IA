@@ -48,7 +48,9 @@ from app.repository.postgresql.material_repository import MaterialRepository
 from app.repository.postgresql.estoque_repository import EstoqueRepository
 from app.repository.postgresql.movimentacao_estoque_repository import MovimentacaoEstoqueRepository
 from app.repository.postgresql.coleta_repository import ColetaRepository
+from app.repository.postgresql.triagem_repository import TriagemRepository
 from app.repository.postgresql.funcionario_repository import FuncionarioRepository
+from app.repository.postgresql.equipe_repository import EquipeRepository
 from app.repository.postgresql.rateio_repository import RateioRepository
 from app.repository.postgresql.rateio_funcionario_repository import RateioFuncionarioRepository
 from app.repository.postgresql.despesa_repository import DespesaRepository
@@ -103,7 +105,9 @@ def build_container(
         'estoque_repository':              EstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'movimentacao_estoque_repository': MovimentacaoEstoqueRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'coleta_repository':               ColetaRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
+        'triagem_repository':              TriagemRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'funcionario_repository':          FuncionarioRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
+        'equipe_repository':               EquipeRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'rateio_repository':               RateioRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'rateio_funcionario_repository':   RateioFuncionarioRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'despesa_repository':              DespesaRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),

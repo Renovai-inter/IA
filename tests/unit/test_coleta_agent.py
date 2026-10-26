@@ -33,7 +33,10 @@ def test_coleta_agent_monta_especialista_output(monkeypatch: pytest.MonkeyPatch)
     resultado = agent.run(
         {
             'messages': [HumanMessage(content='quais as coletas de hoje?')],
-            'snapshots': {'coleta_snapshot': SimpleNamespace(itens=[], triagens=[])},
+            'snapshots': {
+                'coleta_snapshot': SimpleNamespace(itens=[]),
+                'triagem_snapshot': SimpleNamespace(itens=[]),
+            },
         },
         config={},
     )
@@ -56,7 +59,10 @@ async def test_coleta_agent_arun(monkeypatch: pytest.MonkeyPatch):
     resultado = await agent.arun(
         {
             'messages': [HumanMessage(content='status da coleta COL-1')],
-            'snapshots': {'coleta_snapshot': SimpleNamespace(itens=[], triagens=[])},
+            'snapshots': {
+                'coleta_snapshot': SimpleNamespace(itens=[]),
+                'triagem_snapshot': SimpleNamespace(itens=[]),
+            },
         },
         config={},
     )

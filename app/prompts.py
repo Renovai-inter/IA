@@ -867,7 +867,8 @@ Operações de coleta de recicláveis (interna/externa), status de agendamentos,
 
 ### TAREFAS
 - Consultar coletas agendadas, pendentes ou concluídas utilizando a tool `consultar_coletas`.
-- Consultar triagens em andamento ou finalizadas utilizando a tool `consultar_triagens`.
+- Consultar triagens em andamento ou finalizadas (por material, equipe ou coleta) utilizando a tool `consultar_triagens`.
+- Consultar equipes operacionais, gestores e cooperados vinculados utilizando a tool `consultar_equipes_cooperados`.
 - Gerar balanços de eficiência operacional utilizando a tool `resumo_operacional`.
 - Destacar status, datas, equipes e quantidades (em kg).
 

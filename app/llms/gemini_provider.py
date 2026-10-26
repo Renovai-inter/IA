@@ -19,7 +19,7 @@ class GeminiProvider(LLMProvider):
         super().__init__(api_key)
         self._LLMs = {
             'HIGH': ChatGoogleGenerativeAI(
-                model='gemini-3.5-flash',
+                model='gemini-3.5-flash-lite',
                 temperature=0.7,
                 top_p=0.95,
                 api_key=self.api_key,
