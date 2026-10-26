@@ -23,7 +23,7 @@ from app.llms.embedding_service import EmbeddingService
 
 _CHUNK_SIZE    = 700
 _CHUNK_OVERLAP = 150
-_BATCH_SIZE    = 50
+_BATCH_SIZE    = 25
 
 settings = Settings()
 qdrant_factory = QdrantConnectionFactory(settings.QDRANT_URL, settings.QDRANT_API_KEY)

@@ -4,13 +4,14 @@ from app.repository.base import ConnectionFactory
 
 
 class QdrantConnectionFactory(ConnectionFactory[QdrantClient]):
-    def __init__(self, dsn: str, api_key: str):
+    def __init__(self, dsn: str, api_key: str, timeout: float = 60.0):
         super().__init__(dsn)
         self._api_key = api_key
+        self._timeout = timeout
         self._client: QdrantClient | None = None
 
     def connect(self) -> QdrantClient:
-        self._client = QdrantClient(url=self.dsn, api_key=self._api_key)
+        self._client = QdrantClient(url=self.dsn, api_key=self._api_key, timeout=self._timeout)
         return self._client
 
     def close(self, conn: QdrantClient) -> None:
