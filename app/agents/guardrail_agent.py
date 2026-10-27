@@ -13,7 +13,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.agents.base import BaseAgent
-from app.graph.state import GraphState
+from app.graph.state import GraphState, resolver_contexto_dominio
 from app.guardrails import input_guardrails as entrada
 from app.guardrails import output_guardrails as saida
 
@@ -51,8 +51,7 @@ class GuardrailEntradaAgent(BaseAgent):
         resultado = entrada.verificar_deterministico(texto)
 
         if resultado is None:
-            perfil = state.get('perfil_ctx')
-            tipo_perfil = perfil.tipo if perfil else 'DESCONHECIDO'
+            _, _, tipo_perfil = resolver_contexto_dominio(state, config)
             resposta = self.llm.invoke(
                 [
                     SystemMessage(content=self.system_prompt),
@@ -75,8 +74,7 @@ class GuardrailEntradaAgent(BaseAgent):
         resultado = entrada.verificar_deterministico(texto)
 
         if resultado is None:
-            perfil = state.get('perfil_ctx')
-            tipo_perfil = perfil.tipo if perfil else 'DESCONHECIDO'
+            _, _, tipo_perfil = resolver_contexto_dominio(state, config)
             resposta = await self.llm.ainvoke(
                 [
                     SystemMessage(content=self.system_prompt),
@@ -124,7 +122,7 @@ class GuardrailSaidaAgent(BaseAgent):
             texto, motivo_llm = saida.aplicar_veredito(texto, veredito)
             motivo = motivo_llm or motivo
 
-        update = {'agentes_chamados': [f'{self.nome_agente}:{motivo or 'ok'}']}
+        update = {'agentes_chamados': [f"{self.nome_agente}:{motivo or 'ok'}"]}
         if texto != original:
             update['messages'] = [{'role': 'assistant', 'content': texto, 'id': ultima.id}]
         return update
@@ -152,7 +150,7 @@ class GuardrailSaidaAgent(BaseAgent):
             texto, motivo_llm = saida.aplicar_veredito(texto, veredito)
             motivo = motivo_llm or motivo
 
-        update = {'agentes_chamados': [f'{self.nome_agente}:{motivo or 'ok'}']}
+        update = {'agentes_chamados': [f"{self.nome_agente}:{motivo or 'ok'}"]}
         if texto != original:
             update['messages'] = [{'role': 'assistant', 'content': texto, 'id': ultima.id}]
         return update

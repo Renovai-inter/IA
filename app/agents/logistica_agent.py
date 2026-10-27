@@ -7,7 +7,7 @@ from typing import Any, List, Optional
 from langchain_core.runnables import RunnableConfig
 
 from app.agents.base import BaseAgent
-from app.graph.state import EspecialistaOutput, GraphState
+from app.graph.state import EspecialistaOutput, GraphState, resolver_contexto_dominio
 from app.ml.route_model import ModeloRotaSupervisionadoSP, PontoParada
 from app.ml.sp_zones import BAIRROS_COORDS_SP
 from app.repository.neo4j.rota_repository import RotaRepository
@@ -55,7 +55,6 @@ def extrair_locais_mensagem_sp(
 
     texto_norm = _normalizar_texto(texto)
 
-    # Identifica se o usuário declarou explicitamente "saindo de <bairro>"
     bairro_origem_explicito: Optional[str] = None
     m_orig = _PADRAO_ORIGEM.search(texto)
     if m_orig:
@@ -65,7 +64,6 @@ def extrair_locais_mensagem_sp(
                 bairro_origem_explicito = b_key
                 break
 
-    # Busca todos os bairros do catálogo de SP mencionados na frase na ordem em que aparecem
     ocorrencias: list[tuple[int, PontoParada]] = []
     intervalos_ocupados: list[tuple[int, int]] = []
 
@@ -89,7 +87,6 @@ def extrair_locais_mensagem_sp(
                 ),
             ))
 
-    # Busca CEPs paulistanos explícitos na frase
     for m_cep in _PADRAO_CEP.finditer(texto):
         cep_str = m_cep.group(1)
         ocorrencias.append((
@@ -118,7 +115,7 @@ def extrair_locais_mensagem_sp(
 
 
 class LogisticaAgent(BaseAgent):
-    """Nó determinístico de logística no LangGraph que executa diretamente o pipeline
+    """Nó determinístico de logística que executa diretamente o pipeline
     supervisionado (StandardScaler + GradientBoostingRegressor + 2-Opt) sem invocar LLM."""
 
     nome_agente: str = 'logistica'
@@ -144,12 +141,11 @@ class LogisticaAgent(BaseAgent):
                 return self._obter_texto_mensagem(msg) if hasattr(msg, 'content') else str(msg.get('content', ''))
         return self._obter_texto_mensagem(msgs[-1]) if msgs else ''
 
-    def _executar_pipeline(self, state: GraphState) -> dict[str, Any]:
+    def _executar_pipeline(self, state: GraphState, config: RunnableConfig | None = None) -> dict[str, Any]:
         pergunta = self._obter_ultima_pergunta(state)
         hora_saida = extrair_hora_saida(pergunta, padrao=8)
 
-        perfil_ctx = state.get('perfil_ctx')
-        cooperativa_id = getattr(perfil_ctx, 'cooperativa_id', None) if perfil_ctx else None
+        cooperativa_id, _, _ = resolver_contexto_dominio(state, config)
 
         origem_msg, paradas_msg = extrair_locais_mensagem_sp(pergunta)
 
@@ -172,7 +168,6 @@ class LogisticaAgent(BaseAgent):
                 origem = dados_neo4j.get('origem')
             if not paradas:
                 paradas = list(dados_neo4j.get('paradas') or [])
-
 
         if origem is None and len(paradas) >= 2:
             origem = paradas[0]
@@ -270,7 +265,7 @@ class LogisticaAgent(BaseAgent):
         }
 
     def run(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
-        return self._executar_pipeline(state)
+        return self._executar_pipeline(state, config)
 
     async def arun(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
-        return await asyncio.to_thread(self._executar_pipeline, state)
+        return await asyncio.to_thread(self._executar_pipeline, state, config)
