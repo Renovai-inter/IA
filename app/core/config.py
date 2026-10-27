@@ -38,12 +38,11 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str = ''
     NEO4J_DATABASE: str = 'neo4j'
 
-    # Opcional: só é lido se/quando você decidir registrar 'OLLAMA' como
-    # provider no container de produção (app/core/container.py). Os testes de
-    # integração (tests/integration/) NÃO leem esse campo: eles pegam a URL
-    # direto da env var OLLAMA_BASE_URL (default http://localhost:11434), pra
-    # não depender do restante do Settings (GEMINI/GROQ/Postgres/Mongo/Qdrant)
-    # só pra rodar contra um LLM local.
+    # URLs opcionais para comunicação HTTP remota entre o Host Graph e os
+    # Microsserviços A2A de Cooperativa (/a2a/cooperativa) e Empresa (/a2a/empresa).
+    COOPERATIVA_A2A_URL: str = ''
+    EMPRESA_A2A_URL: str = ''
+
     FAQ_PATH: str
     PNRS_PATH: str = str(BASE_DIR / 'data' / 'PNRS.txt')
 
@@ -67,6 +66,9 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION_MEMORIA: str = 'memoria_resumos'
     QDRANT_COLLECTION_FAQ:     str = 'faq_chunks'
     QDRANT_COLLECTION_NORMAS:  str = 'normas_residuos'
+
+    ROTAS_COOPERATIVA: Tuple[str, ...] = ('estoque', 'coleta', 'financeiro', 'logistica')
+    ROTAS_EMPRESA: Tuple[str, ...] = ('pedidos',)
 
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'router_agent':           ('GROQ',   'LOW'),
