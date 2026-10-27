@@ -2,15 +2,62 @@ from app.repository.base import Repository
 from psycopg_pool import ConnectionPool
 
 from pydantic import BaseModel
-from typing import Literal, Optional
-from uuid import UUID
+from typing import Literal, Optional, Union
+from uuid import UUID, NAMESPACE_DNS, uuid5
 import time
 
+
+def _to_uuid(valor: Union[str, UUID, None]) -> Optional[UUID]:
+    if valor is None:
+        return None
+    if isinstance(valor, UUID):
+        return valor
+    valor_str = str(valor).strip()
+    if not valor_str:
+        return None
+    try:
+        return UUID(valor_str)
+    except ValueError:
+        return uuid5(NAMESPACE_DNS, valor_str)
+
+
 class PerfilContext(BaseModel):
-    perfil_id: UUID
+    perfil_id: Optional[UUID] = None
     tipo: Literal['EMPRESA', 'COOPERATIVA']
-    empresa_id: Optional[UUID]
-    cooperativa_id: Optional[UUID]
+    empresa_id: Optional[UUID] = None
+    cooperativa_id: Optional[UUID] = None
+
+    @classmethod
+    def from_request(
+        cls,
+        cooperativa_id: Union[str, UUID, None] = None,
+        empresa_id: Union[str, UUID, None] = None,
+    ) -> 'PerfilContext':
+        coop_uuid = _to_uuid(cooperativa_id)
+        emp_uuid = _to_uuid(empresa_id)
+        if coop_uuid is not None and emp_uuid is not None:
+            raise ValueError('Informe apenas cooperativa_id ou empresa_id, não ambos.')
+        if coop_uuid is None and emp_uuid is None:
+            raise ValueError('É obrigatório informar cooperativa_id ou empresa_id.')
+
+        if coop_uuid is not None:
+            return cls(
+                perfil_id=coop_uuid,
+                tipo='COOPERATIVA',
+                empresa_id=None,
+                cooperativa_id=coop_uuid,
+            )
+        return cls(
+            perfil_id=emp_uuid,
+            tipo='EMPRESA',
+            empresa_id=emp_uuid,
+            cooperativa_id=None,
+        )
+
+    @property
+    def identificador(self) -> str:
+        alvo = self.cooperativa_id or self.empresa_id or self.perfil_id
+        return str(alvo) if alvo is not None else ''
 
 
 class PerfilRepository(Repository[PerfilContext, ConnectionPool]):
