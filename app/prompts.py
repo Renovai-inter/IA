@@ -70,10 +70,12 @@ ROUTER_PROMPT = f"""
 
 
 ### PROTOCOLO DE ENCAMINHAMENTO
+Emita APENAS texto puro. NUNCA use JSON, Markdown, blocos de código (```json) ou aspas adicionais.
+Siga rigorosamente o formato de texto:
 ROUTES=[rota1, rota2, ...]
 PERGUNTA_ORIGINAL=[mensagem completa do usuário, sem edições]
 
-(Nota: se houver apenas uma rota, use ROUTES=<rota> ou ROUTE=<rota>.)
+(Nota: se houver apenas uma rota, use ROUTE=<rota> ou ROUTES=<rota>.)
 """
 
 ROUTER_SHOTS_OPEN = (

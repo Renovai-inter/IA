@@ -21,7 +21,10 @@ MENSAGEM_FALHA_FORMATACAO = (
     "Não consegui montar a resposta agora. Pode repetir a pergunta, de outra forma se possível?"
 )
 
-_PROTOCOLO_INTERNO = re.compile(r"^\s*(ROUTE|PERGUNTA_ORIGINAL|CATEGORIA|VEREDITO)\s*=", re.MULTILINE)
+_PROTOCOLO_INTERNO = re.compile(
+    r"^\s*[\"']?(ROUTE|ROUTES|PERGUNTA_ORIGINAL|CATEGORIA|VEREDITO)[\"']?\s*[:=]",
+    re.MULTILINE,
+)
 
 
 def _parece_json_de_especialista(texto: str) -> bool:
@@ -29,7 +32,10 @@ def _parece_json_de_especialista(texto: str) -> bool:
     if not (bruto.startswith("{") and bruto.endswith("}")):
         return False
     try:
-        return "dominio" in json.loads(bruto)
+        dados = json.loads(bruto)
+        if isinstance(dados, dict):
+            return any(k in dados for k in ("dominio", "ROUTE", "ROUTES", "route", "routes", "PERGUNTA_ORIGINAL"))
+        return False
     except ValueError:
         return False
 
