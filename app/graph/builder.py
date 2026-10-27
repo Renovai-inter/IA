@@ -5,15 +5,27 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from app.a2a.agent_card import ROTAS_SERVICO_EMPRESA
+from app.a2a.client import A2AClient
+from app.a2a.server import A2ACooperativaServer, A2AEmpresaServer
 from app.graph.registro import RegistroEspecialista
 from app.graph.state import GraphState
 from app.agents.base import BaseAgent
 from app.repository.base import Repository
-from app.graph.nodes import make_repo_backed_node
+from app.graph.nodes import make_a2a_node, make_repo_backed_node
 from app.core.observabilidade import timed as obs_timed
+
+ROTAS_HOST_LOCAL = {'rag_faq'}
 
 
 class GraphBuilder:
+    """Constrói o Grafo Principal Unificado (Host Graph):
+    - `guardrail_entrada` -> `router_agent` -> [`rag_faq` (local) | Microsserviços A2A] -> `orchestrator_agent` -> `guardrail_saida`
+    - As rotas de Cooperativa (`estoque`, `coleta`, `financeiro`, `logistica`) são despachadas
+      via protocolo Google A2A para `/a2a/cooperativa`.
+    - A rota de Empresa (`pedidos`) é despachada via protocolo Google A2A para `/a2a/empresa`.
+    """
+
     def __init__(
         self,
         router_agent: BaseAgent,
@@ -23,6 +35,7 @@ class GraphBuilder:
         checkpointer: BaseCheckpointSaver,
         guardrail_entrada: BaseAgent,
         guardrail_saida: BaseAgent,
+        a2a_client: Optional[A2AClient] = None,
     ):
         self._router_agent = router_agent
         self._orchestrator_agent = orchestrator_agent
@@ -32,10 +45,27 @@ class GraphBuilder:
         self._guardrail_entrada = guardrail_entrada
         self._guardrail_saida = guardrail_saida
 
-        self.log = logging.getLogger("renovai.observabilidade")
+        if a2a_client is None:
+            specs_coop = [
+                s for s in specialists
+                if s.rota not in ROTAS_HOST_LOCAL and s.rota not in ROTAS_SERVICO_EMPRESA
+            ]
+            specs_emp = [
+                s for s in specialists
+                if s.rota in ROTAS_SERVICO_EMPRESA
+            ]
+            coop_srv = A2ACooperativaServer(specialists=specs_coop, repositories=repositories)
+            emp_srv = A2AEmpresaServer(specialists=specs_emp, repositories=repositories)
+            a2a_client = A2AClient(
+                cooperativa_server=coop_srv,
+                empresa_server=emp_srv,
+            )
+
+        self._a2a_client = a2a_client
+        self.log = logging.getLogger('renovai.observabilidade')
 
     def timed(self, nome: str):
-        return obs_timed(nome=nome, categoria="grafo")
+        return obs_timed(nome=nome, categoria='grafo')
 
     # --------------------------------------------------------------------------
     # Decisões
@@ -44,26 +74,31 @@ class GraphBuilder:
         return 'router_agent' if state.get('passou_guardrail') else 'fim'
 
     def _decisao_roteador(self, state: GraphState) -> list[str] | str:
-        """Lê o protocolo do roteador e devolve a lista de rotas especialistas a invokar.
-        Se nenhuma rota mapeada for informada, devolve 'fim'."""
+        """Lê o protocolo do roteador e devolve a lista de rotas a invocar (locais ou A2A).
+        Se o roteador respondeu diretamente ao usuário (saudação/fora de escopo),
+        encaminha para 'guardrail_saida'. Caso contrário, encerra em 'fim'."""
         rotas = state.get('proximos_agentes') or []
-        if not rotas:
-            return 'fim'
-
         rotas_especialistas = {registro.rota for registro in self._specialists}
         rotas_validas = [r for r in rotas if r in rotas_especialistas]
 
-        return rotas_validas if rotas_validas else 'fim'
+        if rotas_validas:
+            return rotas_validas
+
+        mensagens = list(state.get('messages') or [])
+        if not rotas and mensagens and getattr(mensagens[-1], 'type', None) == 'ai':
+            return 'guardrail_saida'
+
+        return 'fim'
 
     def _make_agent_node(self, agent: BaseAgent):
         sync_fn = agent.run
-        async_fn = getattr(agent, "arun", None)
+        async_fn = getattr(agent, 'arun', None)
         if async_fn is not None:
             return RunnableLambda(sync_fn, afunc=async_fn)
         return sync_fn
 
     # --------------------------------------------------------------------------
-    # Montagem
+    # Montagem do Host Graph Unificado
     # --------------------------------------------------------------------------
     def build_graph(self) -> CompiledStateGraph:
         graph = StateGraph(GraphState)
@@ -76,11 +111,16 @@ class GraphBuilder:
 
         route_node_map: Dict[str, str] = {}
         for registro in self._specialists:
-            agent_repos = {nome: self._repositories[nome] for nome in registro.repositories}
-            node = make_repo_backed_node(registro.agente, agent_repos)
+            if registro.rota in ROTAS_HOST_LOCAL:
+                # Nó transversal do Host Graph (ex.: rag_faq)
+                agent_repos = {nome: self._repositories[nome] for nome in registro.repositories}
+                node = make_repo_backed_node(registro.agente, agent_repos)
+            else:
+                # Nó ponte A2A: Roteador -> POST /a2a/cooperativa ou POST /a2a/empresa
+                node = make_a2a_node(registro.rota, self._a2a_client)
 
             graph.add_node(registro.node_name, self.timed(registro.node_name)(node))
-            graph.add_edge(registro.node_name, 'orchestrator_agent') # troca por 'juiz' quando ele existir
+            graph.add_edge(registro.node_name, 'orchestrator_agent')
             route_node_map[registro.rota] = registro.node_name
 
         # Entrada
@@ -95,7 +135,7 @@ class GraphBuilder:
         graph.add_conditional_edges(
             'router_agent',
             self._decisao_roteador,
-            {**route_node_map, 'fim': END}
+            {**route_node_map, 'guardrail_saida': 'guardrail_saida', 'fim': END}
         )
 
         # Saída
