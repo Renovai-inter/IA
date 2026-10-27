@@ -20,7 +20,7 @@ def test_chat_estoque_ponta_a_ponta(
         "/chat",
         json={
             "session_id": session_id_e2e,
-            "perfil_id": str(cenario_estoque.perfil_id),
+            "cooperativa_id": str(cenario_estoque.cooperativa_id),
             "pergunta": "quanto temos em estoque?",
         },
     )
