@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -r
 COPY --from=build /app/.venv /app/.venv
 COPY app ./app
 COPY frontend ./frontend
-COPY data/FAQ_RENOVAI_COMPLETO.txt ./data/FAQ_RENOVAI_COMPLETO.txt
+COPY data/FAQ_RENOVAI_COMPLETO.txt data/sp_bairros_zonas.csv data/sp_rotas_treinamento.csv ./data/
 USER 10001:10001
 EXPOSE 8000
 # ponytail: MemorySaver é local; persistir checkpoints antes de adicionar workers/réplicas.

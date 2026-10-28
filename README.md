@@ -3,8 +3,10 @@
 ## Deploy automático AWS (GitHub Actions / EKS)
 
 A pipeline `.github/workflows/prod.yml` executa testes, constrói a imagem,
-publica no ECR e atualiza o EKS a cada push na `main`. Também pode ser
-acionada em **Actions > Deploy to AWS EKS > Run workflow**, selecionando `main`.
+publica no ECR e atualiza o EKS somente ao publicar uma release estável no
+repositório (**Releases > Draft a new release > Publish release**). O deploy usa
+o commit da tag da release. Push, pull request, rascunho e pré-release não
+acionam o deploy de produção. Os workflows de CI continuam independentes.
 Um teste que falha interrompe o job antes de configurar as credenciais AWS.
 
 Antes do primeiro deploy, crie o repositório ECR `renovai-api-ia` e configure
@@ -38,23 +40,22 @@ o `.gitignore`, publica uma imagem identificada pelo SHA do commit e aguarda
 o rollout. Não há `.dockerignore`. O mesmo script pode ser executado manualmente
 com `AWS_REGION` e `EKS_CLUSTER_NAME` definidos.
 
-O Service usa um Network Load Balancer público na porta 80, encaminhando para
-8000 no container. Após o deploy, aguarde o endereço externo:
+O Service permanece interno (`ClusterIP`). O endereço público é fornecido pelo
+Nginx compartilhado, mantido em `Spring-API/orchestration/gateway`, atrás de um
+único NLB. O workflow `gateway.yml` do Spring atualiza essa infraestrutura ao
+publicar uma release estável. Os deploys das APIs não criam load balancers.
 
 ```bash
-kubectl get service ia-api-service -n renovai-api -w
+kubectl get service renovai-gateway -n renovai-api -w
 ```
 
-Use o hostname exibido em `EXTERNAL-IP` para chamar `http://HOSTNAME/health`,
-`http://HOSTNAME/docs` e as rotas da API. Se continuar `<pending>`, consulte
-`kubectl describe service ia-api-service -n renovai-api` para verificar os eventos.
-O cluster precisa permitir o provisionamento do NLB em subnets públicas.
+Sem certificado, use HTTP na porta 80. Com a variável `NLB_CERTIFICATE_ARN`
+configurada no Spring, use HTTPS na porta 443 e o domínio correspondente ao
+certificado ACM. Configure também CORS para a origem do frontend.
+Os Ingresses ALB antigos devem ser removidos após validar e migrar o endereço;
+remover os manifests do Git não exclui recursos existentes do cluster.
 
-O acesso é HTTP, sem TLS e sem autenticação nesta etapa. Chamadas públicas ao chat
-podem consumir a cota dos provedores de IA. O NLB gera cobrança adicional na AWS.
-Para chamadas de um frontend em outra origem, configure também o CORS da aplicação.
-
-Mantenha uma réplica e um worker; os checkpoints em memória são perdidos nos reinícios.
+Mantenha uma réplica e um worker; checkpoints em memória são perdidos nos reinícios.
 
 Solucao tecnologica desenvolvida como projeto interdisciplinar pelos alunos do 1o e 2o ano do Instituto J&F Germinatech. O projeto integra disciplinas de backend, frontend, dados, mobile, inteligencia artificial, UX e gestao de projetos em uma unica plataforma coesa.
 
