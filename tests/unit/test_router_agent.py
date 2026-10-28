@@ -114,3 +114,49 @@ def test_router_agent_extrai_multiplas_rotas_com_colchetes(monkeypatch: pytest.M
 
     assert resultado["proximos_agentes"] == ["estoque", "rag_faq"]
     assert resultado["messages"] == []
+
+
+def test_router_agent_extrai_rota_de_bloco_markdown_json(monkeypatch: pytest.MonkeyPatch):
+    texto = (
+        "```json\n"
+        "{\n"
+        '  "ROUTE": "coleta",\n'
+        '  "PERGUNTA_ORIGINAL": "Qual foi a última coleta que foi realizada?"\n'
+        "}\n"
+        "```"
+    )
+    agent = _build_router_agent(monkeypatch, texto)
+
+    resultado = agent.run(
+        {"messages": [HumanMessage(content="Qual foi a última coleta que foi realizada?")]},
+        config={},
+    )
+
+    assert resultado["proximos_agentes"] == ["coleta"]
+    assert resultado["messages"] == []
+
+
+def test_router_agent_extrai_multiplas_rotas_de_json(monkeypatch: pytest.MonkeyPatch):
+    texto = '{"ROUTES": ["estoque", "rag_faq"], "PERGUNTA_ORIGINAL": "teste"}'
+    agent = _build_router_agent(monkeypatch, texto)
+
+    resultado = agent.run(
+        {"messages": [HumanMessage(content="teste")]},
+        config={},
+    )
+
+    assert resultado["proximos_agentes"] == ["estoque", "rag_faq"]
+    assert resultado["messages"] == []
+
+
+def test_router_agent_extrai_rota_com_dois_pontos(monkeypatch: pytest.MonkeyPatch):
+    texto = "ROUTE: coleta\nPERGUNTA_ORIGINAL: Qual a última coleta?"
+    agent = _build_router_agent(monkeypatch, texto)
+
+    resultado = agent.run(
+        {"messages": [HumanMessage(content="Qual a última coleta?")]},
+        config={},
+    )
+
+    assert resultado["proximos_agentes"] == ["coleta"]
+    assert resultado["messages"] == []

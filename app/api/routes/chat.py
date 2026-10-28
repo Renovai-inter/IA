@@ -2,6 +2,7 @@ from app.api.schemas.chat_request import ChatRequest
 from app.api.schemas.chat_response import ChatResponse
 from app.guardrails.pii import anonimizar
 from app.graph.state import RESET_OUTPUTS, RESET_AGENTES
+from app.repository.postgresql.perfil_repository import PerfilContext
 
 import asyncio
 from fastapi import APIRouter, Request
@@ -33,8 +34,9 @@ async def chat(request: Request, body: ChatRequest):
     try:
         pergunta, mapa_pii = anonimizar(body.pergunta)
 
-        perfil_ctx = await asyncio.to_thread(
-            container.repositories['perfil_repository'].resolve_perfil, body.perfil_id
+        perfil_ctx = PerfilContext.from_request(
+            cooperativa_id=body.cooperativa_id,
+            empresa_id=body.empresa_id,
         )
 
         await asyncio.to_thread(
@@ -43,15 +45,19 @@ async def chat(request: Request, body: ChatRequest):
         )
 
         config = {'configurable': {
-            'thread_id': body.session_id,
-            'user_id':   body.user_id,
-            'perfil_id': body.perfil_id,
-            'mapa_pii':  mapa_pii,
+            'thread_id':      body.session_id,
+            'user_id':        body.user_id,
+            'cooperativa_id': body.cooperativa_id,
+            'empresa_id':     body.empresa_id,
+            'perfil_id':      body.entidade_id,
+            'mapa_pii':       mapa_pii,
         }}
 
         resultado = await container.graph.ainvoke(
             {
                 'messages': [HumanMessage(content=pergunta)],
+                'cooperativa_id': perfil_ctx.cooperativa_id,
+                'empresa_id': perfil_ctx.empresa_id,
                 'perfil_ctx': perfil_ctx,
                 'especialista_outputs': {RESET_OUTPUTS: True},
                 'agentes_chamados': [RESET_AGENTES],

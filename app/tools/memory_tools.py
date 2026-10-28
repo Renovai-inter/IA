@@ -33,7 +33,11 @@ class MemoriaToolkit(Toolkit):
 
         config = (config or {}).get('configurable', {})
         user_id = config.get('user_id')
-        perfil_id = config.get('perfil_id', None)
+        perfil_id = (
+            config.get('cooperativa_id')
+            or config.get('empresa_id')
+            or config.get('perfil_id', None)
+        )
 
         if not user_id and not perfil_id:
             return {'status': 'error', 'message': 'Não foi possível identificar o usuário para buscar o histórico.'}

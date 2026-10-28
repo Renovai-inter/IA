@@ -41,19 +41,19 @@ class MongoMemory(MemoryStore):
         Garante que existe sessão ativa (criando se necessário) e registra a
         pergunta do usuário. Devolve o contexto que o resto do grafo pode
         precisar.
-
-        Hoje é chamado por `api/routes/chat.py` antes do `graph.ainvoke`;
-        quando o Guardrail de entrada existir, a chamada passa para ele.
         """
         sessao = self.repository.buscar_sessao_ativa(session_id)
         if sessao is None:
+            identificador = getattr(perfil_ctx, 'identificador', None) or str(
+                perfil_ctx.cooperativa_id or perfil_ctx.empresa_id or perfil_ctx.perfil_id
+            )
             doc_id = self.repository.criar_sessao(
-                session_id, str(perfil_ctx.perfil_id), usuario_id=usuario_id
+                session_id, identificador, usuario_id=usuario_id
             )
         else:
             doc_id = sessao.id
 
-        self.repository.adicionar_mensagem(doc_id, role="usuario", content=pergunta)
+        self.repository.adicionar_mensagem(doc_id, role='usuario', content=pergunta)
 
         sessao_atualizada = self.repository.buscar_por_id(doc_id)
         if sessao_atualizada is None:
@@ -69,16 +69,13 @@ class MongoMemory(MemoryStore):
     ) -> Optional[MemoriaCtx]:
         """
         Registra a resposta final do turno.
-
-        Hoje é chamado por `api/routes/chat.py` depois do `graph.ainvoke`;
-        quando o Orquestrador assumir isso, a chamada passa para ele.
         """
         sessao = self.repository.buscar_sessao_ativa(session_id)
         if sessao is None:
             return None
 
         self.repository.adicionar_mensagem(
-            sessao.id, role="assistente", content=resposta, agentes=agentes or [], meta=meta
+            sessao.id, role='assistente', content=resposta, agentes=agentes or [], meta=meta
         )
 
         sessao_atualizada = self.repository.buscar_por_id(sessao.id)

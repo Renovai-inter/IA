@@ -1,5 +1,6 @@
 from typing import Optional
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
@@ -43,6 +44,7 @@ class RecomendacaoToolkit(Toolkit):
         raio_max_km: float = 40.0,
         volume_minimo_kg: float = 500.0,
         empresa_id: Optional[str] = None,
+        config: Optional[RunnableConfig] = None,
     ) -> dict:
         """Consulta o grafo Neo4j e recomenda as cooperativas ideais para aquisição de determinado
         material reciclável com base em estoque imediato disponível, menor distância viária,
@@ -51,6 +53,11 @@ class RecomendacaoToolkit(Toolkit):
 
         if not material or not material.strip():
             return {'status': 'error', 'message': 'Material não informado para busca de cooperativas.'}
+
+        if not empresa_id and config:
+            cfg = (config or {}).get('configurable') or {}
+            if cfg.get('empresa_id'):
+                empresa_id = str(cfg['empresa_id'])
 
         recomendacoes = self.repository.recomendar_cooperativas(
             material=material,

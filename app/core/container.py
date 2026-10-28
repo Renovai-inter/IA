@@ -1,3 +1,5 @@
+from app.a2a.client import A2AClient
+from app.a2a.server import A2ACooperativaServer, A2AEmpresaServer
 from app.core.config import Settings
 from app.core.observabilidade import Observabilidade
 from app.graph.registro import RegistroEspecialista
@@ -77,9 +79,12 @@ def build_container(
     providers: Dict[str, Any] | None = None,
     agent_llm_map: Dict[str, Tuple[str, str]] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
-) -> Container:
+) -> 'Container':
     """
-    Construção do contêiner com conexão a banco de dados.
+    Construção do contêiner com:
+    - Grafo Principal Unificado (Host Graph): `guardrail_entrada`, `router_agent`, `faq_agent`, `orchestrator_agent`, `guardrail_saida`
+    - Microsserviço A2A Cooperativa (`/a2a/cooperativa`): subgrafo `estoque`, `coleta`, `financeiro`, `logistica`
+    - Microsserviço A2A Empresa (`/a2a/empresa`): subgrafo `pedidos` (`recomendacao`)
     """
     checkpointer = checkpointer or MemorySaver()
 
@@ -281,6 +286,27 @@ def build_container(
                 )
             )
 
+    rotas_cooperativa = set(getattr(settings, 'ROTAS_COOPERATIVA', ('estoque', 'coleta', 'financeiro', 'logistica')))
+    rotas_empresa = set(getattr(settings, 'ROTAS_EMPRESA', ('pedidos',)))
+
+    specialists_cooperativa = [s for s in specialists if s.rota in rotas_cooperativa]
+    specialists_empresa = [s for s in specialists if s.rota in rotas_empresa]
+
+    a2a_cooperativa_server = A2ACooperativaServer(
+        specialists=specialists_cooperativa,
+        repositories=_REPOSITORIES_MAP,
+    )
+    a2a_empresa_server = A2AEmpresaServer(
+        specialists=specialists_empresa,
+        repositories=_REPOSITORIES_MAP,
+    )
+    a2a_client = A2AClient(
+        cooperativa_url=(getattr(settings, 'COOPERATIVA_A2A_URL', '') or '').strip() or None,
+        empresa_url=(getattr(settings, 'EMPRESA_A2A_URL', '') or '').strip() or None,
+        cooperativa_server=a2a_cooperativa_server,
+        empresa_server=a2a_empresa_server,
+    )
+
     graph = GraphBuilder(
         router_agent=agents['router_agent'],
         orchestrator_agent=agents['orchestrator_agent'],
@@ -289,6 +315,7 @@ def build_container(
         checkpointer=checkpointer,
         guardrail_entrada=agents['guardrail_entrada'],
         guardrail_saida=agents['guardrail_saida'],
+        a2a_client=a2a_client,
     ).build_graph()
 
     return Container(
@@ -301,6 +328,9 @@ def build_container(
         observabilidade=observabilidade,
         checkpointer=checkpointer,
         modelo_rotas=modelo_rotas,
+        a2a_cooperativa_server=a2a_cooperativa_server,
+        a2a_empresa_server=a2a_empresa_server,
+        a2a_client=a2a_client,
     )
 
 
@@ -316,6 +346,9 @@ class Container:
         observabilidade: Observabilidade | None = None,
         checkpointer: BaseCheckpointSaver | None = None,
         modelo_rotas: ModeloRotaSupervisionadoSP | None = None,
+        a2a_cooperativa_server: A2ACooperativaServer | None = None,
+        a2a_empresa_server: A2AEmpresaServer | None = None,
+        a2a_client: A2AClient | None = None,
     ):
         self.graph = graph
         self.agentes = agentes
@@ -326,3 +359,10 @@ class Container:
         self.observabilidade = observabilidade or Observabilidade()
         self.checkpointer = checkpointer
         self.modelo_rotas = modelo_rotas or ModeloRotaSupervisionadoSP()
+        self.a2a_cooperativa_server = a2a_cooperativa_server or A2ACooperativaServer(repositories=repositories)
+        self.a2a_empresa_server = a2a_empresa_server or A2AEmpresaServer(repositories=repositories)
+        self.a2a_server = self.a2a_cooperativa_server
+        self.a2a_client = a2a_client or A2AClient(
+            cooperativa_server=self.a2a_cooperativa_server,
+            empresa_server=self.a2a_empresa_server,
+        )
