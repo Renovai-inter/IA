@@ -5,7 +5,7 @@ from app.graph.state import RESET_OUTPUTS, RESET_AGENTES
 from app.repository.postgresql.perfil_repository import PerfilContext
 
 import asyncio
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from langchain_core.messages import HumanMessage
 
 
@@ -22,7 +22,7 @@ def _obter_texto_mensagem(msg) -> str:
     )
 
 @router.post('/chat', response_model=ChatResponse)
-async def chat(request: Request, body: ChatRequest):
+async def chat(request: Request, body: ChatRequest, background_tasks: BackgroundTasks):
     container = request.app.state.container
     mongo_memory = container.memory_stores['mongo_memory']
     obs = container.observabilidade
@@ -81,7 +81,9 @@ async def chat(request: Request, body: ChatRequest):
 
         resposta = _obter_texto_mensagem(resultado['messages'][-1])
 
-        await asyncio.to_thread(
+        # Gravação assíncrona do histórico de respostas no MongoDB Atlas via BackgroundTasks,
+        # liberando o envio imediato da resposta HTTP ao cliente sem esperar o roundtrip de rede.
+        background_tasks.add_task(
             mongo_memory.registrar_resposta,
             resposta, body.session_id, agentes_turno,
         )
