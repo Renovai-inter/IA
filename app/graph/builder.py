@@ -11,6 +11,7 @@ from app.a2a.server import A2ACooperativaServer, A2AEmpresaServer
 from app.graph.registro import RegistroEspecialista
 from app.graph.state import GraphState
 from app.agents.base import BaseAgent
+from app.agents.judge_agent import JudgeAgent
 from app.repository.base import Repository
 from app.graph.nodes import make_a2a_node, make_repo_backed_node
 from app.core.observabilidade import timed as obs_timed
@@ -20,10 +21,11 @@ ROTAS_HOST_LOCAL = {'rag_faq'}
 
 class GraphBuilder:
     """Constrói o Grafo Principal Unificado (Host Graph):
-    - `guardrail_entrada` -> `router_agent` -> [`rag_faq` (local) | Microsserviços A2A] -> `orchestrator_agent` -> `guardrail_saida`
+    - `guardrail_entrada` -> `router_agent` -> [`rag_faq` (local) | Microsserviços A2A] -> `orchestrator_agent` -> `guardrail_saida` -> `judge` -> END
     - As rotas de Cooperativa (`estoque`, `coleta`, `financeiro`, `logistica`) são despachadas
       via protocolo Google A2A para `/a2a/cooperativa`.
     - A rota de Empresa (`pedidos`) é despachada via protocolo Google A2A para `/a2a/empresa`.
+    - O nó terminal `judge` atua como guardião de fidelidade factual via modelo de decisão (Laya).
     """
 
     def __init__(
@@ -36,6 +38,7 @@ class GraphBuilder:
         guardrail_entrada: BaseAgent,
         guardrail_saida: BaseAgent,
         a2a_client: Optional[A2AClient] = None,
+        judge_agent: Optional[BaseAgent] = None,
     ):
         self._router_agent = router_agent
         self._orchestrator_agent = orchestrator_agent
@@ -44,6 +47,7 @@ class GraphBuilder:
         self._checkpointer = checkpointer
         self._guardrail_entrada = guardrail_entrada
         self._guardrail_saida = guardrail_saida
+        self._judge_agent = judge_agent or JudgeAgent()
 
         if a2a_client is None:
             specs_coop = [
@@ -108,6 +112,7 @@ class GraphBuilder:
 
         graph.add_node('orchestrator_agent', self.timed('orchestrator')(self._make_agent_node(self._orchestrator_agent)))
         graph.add_node('guardrail_saida', self.timed('guardrail_saida')(self._make_agent_node(self._guardrail_saida)))
+        graph.add_node('judge', self.timed('judge')(self._make_agent_node(self._judge_agent)))
 
         route_node_map: Dict[str, str] = {}
         for registro in self._specialists:
@@ -138,8 +143,9 @@ class GraphBuilder:
             {**route_node_map, 'guardrail_saida': 'guardrail_saida', 'fim': END}
         )
 
-        # Saída
+        # Saída terminal: Orquestrador -> Guardrail Saída -> Judge -> END
         graph.add_edge('orchestrator_agent', 'guardrail_saida')
-        graph.add_edge('guardrail_saida', END)
+        graph.add_edge('guardrail_saida', 'judge')
+        graph.add_edge('judge', END)
 
         return graph.compile(checkpointer=self._checkpointer)
