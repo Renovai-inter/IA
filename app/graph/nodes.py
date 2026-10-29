@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.a2a.client import A2AClient
 
 # Pool compartilhado: os snapshots são I/O de banco independentes entre si.
-_SNAPSHOT_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix='snapshot')
+_SNAPSHOT_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix='snapshot')
 
 MENSAGEM_RESTRICAO_COOPERATIVA = (
     'Essa consulta está disponível apenas para perfis de cooperativa. '

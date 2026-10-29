@@ -25,14 +25,28 @@ _CHUNK_SIZE    = 700
 _CHUNK_OVERLAP = 150
 _BATCH_SIZE    = 25
 
-settings = Settings()
-qdrant_factory = QdrantConnectionFactory(settings.QDRANT_URL, settings.QDRANT_API_KEY)
-qdrant = qdrant_factory.connect()
-embedding_service = EmbeddingService(settings.HF_TOKEN)
+_settings: Optional[Settings] = None
+_qdrant_factory: Optional[QdrantConnectionFactory] = None
+_qdrant = None
+_embedding_service: Optional[EmbeddingService] = None
+
+
+def _obter_recursos():
+    global _settings, _qdrant_factory, _qdrant, _embedding_service
+    if _settings is None:
+        _settings = Settings()
+        _qdrant_factory = QdrantConnectionFactory(_settings.QDRANT_URL, _settings.QDRANT_API_KEY)
+        _qdrant = _qdrant_factory.connect()
+        _embedding_service = EmbeddingService(
+            _settings.HF_TOKEN,
+            gemini_api_key=_settings.GEMINI_API_KEY,
+        )
+    return _settings, _qdrant_factory, _qdrant, _embedding_service
 
 
 def _garantir_collection(collection_name: str, dim: int) -> None:
     """Garante que a collection exista no Qdrant com a dimensão configurada."""
+    _, _, qdrant, _ = _obter_recursos()
     if not qdrant.collection_exists(collection_name):
         print(f'[ingest] Criando collection {collection_name} (dim={dim})...')
         qdrant.create_collection(
@@ -62,6 +76,7 @@ def _garantir_collection(collection_name: str, dim: int) -> None:
 
 def _limpar_collection(collection_name: str) -> None:
     """Apaga os pontos existentes na collection antes da nova ingestão."""
+    _, _, qdrant, embedding_service = _obter_recursos()
     _garantir_collection(collection_name, embedding_service.dim)
     info = qdrant.get_collection(collection_name)
     if info.points_count > 0:
@@ -149,6 +164,7 @@ extrair_chunks_pnrs = _extrair_chunks_pnrs
 
 def ingerir_faq(faq_path: Optional[str] = None) -> int:
     """Indexa o FAQ oficial do Renovaí no Qdrant. Retorna o número de chunks inseridos."""
+    settings, _, qdrant, embedding_service = _obter_recursos()
     caminho = Path(faq_path or settings.FAQ_PATH)
     print(f'[ingest] Carregando FAQ: {caminho}')
     conteudo_faq = caminho.read_text(encoding='utf-8')
@@ -195,6 +211,7 @@ def ingerir_faq(faq_path: Optional[str] = None) -> int:
 
 def ingerir_pnrs(pnrs_path: Optional[str] = None) -> int:
     """Indexa a legislação PNRS (Lei nº 12.305/2010) na coleção normas_residuos do Qdrant."""
+    settings, _, qdrant, embedding_service = _obter_recursos()
     caminho = Path(pnrs_path or settings.PNRS_PATH)
     print(f'[ingest] Carregando PNRS: {caminho}')
     chunks = _extrair_chunks_pnrs(caminho)
@@ -243,10 +260,13 @@ def ingerir_tudo() -> dict[str, int]:
 if __name__ == '__main__':
     import sys
     alvo = sys.argv[1].lower() if len(sys.argv) > 1 else 'all'
-    if alvo == 'faq':
-        ingerir_faq()
-    elif alvo == 'pnrs':
-        ingerir_pnrs()
-    else:
-        ingerir_tudo()
-    qdrant_factory.close(qdrant)
+    _, qdrant_factory, qdrant, _ = _obter_recursos()
+    try:
+        if alvo == 'faq':
+            ingerir_faq()
+        elif alvo == 'pnrs':
+            ingerir_pnrs()
+        else:
+            ingerir_tudo()
+    finally:
+        qdrant_factory.close(qdrant)

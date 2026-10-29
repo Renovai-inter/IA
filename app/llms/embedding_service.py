@@ -9,7 +9,7 @@ from app.llms.base import LLMService
 
 log = logging.getLogger('renovai.embeddings')
 
-HF_INFERENCE_URL = 'https://api-inference.huggingface.co/pipeline/feature-extraction'
+HF_INFERENCE_URL = 'https://router.huggingface.co/hf-inference/models'
 
 
 class EmbeddingService(LLMService):
@@ -20,27 +20,39 @@ class EmbeddingService(LLMService):
         api_key: Optional[str] = None,
         model: str = 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2',
         dim: int = 768,
+        gemini_api_key: Optional[str] = None,
     ):
+        # Sempre inicializa com None para garantir 0 MB de modelos locais em RAM
+        super().__init__(None)
         self._dim = dim
         self._model = model
-        self._hf_token = api_key or os.getenv('HF_TOKEN')
-        self._api_url = f'{HF_INFERENCE_URL}/{model}'
+        self._hf_token = (api_key or os.getenv('HF_TOKEN') or '').strip() or None
+        self._gemini_api_key = (gemini_api_key or os.getenv('GEMINI_API_KEY') or '').strip() or None
+        self._api_url = f'{HF_INFERENCE_URL}/{model}/pipeline/feature-extraction'
         self._use_api = bool(self._hf_token)
+        self._gemini_embeddings: Any = None
 
         if self._use_api:
-            # Modo API: Consumo remoto via Hugging Face Inference API (0 MB de RAM e 0 MB de download)
-            super().__init__(None)
             log.info(f'[embedding_service] Usando Hugging Face Inference API ({model}).')
         else:
-            # Modo Local: Fallback para FastEmbed local quando HF_TOKEN não estiver configurado
-            from fastembed import TextEmbedding
-
-            embedding_model = TextEmbedding(model_name=model)
-            super().__init__(embedding_model)
-            log.info(f'[embedding_service] HF_TOKEN ausente. Usando FastEmbed local ({model}).')
+            log.info('[embedding_service] HF_TOKEN ausente. Usando fallback de API remota (Gemini Embeddings) sem alocar RAM local.')
 
         # perguntas repetidas (FAQ) não precisam de nova chamada de inferência
-        self._embed_cached = lru_cache(maxsize=256)(self._embed_query)
+        self._embed_cached = lru_cache(maxsize=128)(self._embed_query)
+
+    def _obter_gemini_embeddings(self) -> Any:
+        if self._gemini_embeddings is None:
+            if not self._gemini_api_key:
+                raise RuntimeError(
+                    '[embedding_service] Nem HF_TOKEN nem GEMINI_API_KEY estão configurados para gerar embeddings via API.'
+                )
+            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+            self._gemini_embeddings = GoogleGenerativeAIEmbeddings(
+                model='gemini-embedding-2-preview',
+                google_api_key=self._gemini_api_key,
+            )
+        return self._gemini_embeddings
 
     @property
     def dim(self) -> int:
@@ -54,7 +66,12 @@ class EmbeddingService(LLMService):
                 vetor = vetor[0]
             return tuple(float(x) for x in vetor)
 
-        vetor = next(self._llm.embed([texto]))
+        if self._llm is not None:
+            vetor = next(self._llm.embed([texto]))
+            return tuple(float(x) for x in vetor)
+
+        gemini_emb = self._obter_gemini_embeddings()
+        vetor = gemini_emb.embed_query(texto, output_dimensionality=self._dim)
         return tuple(float(x) for x in vetor)
 
     def _chamar_hf_api(self, payload: str | list[str]) -> list[float] | list[list[float]]:
@@ -121,5 +138,10 @@ class EmbeddingService(LLMService):
                 return [res]  # type: ignore
             return res  # type: ignore
 
-        gerador = self._llm.embed(textos)
-        return [[float(x) for x in vetor] for vetor in gerador]
+        if self._llm is not None:
+            gerador = self._llm.embed(textos)
+            return [[float(x) for x in vetor] for vetor in gerador]
+
+        gemini_emb = self._obter_gemini_embeddings()
+        vetores = gemini_emb.embed_documents(textos, output_dimensionality=self._dim)
+        return [[float(x) for x in vetor] for vetor in vetores]

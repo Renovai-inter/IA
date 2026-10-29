@@ -54,6 +54,7 @@ class A2ASubgraphServer:
     domínio específico (`COOPERATIVA` ou `EMPRESA`)."""
 
     dominio: Literal['COOPERATIVA', 'EMPRESA'] = 'COOPERATIVA'
+    _MAX_TASKS_EM_MEMORIA: int = 100
 
     def __init__(
         self,
@@ -65,6 +66,12 @@ class A2ASubgraphServer:
         self._runners_por_skill: Dict[str, tuple[RegistroEspecialista, Any, Any]] = {}
         for registro in (specialists or []):
             self.registrar_especialista(registro)
+
+    def _registrar_task(self, task: Task) -> None:
+        self._tasks[task.id] = task
+        while len(self._tasks) > self._MAX_TASKS_EM_MEMORIA:
+            oldest_key = next(iter(self._tasks))
+            self._tasks.pop(oldest_key, None)
 
     def registrar_especialista(self, registro: RegistroEspecialista) -> None:
         agent_repos = {
@@ -202,7 +209,7 @@ class A2ASubgraphServer:
             history=[params.message, resposta_msg],
             metadata={'dominio': self.dominio, 'skill': skill, 'nome_agente': nome_agente},
         )
-        self._tasks[task.id] = task
+        self._registrar_task(task)
         return task
 
     def _montar_task_falha(self, params: TaskSendParams, mensagem_erro: str) -> Task:
@@ -216,7 +223,7 @@ class A2ASubgraphServer:
             status=TaskStatus(state='failed', message=msg_erro),
             history=[params.message, msg_erro],
         )
-        self._tasks[task.id] = task
+        self._registrar_task(task)
         return task
 
     def handle_task_send(self, params: TaskSendParams) -> Task:

@@ -1,15 +1,12 @@
 import csv
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
 
-import joblib
 from pydantic import BaseModel, Field
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.metrics import mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+
+if TYPE_CHECKING:
+    from sklearn.pipeline import Pipeline
 
 from app.ml.sp_zones import (
     DATA_DIR,
@@ -98,9 +95,13 @@ class ModeloRotaSupervisionadoSP:
     ):
         self.model_path = Path(model_path)
         self.dataset_path = Path(dataset_path)
-        self.pipeline: Optional[Pipeline] = None
+        self.pipeline: Optional[Any] = None
 
-    def _criar_pipeline(self) -> Pipeline:
+    def _criar_pipeline(self) -> 'Pipeline':
+        from sklearn.ensemble import GradientBoostingRegressor
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import StandardScaler
+
         return Pipeline([
             ('scaler', StandardScaler()),
             ('regressor', GradientBoostingRegressor(
@@ -117,6 +118,9 @@ class ModeloRotaSupervisionadoSP:
         dataset_path: Optional[Path | str] = None,
         salvar_artefato: bool = True,
     ) -> dict[str, float]:
+        from sklearn.metrics import mean_absolute_error, r2_score
+        from sklearn.model_selection import train_test_split
+
         caminho_csv = Path(dataset_path) if dataset_path else self.dataset_path
         X, y = carregar_dataset_csv(caminho_csv)
         X_train, X_test, y_train, y_test = train_test_split(
@@ -149,6 +153,9 @@ class ModeloRotaSupervisionadoSP:
     ) -> dict[str, float | int]:
         """Retreina o pipeline supervisionado utilizando os trechos armazenados no Neo4j
         (combinados com o dataset CSV base em IA/data/ quando incluir_csv_base=True)."""
+        from sklearn.metrics import mean_absolute_error, r2_score
+        from sklearn.model_selection import train_test_split
+
         X_neo4j, y_neo4j = rota_repository.buscar_trechos_treinamento(apenas_reais=apenas_reais)
 
         X_csv: list[list[float]] = []
@@ -183,17 +190,21 @@ class ModeloRotaSupervisionadoSP:
         }
 
     def salvar(self, caminho: Optional[Path | str] = None) -> Path:
+        import joblib
+
         destino = Path(caminho) if caminho else self.model_path
         destino.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(self.pipeline, destino)
         return destino
 
-    def carregar(self, caminho: Optional[Path | str] = None) -> Pipeline:
+    def carregar(self, caminho: Optional[Path | str] = None) -> 'Pipeline':
+        import joblib
+
         origem = Path(caminho) if caminho else self.model_path
         self.pipeline = joblib.load(origem)
         return self.pipeline
 
-    def garantir_modelo(self) -> Pipeline:
+    def garantir_modelo(self) -> 'Pipeline':
         if self.pipeline is not None:
             return self.pipeline
         if self.model_path.exists():

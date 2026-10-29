@@ -12,7 +12,7 @@ class PostgresConnectionFactory(ConnectionFactory[ConnectionPool]):
         return ConnectionPool(
             conninfo=self.dsn,
             min_size=1,
-            max_size=10,
+            max_size=4,
             max_idle=300,
             max_lifetime=1800,
             check=ConnectionPool.check_connection,
