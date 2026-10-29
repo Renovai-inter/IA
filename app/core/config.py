@@ -21,12 +21,16 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / '.env',
         env_file_encoding='utf-8',
+        extra='ignore',
     )
 
     GEMINI_API_KEY: str
     GROQ_API_KEY: str
     QDRANT_API_KEY: str
     LANGSMITH_API_KEY: str | None = None
+
+    JUDGE_ENGINE: str = 'deterministic'
+    JUDGE_PRELOAD: bool = False
 
     DATABASE_URL: str
     QDRANT_URL: str
@@ -52,8 +56,11 @@ class Settings(BaseSettings):
     SESSAO_TTL_MIN: int = 120
 
     def model_post_init(self, __context: Any) -> None:
+        import os
+        os.environ['JUDGE_ENGINE'] = self.JUDGE_ENGINE
+        if self.JUDGE_PRELOAD:
+            os.environ['JUDGE_PRELOAD'] = 'true'
         if self.LANGSMITH_TRACING:
-            import os
             os.environ['LANGSMITH_TRACING'] = 'true'
             if self.LANGSMITH_API_KEY:
                 os.environ['LANGSMITH_API_KEY'] = self.LANGSMITH_API_KEY

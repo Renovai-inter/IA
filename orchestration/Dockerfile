@@ -28,7 +28,7 @@ COPY data/FAQ_RENOVAI_COMPLETO.txt data/sp_bairros_zonas.csv data/sp_rotas_trein
 
 # Pré-download do FastEmbed e do Laya durante o build da imagem
 RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2')" && \
-    python -c "from laya import Router; Router(model_checkpoint='convaiinnovations/laya-multilingual')"
+    python -c "from laya import Router; Router().preload(['multilingual'])"
 
 # Garante permissões adequadas para o appuser
 RUN chown -R appuser:appuser /app /home/appuser
