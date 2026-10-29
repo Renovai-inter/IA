@@ -175,6 +175,7 @@ def _grafo(categoria: str, resposta_orquestrador: str):
         repositories={"material_repository": StubRepository(snapshot={"itens": []})},
         checkpointer=MemorySaver(),
         guardrail_entrada=g_entrada, guardrail_saida=g_saida,
+        judge_agent=StubAgent("judge", [{"passou_juiz": True, "agentes_chamados": ["judge:apoiada noul=0.95"]}]),
     ).build_graph()
 
 

@@ -29,8 +29,9 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str
     LANGSMITH_API_KEY: str | None = None
 
-    JUDGE_ENGINE: str = 'deterministic'
-    JUDGE_PRELOAD: bool = False
+    LAYA_API_KEY: str = ''
+    LAYA_API_URL: str = 'https://api.laya.studio/v1/systemone'
+    LAYA_MODEL: str = 'multilingual'
 
     DATABASE_URL: str
     QDRANT_URL: str
@@ -57,9 +58,12 @@ class Settings(BaseSettings):
 
     def model_post_init(self, __context: Any) -> None:
         import os
-        os.environ['JUDGE_ENGINE'] = self.JUDGE_ENGINE
-        if self.JUDGE_PRELOAD:
-            os.environ['JUDGE_PRELOAD'] = 'true'
+        if self.LAYA_API_KEY:
+            os.environ['LAYA_API_KEY'] = self.LAYA_API_KEY
+        if self.LAYA_API_URL:
+            os.environ['LAYA_API_URL'] = self.LAYA_API_URL
+        if self.LAYA_MODEL:
+            os.environ['LAYA_MODEL'] = self.LAYA_MODEL
         if self.LANGSMITH_TRACING:
             os.environ['LANGSMITH_TRACING'] = 'true'
             if self.LANGSMITH_API_KEY:
