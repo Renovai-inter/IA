@@ -20,26 +20,23 @@ class GeminiProvider(LLMProvider):
         self._LLMs = {
             'HIGH': ChatGoogleGenerativeAI(
                 model='gemini-3.5-flash-lite',
-                temperature=0.7,
-                top_p=0.95,
                 api_key=self.api_key,
                 **kwargs_suportados(
                     ChatGoogleGenerativeAI,
                     thinking_level='low',
                     max_retries=1,
-                    timeout=40,
+                    timeout=10,
                 ),
             ),
             'MEDIUM': ChatGoogleGenerativeAI(
-                model='gemini-2.5-flash',
+                model='gemini-3.5-flash',
                 temperature=0.7,
                 top_p=0.95,
                 api_key=self.api_key,
                 **kwargs_suportados(
                     ChatGoogleGenerativeAI,
-                    thinking_budget=256,
                     max_retries=1,
-                    timeout=40,
+                    timeout=10,
                 ),
             ),
             'EMBEDDING': GoogleGenerativeAIEmbeddings(
