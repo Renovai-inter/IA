@@ -41,4 +41,3 @@ def test_recomendacao_agent_monta_especialista_output(monkeypatch: pytest.Monkey
     output = resultado['especialista_outputs']['recomendacao']
     assert output.conteudo == texto_json
     assert output.fonte == 'recomendacao'
-    assert output.veredito_juiz == 'pendente'

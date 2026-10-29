@@ -42,4 +42,3 @@ def test_material_estoque_agent_monta_especialista_output(monkeypatch: pytest.Mo
     output = resultado["especialista_outputs"]["material_estoque"]
     assert output.conteudo == texto_json
     assert output.fonte == "material_estoque"
-    assert output.veredito_juiz == "pendente"

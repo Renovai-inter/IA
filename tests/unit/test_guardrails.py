@@ -197,7 +197,8 @@ def test_fluxo_aprovado_passa_pela_saida_e_substitui_mensagem():
                       "perfil_ctx": _perfil()},
                      config={"configurable": {"thread_id": "g2", "mapa_pii": {}}})
     assert r["agentes_chamados"][0] == "guardrail_entrada:aprovado"
-    assert r["agentes_chamados"][-1] == "guardrail_saida:pii_redigida"
+    assert "guardrail_saida:pii_redigida" in r["agentes_chamados"]
+    assert any("judge:" in a for a in r["agentes_chamados"])
     assert "98765" not in r["messages"][-1].content
     # substituiu (mesmo id) em vez de anexar: a versão com o telefone sumiu do histórico
     assert not any("98765" in str(m.content) for m in r["messages"])
