@@ -3,22 +3,23 @@ COPY --from=ghcr.io/astral-sh/uv:0.9.0 /uv /bin/uv
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock ./
-RUN uv sync --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project
 
 FROM python:3.14-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONOPTIMIZE=1 \
+    MALLOC_TRIM_THRESHOLD_=65536 \
+    MALLOC_ARENA_MAX=2 \
     PATH="/app/.venv/bin:$PATH" \
-    HOME="/home/appuser" \
-    FASTEMBED_CACHE_PATH="/home/appuser/.cache/fastembed"
+    HOME="/home/appuser"
 
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*
 
-# Cria usuário não-root com diretório home explícito e diretório de cache do FastEmbed
+# Cria usuário não-root com diretório home explícito
 RUN groupadd -g 10001 appuser && \
-    useradd -u 10001 -g appuser -m -d /home/appuser appuser && \
-    mkdir -p /home/appuser/.cache/fastembed
+    useradd -u 10001 -g appuser -m -d /home/appuser appuser
 
 COPY --from=build /app/.venv /app/.venv
 COPY app ./app
