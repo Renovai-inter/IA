@@ -30,6 +30,7 @@ from uuid import uuid4
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
+from pymongo import ReturnDocument
 from pymongo.database import Database
 
 from app.repository.base import Repository
@@ -141,6 +142,41 @@ class SessaoRepository(Repository[Sessao, Database]):
                 '$addToSet': {'agentes_chamados': {'$each': agentes if agentes else []}},
             },
         )
+
+    def adicionar_mensagem_e_retornar(
+        self,
+        doc_id: str,
+        role: str,
+        content: str,
+        agentes: Optional[List[str]] = None,
+        meta: Optional[Dict] = None,
+    ) -> Optional[Sessao]:
+        """Atualiza a sessão com a mensagem e devolve o documento atualizado em uma única
+        operação atômica (find_one_and_update), eliminando 1 roundtrip de rede."""
+        mensagem = {
+            'role': role,
+            'content': content,
+            'timestamp': self._agora(),
+        }
+        if agentes is not None:
+            mensagem['agentes'] = agentes
+        if meta is not None:
+            mensagem['meta'] = meta
+
+        doc = self._get_collection().find_one_and_update(
+            {'_id': doc_id},
+            {
+                '$set': {'data_atualizacao': self._agora()},
+                '$push': {'mensagens': mensagem},
+                '$addToSet': {'agentes_chamados': {'$each': agentes if agentes else []}},
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        if not doc:
+            return None
+
+        doc['_id'] = str(doc['_id'])
+        return Sessao(**doc)
 
     def marcar_encerrada(self, doc_id: str, resumo: Optional[str] = None) -> None:
         """Dado o _id de uma sessão, marca como encerrada. Não decide SE deveria encerrar."""

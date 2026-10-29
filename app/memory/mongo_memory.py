@@ -41,7 +41,7 @@ class MongoMemory(MemoryStore):
         """
         Garante que existe sessão ativa (criando se necessário) e registra a
         pergunta do usuário. Devolve o contexto que o resto do grafo pode
-        precisar.
+        precisar de forma atômica para evitar roundtrips desnecessários de rede.
         """
         with medir_span("mongo_preparar_turno", categoria="mongo"):
             sessao = self.repository.buscar_sessao_ativa(session_id)
@@ -55,9 +55,14 @@ class MongoMemory(MemoryStore):
             else:
                 doc_id = sessao.id
 
-            self.repository.adicionar_mensagem(doc_id, role='usuario', content=pergunta)
+            if hasattr(self.repository, 'adicionar_mensagem_e_retornar'):
+                sessao_atualizada = self.repository.adicionar_mensagem_e_retornar(
+                    doc_id, role='usuario', content=pergunta
+                )
+            else:
+                self.repository.adicionar_mensagem(doc_id, role='usuario', content=pergunta)
+                sessao_atualizada = self.repository.buscar_por_id(doc_id)
 
-            sessao_atualizada = self.repository.buscar_por_id(doc_id)
             if sessao_atualizada is None:
                 return None
             return self._para_ctx(sessao_atualizada)
@@ -70,18 +75,23 @@ class MongoMemory(MemoryStore):
         meta: Optional[Dict] = None,
     ) -> Optional[MemoriaCtx]:
         """
-        Registra a resposta final do turno.
+        Registra a resposta final do turno de forma atômica.
         """
         with medir_span("mongo_registrar_resposta", categoria="mongo"):
             sessao = self.repository.buscar_sessao_ativa(session_id)
             if sessao is None:
                 return None
 
-            self.repository.adicionar_mensagem(
-                sessao.id, role='assistente', content=resposta, agentes=agentes or [], meta=meta
-            )
+            if hasattr(self.repository, 'adicionar_mensagem_e_retornar'):
+                sessao_atualizada = self.repository.adicionar_mensagem_e_retornar(
+                    sessao.id, role='assistente', content=resposta, agentes=agentes or [], meta=meta
+                )
+            else:
+                self.repository.adicionar_mensagem(
+                    sessao.id, role='assistente', content=resposta, agentes=agentes or [], meta=meta
+                )
+                sessao_atualizada = self.repository.buscar_por_id(sessao.id)
 
-            sessao_atualizada = self.repository.buscar_por_id(sessao.id)
             if sessao_atualizada is None:
                 return None
             return self._para_ctx(sessao_atualizada)
