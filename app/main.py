@@ -39,6 +39,10 @@ app.include_router(chat.router)
 app.include_router(sessions.router)
 app.include_router(monitor.router)
 app.include_router(rotas.router)
+# O gateway compartilhado (Spring-API/orchestration/gateway) manda todo /rotas/** para a API-Redis;
+# por fora do cluster o app chega no cálculo de rota por /ia/rotas/**. O /rotas/** continua para
+# as chamadas internas (RPA-neo4j usa http://ia-api-service/rotas/retreinar).
+app.include_router(rotas.router, prefix='/ia')
 app.include_router(a2a_router)
 
 @app.get('/health')
