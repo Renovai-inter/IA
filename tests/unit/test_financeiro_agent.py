@@ -46,7 +46,6 @@ def test_financeiro_agent_monta_especialista_output(monkeypatch: pytest.MonkeyPa
     output = resultado['especialista_outputs']['financeiro']
     assert output.conteudo == texto_json
     assert output.fonte == 'financeiro'
-    assert output.veredito_juiz == 'pendente'
 
 
 @pytest.mark.asyncio

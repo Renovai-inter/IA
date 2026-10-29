@@ -68,9 +68,13 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
         agentes_turno = resultado.get('agentes_chamados', [])
 
         passou_guardrail = resultado.get('passou_guardrail', True)
+        passou_juiz = resultado.get('passou_juiz', True)
         if not passou_guardrail:
             status = "bloqueado"
             rota = "bloqueio_guardrail"
+        elif not passou_juiz:
+            status = "recusado_juiz"
+            rota = "bloqueio_juiz"
         else:
             status = "ok"
             rotas = resultado.get('proximos_agentes') or []

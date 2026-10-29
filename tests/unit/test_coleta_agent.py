@@ -45,7 +45,6 @@ def test_coleta_agent_monta_especialista_output(monkeypatch: pytest.MonkeyPatch)
     output = resultado['especialista_outputs']['coleta']
     assert output.conteudo == texto_json
     assert output.fonte == 'coleta'
-    assert output.veredito_juiz == 'pendente'
 
 
 @pytest.mark.asyncio

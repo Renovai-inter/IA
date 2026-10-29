@@ -4,7 +4,6 @@ from typing import (
     Any,
     Dict,
     List,
-    Literal,
     Optional,
 )
 from uuid import UUID
@@ -18,9 +17,6 @@ from app.repository.postgresql.perfil_repository import PerfilContext, _to_uuid
 class EspecialistaOutput:
     conteudo: str
     fonte: Optional[str] = None
-    veredito_juiz: Literal['pendente', 'aprovado', 'reprovado'] = 'pendente'
-    feedback_juiz: Optional[str] = None
-    tentativas: int = 0
 
 
 RESET_OUTPUTS = '__reset__'
@@ -54,6 +50,11 @@ class GraphState(MessagesState):
     chunk_contexto:       Optional[List[str]]
     passou_guardrail:     Optional[bool]
     motivo_guardrail:     Optional[str]
+    passou_juiz:          Optional[bool]
+    veredito_juiz:        Optional[str]
+    score_juiz:           Optional[float]
+    motivo_juiz:          Optional[str]
+    frase_original:       Optional[str]
 
 
 def resolver_contexto_dominio(
