@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 from app.memory.base import MemoriaCtx, MemoryStore
 from app.llms.resumo_service import ResumoService
 from app.repository.postgresql.perfil_repository import PerfilContext
+from app.core.observabilidade import medir_span
 
 
 class MongoMemory(MemoryStore):
@@ -40,25 +41,31 @@ class MongoMemory(MemoryStore):
         """
         Garante que existe sessão ativa (criando se necessário) e registra a
         pergunta do usuário. Devolve o contexto que o resto do grafo pode
-        precisar.
+        precisar de forma atômica para evitar roundtrips desnecessários de rede.
         """
-        sessao = self.repository.buscar_sessao_ativa(session_id)
-        if sessao is None:
-            identificador = getattr(perfil_ctx, 'identificador', None) or str(
-                perfil_ctx.cooperativa_id or perfil_ctx.empresa_id or perfil_ctx.perfil_id
-            )
-            doc_id = self.repository.criar_sessao(
-                session_id, identificador, usuario_id=usuario_id
-            )
-        else:
-            doc_id = sessao.id
+        with medir_span("mongo_preparar_turno", categoria="mongo"):
+            sessao = self.repository.buscar_sessao_ativa(session_id)
+            if sessao is None:
+                identificador = getattr(perfil_ctx, 'identificador', None) or str(
+                    perfil_ctx.cooperativa_id or perfil_ctx.empresa_id or perfil_ctx.perfil_id
+                )
+                doc_id = self.repository.criar_sessao(
+                    session_id, identificador, usuario_id=usuario_id
+                )
+            else:
+                doc_id = sessao.id
 
-        self.repository.adicionar_mensagem(doc_id, role='usuario', content=pergunta)
+            if hasattr(self.repository, 'adicionar_mensagem_e_retornar'):
+                sessao_atualizada = self.repository.adicionar_mensagem_e_retornar(
+                    doc_id, role='usuario', content=pergunta
+                )
+            else:
+                self.repository.adicionar_mensagem(doc_id, role='usuario', content=pergunta)
+                sessao_atualizada = self.repository.buscar_por_id(doc_id)
 
-        sessao_atualizada = self.repository.buscar_por_id(doc_id)
-        if sessao_atualizada is None:
-            return None
-        return self._para_ctx(sessao_atualizada)
+            if sessao_atualizada is None:
+                return None
+            return self._para_ctx(sessao_atualizada)
 
     def registrar_resposta(
         self,
@@ -68,43 +75,51 @@ class MongoMemory(MemoryStore):
         meta: Optional[Dict] = None,
     ) -> Optional[MemoriaCtx]:
         """
-        Registra a resposta final do turno.
+        Registra a resposta final do turno de forma atômica.
         """
-        sessao = self.repository.buscar_sessao_ativa(session_id)
-        if sessao is None:
-            return None
+        with medir_span("mongo_registrar_resposta", categoria="mongo"):
+            sessao = self.repository.buscar_sessao_ativa(session_id)
+            if sessao is None:
+                return None
 
-        self.repository.adicionar_mensagem(
-            sessao.id, role='assistente', content=resposta, agentes=agentes or [], meta=meta
-        )
+            if hasattr(self.repository, 'adicionar_mensagem_e_retornar'):
+                sessao_atualizada = self.repository.adicionar_mensagem_e_retornar(
+                    sessao.id, role='assistente', content=resposta, agentes=agentes or [], meta=meta
+                )
+            else:
+                self.repository.adicionar_mensagem(
+                    sessao.id, role='assistente', content=resposta, agentes=agentes or [], meta=meta
+                )
+                sessao_atualizada = self.repository.buscar_por_id(sessao.id)
 
-        sessao_atualizada = self.repository.buscar_por_id(sessao.id)
-        if sessao_atualizada is None:
-            return None
-        return self._para_ctx(sessao_atualizada)
+            if sessao_atualizada is None:
+                return None
+            return self._para_ctx(sessao_atualizada)
 
     def encerrar_sessao(self, session_id: str) -> Optional[MemoriaCtx]:
         """
         Decide se vale encerrar a sessão (só encerra se ela teve pelo menos
         uma mensagem), gera o resumo e persiste junto.
         """
-        sessao = self.repository.buscar_sessao_ativa(session_id)
-        if sessao is None or not sessao.mensagens:
-            return None
+        with medir_span("mongo_encerrar_sessao", categoria="mongo"):
+            sessao = self.repository.buscar_sessao_ativa(session_id)
+            if sessao is None or not sessao.mensagens:
+                return None
 
-        resumo = self.llm_service.gerar_resumo(sessao.mensagens, sessao.resumo)
-        self.repository.marcar_encerrada(sessao.id, resumo=resumo)
+            resumo = self.llm_service.gerar_resumo(sessao.mensagens, sessao.resumo)
+            self.repository.marcar_encerrada(sessao.id, resumo=resumo)
 
-        sessao_atualizada = self.repository.buscar_por_id(sessao.id)
-        if sessao_atualizada is None:
-            return None
-        return self._para_ctx(sessao_atualizada)
+            sessao_atualizada = self.repository.buscar_por_id(sessao.id)
+            if sessao_atualizada is None:
+                return None
+            return self._para_ctx(sessao_atualizada)
 
     def recuperar_historico(self, user_id: Optional[str], perfil_id: str):
-        filtro = {
-            'usuario_id' if user_id else 'perfil_id': (user_id or perfil_id),
-            'resumo': {'$nin': ['', None]}
-        }
+        with medir_span("mongo_recuperar_historico", categoria="mongo"):
+            filtro = {
+                'usuario_id' if user_id else 'perfil_id': (user_id or perfil_id),
+                'resumo': {'$nin': ['', None]}
+            }
 
-        sessoes = self.repository.buscar_usuario(filtro, self.janela)
-        return [self._para_ctx(sessao) for sessao in sessoes]
+            sessoes = self.repository.buscar_usuario(filtro, self.janela)
+            return [self._para_ctx(sessao) for sessao in sessoes]

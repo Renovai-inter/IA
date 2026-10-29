@@ -10,7 +10,14 @@ class Neo4jConnectionFactory(ConnectionFactory[Driver]):
         self._driver: Driver | None = None
 
     def connect(self) -> Driver:
-        self._driver = GraphDatabase.driver(self.dsn, auth=self._auth)
+        self._driver = GraphDatabase.driver(
+            self.dsn,
+            auth=self._auth,
+            max_connection_lifetime=1800,
+            keep_alive=True,
+            max_connection_pool_size=50,
+            connection_acquisition_timeout=30.0,
+        )
         return self._driver
 
     def close(self, conn: Driver | None = None) -> None:

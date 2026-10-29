@@ -28,7 +28,7 @@ class ResumoService(LLMService):
         """Formata o array de mensagens em texto para o prompt de resumo."""
         linhas = []
         for msg in mensagens:
-            linhas.append(f'{msg['role']}: {msg['content']}')
+            linhas.append(f"{msg['role']}: {msg['content']}")
         return '\n'.join(linhas)
 
     def gerar_resumo(self, mensagens: List[Dict], resumo_anterior: Optional[str] = None) -> str:
@@ -36,7 +36,14 @@ class ResumoService(LLMService):
         contexto_anterior = f'Resumo anterior: {resumo_anterior}\n\n' if resumo_anterior else ''
 
         resposta = self._llm.invoke([
-                SystemMessage(content=self._PROMPT_RESUMO),
-                HumanMessage(content=f'{contexto_anterior}Conversa:\n{historico}'),
+            SystemMessage(content=self._PROMPT_RESUMO),
+            HumanMessage(content=f'{contexto_anterior}Conversa:\n{historico}'),
         ])
-        return resposta.content
+        conteudo = getattr(resposta, 'content', resposta)
+        if isinstance(conteudo, str):
+            return conteudo
+        if isinstance(conteudo, list):
+            return ''.join(
+                b.get('text', '') for b in conteudo if isinstance(b, dict) and b.get('type') == 'text'
+            )
+        return str(conteudo)

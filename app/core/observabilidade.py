@@ -6,10 +6,12 @@ Responsabilidades:
 2. Métricas de Modelos de IA (tokens entrada/saída, estimativa de custo em USD, fallbacks).
 3. Logging Estruturado e Debugs unificados com propagação contextual assíncrona (via contextvars).
 4. Coletor de Callbacks para modelos LangChain / LangGraph.
+5. Rastreamento granular de spans de latência (Neo4j, A2A, MongoDB, PostgreSQL, LLMs, Redis).
 """
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import functools
 import inspect
@@ -31,6 +33,8 @@ _FUSO = ZoneInfo("America/Sao_Paulo")
 
 # USD por 1 milhão de tokens: (entrada, saída).
 PRECO_POR_MILHAO: dict[str, tuple[float, float]] = {
+    "gemini-3.8-flash": (0.30, 2.50),
+    "gemini-3.5-flash-lite": (0.15, 0.60),
     "gemini-3.5-flash": (0.30, 2.50),
     "gemini-2.5-flash": (0.30, 2.50),
     "qwen/qwen3.6-27b": (0.20, 0.60),
@@ -44,6 +48,7 @@ _PROVEDORES_ESPECIALISTA_ESPERADOS = ("gemini",)
 
 LIMITE_TURNOS = 50
 LIMITE_LOGS = 100
+LIMITE_SPANS = 500
 LIMITE_P95_MS = 8_000
 LIMITE_TAXA_ERRO = 0.05
 
@@ -56,7 +61,8 @@ def timed(nome: str, categoria: str = "geral"):
     """
     Decorador unificado de medição de latência e telemetria para nós do grafo, tools e métodos.
     Suporta corrotinas assíncronas, funções síncronas e instâncias de RunnableLambda (LangGraph).
-    Registra os logs automaticamente no logger unificado `renovai.observabilidade` e no buffer circular.
+    Registra os logs automaticamente no logger unificado `renovai.observabilidade`, no buffer
+    de spans e no buffer circular.
     """
     def deco(fn):
         if isinstance(fn, RunnableLambda):
@@ -73,7 +79,9 @@ def timed(nome: str, categoria: str = "geral"):
                     return await fn(*a, **kw)
                 finally:
                     dur = time.perf_counter() - t0
+                    dur_ms = int(dur * 1000)
                     if _instancia_observabilidade is not None:
+                        _instancia_observabilidade.registrar_span(nome, categoria, dur_ms)
                         _instancia_observabilidade.info(f"'{nome}' executado em {dur:.2f}s", modulo=categoria)
                     else:
                         t_curto = (_turno_cv.get() or "—")[:8]
@@ -89,7 +97,9 @@ def timed(nome: str, categoria: str = "geral"):
                     return fn(*a, **kw)
                 finally:
                     dur = time.perf_counter() - t0
+                    dur_ms = int(dur * 1000)
                     if _instancia_observabilidade is not None:
+                        _instancia_observabilidade.registrar_span(nome, categoria, dur_ms)
                         _instancia_observabilidade.info(f"'{nome}' executado em {dur:.2f}s", modulo=categoria)
                     else:
                         t_curto = (_turno_cv.get() or "—")[:8]
@@ -99,6 +109,23 @@ def timed(nome: str, categoria: str = "geral"):
             return sync_wrapper
 
     return deco
+
+
+@contextlib.contextmanager
+def medir_span(nome: str, categoria: str = "geral", detalhes: dict | None = None):
+    """Context manager para medição precisa de blocos específicos de código (banco, rpc, etc)."""
+    t0 = time.perf_counter()
+    try:
+        yield
+    finally:
+        dur_ms = int((time.perf_counter() - t0) * 1000)
+        if _instancia_observabilidade is not None:
+            _instancia_observabilidade.registrar_span(nome, categoria, dur_ms, detalhes=detalhes)
+        else:
+            t_curto = (_turno_cv.get() or "—")[:8]
+            logging.getLogger("renovai.observabilidade").info(
+                f"[{categoria}] [turno={t_curto}] '{nome}' executado em {dur_ms}ms"
+            )
 
 
 def _agora_local() -> str:
@@ -254,6 +281,22 @@ class ColetorChamadas(BaseCallbackHandler):
         with self.obs._lock:
             self.obs._chamadas.append(registro)
 
+        self.obs.registrar_span(
+            nome=f"llm:{modelo}",
+            categoria="llm",
+            duracao_ms=latencia_ms,
+            turno_id=abertura["turno_id"],
+            session_id=abertura.get("session_id"),
+            detalhes={
+                "modelo": modelo,
+                "no": abertura["no"],
+                "tokens_entrada": entrada,
+                "tokens_saida": saida,
+                "custo_usd": custo,
+                "fallback": fallback,
+            },
+        )
+
         self.obs.debug(
             f"Fim LLM: {modelo} ({latencia_ms}ms) | {entrada}in/{saida}out tokens, ${custo:.6f}"
             + (" [FALLBACK]" if fallback else ""),
@@ -269,7 +312,7 @@ class ColetorChamadas(BaseCallbackHandler):
 
 
 class Observabilidade:
-    """Núcleo integrado de Observabilidade, Telemetria e SLIs/SLOs do Renovai."""
+    """Núcleo integrado de Observabilidade, Telemetria, Spans e SLIs/SLOs do Renovai."""
 
     def __init__(self) -> None:
         global _instancia_observabilidade
@@ -279,6 +322,7 @@ class Observabilidade:
         self._em_andamento = 0
         self._turnos: list[dict[str, Any]] = []
         self._chamadas: list[dict[str, Any]] = []
+        self._spans: list[dict[str, Any]] = []
         self._abertos: dict[str, dict[str, Any]] = {}
         self._runs: dict[str, dict[str, Any]] = {}
         self._logs: list[dict[str, Any]] = []
@@ -306,6 +350,40 @@ class Observabilidade:
 
     def sessao_atual(self) -> str | None:
         return _session_cv.get()
+
+    # --------------------------------------------------------------------------
+    # RASTREAMENTO DE SPANS
+    # --------------------------------------------------------------------------
+    def registrar_span(
+        self,
+        nome: str,
+        categoria: str,
+        duracao_ms: int,
+        turno_id: str | None = None,
+        session_id: str | None = None,
+        detalhes: dict | None = None,
+    ) -> None:
+        tid = turno_id or self.turno_atual() or "—"
+        sid = session_id or self.sessao_atual() or "—"
+        span = {
+            "nome": nome,
+            "categoria": categoria,
+            "duracao_ms": int(duracao_ms),
+            "turno_id": tid,
+            "session_id": sid,
+            "hora": _agora_local(),
+            "detalhes": detalhes or {},
+        }
+        with self._lock:
+            self._spans.append(span)
+            if len(self._spans) > LIMITE_SPANS:
+                self._spans.pop(0)
+
+    def listar_spans(self, turno_id: str | None = None, limite: int = 100) -> list[dict[str, Any]]:
+        with self._lock:
+            if turno_id:
+                return [s for s in self._spans if s["turno_id"] == turno_id][-limite:]
+            return list(self._spans[-limite:])
 
     # --------------------------------------------------------------------------
     # LOGGING E DEBUGS ESTRUTURADOS
@@ -368,11 +446,10 @@ class Observabilidade:
                     precos = valor
                     break
         if precos is None:
-            # Modelos locais (Ollama, qwen local) não têm custo de API
             if "ollama" in modelo.lower() or "local" in modelo.lower():
                 return 0.0
             if "gemini" in modelo.lower():
-                precos = PRECO_POR_MILHAO["gemini-2.5-flash"]
+                precos = PRECO_POR_MILHAO["gemini-3.8-flash"]
             elif "qwen" in modelo.lower():
                 precos = PRECO_POR_MILHAO["qwen/qwen3.6-27b"]
             elif "gpt" in modelo.lower() or "groq" in modelo.lower():
@@ -436,9 +513,16 @@ class Observabilidade:
             self._em_andamento = max(0, self._em_andamento - 1)
             latencia_ms = int((time.perf_counter() - abertura["t0"]) * 1000)
 
-            do_turno = [c for c in self._chamadas if c["turno_id"] == turno_id]
-            tokens_total = sum(c["tokens_entrada"] + c["tokens_saida"] for c in do_turno)
-            custo_usd_total = sum(c["custo_usd"] for c in do_turno)
+            do_turno_chamadas = [c for c in self._chamadas if c["turno_id"] == turno_id]
+            tokens_total = sum(c["tokens_entrada"] + c["tokens_saida"] for c in do_turno_chamadas)
+            custo_usd_total = sum(c["custo_usd"] for c in do_turno_chamadas)
+
+            # Extrair spans deste turno para decomposição da latência
+            do_turno_spans = [s for s in self._spans if s["turno_id"] == turno_id]
+            decomposicao: dict[str, int] = {}
+            for s in do_turno_spans:
+                cat = s.get("categoria", "outros")
+                decomposicao[cat] = decomposicao.get(cat, 0) + int(s.get("duracao_ms", 0))
 
             registro_turno = {
                 "id": turno_id,
@@ -449,12 +533,15 @@ class Observabilidade:
                 "status": status,
                 "tokens_total": tokens_total,
                 "custo_usd": custo_usd_total,
+                "decomposicao": decomposicao,
+                "spans": do_turno_spans,
             }
             self._turnos.append(registro_turno)
 
             while len(self._turnos) > LIMITE_TURNOS:
                 antigo = self._turnos.pop(0)
                 self._chamadas[:] = [c for c in self._chamadas if c["turno_id"] != antigo["id"]]
+                self._spans[:] = [s for s in self._spans if s["turno_id"] != antigo["id"]]
 
         self.info(
             f"Turno fechado ({turno_id[:8]}) | rota={rota or '—'}, status={status}, "
@@ -533,6 +620,26 @@ class Observabilidade:
             })
         por_rota.sort(key=lambda linha: linha["turnos"], reverse=True)
 
+        # Decomposição consolidada por categoria (Neo4j, A2A, MongoDB, Postgres, LLM, etc.)
+        total_por_cat: dict[str, int] = {}
+        for t in turnos:
+            for cat, ms in (t.get("decomposicao") or {}).items():
+                total_por_cat[cat] = total_por_cat.get(cat, 0) + ms
+
+        decomposicao_latencia = []
+        tempo_total_categorias = sum(total_por_cat.values()) or 1
+        count_turnos = len(turnos) or 1
+        for cat, total_ms in total_por_cat.items():
+            media_ms = round(total_ms / count_turnos)
+            pct = round((total_ms / tempo_total_categorias) * 100, 1)
+            decomposicao_latencia.append({
+                "categoria": cat,
+                "media_ms": media_ms,
+                "total_ms": total_ms,
+                "percentual": pct,
+            })
+        decomposicao_latencia.sort(key=lambda x: x["total_ms"], reverse=True)
+
         custo_acumulado = 0.0
         serie_custo = []
         for turno in turnos:
@@ -565,6 +672,7 @@ class Observabilidade:
                 "modelo_mais_usado": mais_usado,
                 "fallbacks": sum(1 for c in chamadas if c["fallback"]),
             },
+            "decomposicao_latencia": decomposicao_latencia,
             "serie_latencia": [
                 {"hora": t["hora"], "latencia_ms": t["latencia_ms"]} for t in turnos
             ],

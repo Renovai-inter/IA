@@ -24,6 +24,7 @@ from app.graph.nodes import make_repo_backed_runners
 from app.graph.registro import RegistroEspecialista
 from app.repository.base import Repository
 from app.repository.postgresql.perfil_repository import PerfilContext, _to_uuid
+from app.core.observabilidade import medir_span
 
 log = logging.getLogger('renovai.a2a')
 
@@ -228,7 +229,8 @@ class A2ASubgraphServer:
                 f'Skills disponíveis: {self.skills_registradas}',
             )
         registro, sync_fn, _ = alvo
-        resultado_no = sync_fn(sub_state, sub_config)
+        with medir_span(f'a2a_server_{self.dominio.lower()}_{skill}', categoria='a2a_server'):
+            resultado_no = sync_fn(sub_state, sub_config)
         return self._montar_task_concluida(params, skill, registro, resultado_no)
 
     async def ahandle_task_send(self, params: TaskSendParams) -> Task:
@@ -241,7 +243,8 @@ class A2ASubgraphServer:
                 f'Skills disponíveis: {self.skills_registradas}',
             )
         registro, _, async_fn = alvo
-        resultado_no = await async_fn(sub_state, sub_config)
+        with medir_span(f'a2a_server_{self.dominio.lower()}_{skill}', categoria='a2a_server'):
+            resultado_no = await async_fn(sub_state, sub_config)
         return self._montar_task_concluida(params, skill, registro, resultado_no)
 
     def _processar_get_ou_cancel(self, rpc_req: JSONRPCRequest) -> JSONRPCResponse:

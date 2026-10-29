@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableConfig, RunnableLambda
 
 from app.repository.base import Repository
 from app.agents.base import BaseAgent
+from app.core.observabilidade import medir_span
 
 from app.graph.state import EspecialistaOutput, GraphState, resolver_contexto_dominio
 
@@ -75,11 +76,15 @@ def make_repo_backed_runners(
                 },
             }
 
-        futuros = {
-            nome.replace('repository', 'snapshot'): _SNAPSHOT_POOL.submit(repo.get_snapshot, cooperativa_id)
-            for nome, repo in repos.items()
-        }
-        snapshots = {nome: futuro.result() for nome, futuro in futuros.items()}
+        with medir_span(f'postgres_snapshots_{agent.nome_agente}', categoria='postgres'):
+            futuros = {
+                nome.replace('repository', 'snapshot'): _SNAPSHOT_POOL.submit(
+                    getattr(repo, 'get_snapshot_cached', repo.get_snapshot), cooperativa_id
+                )
+                for nome, repo in repos.items()
+            }
+            snapshots = {nome: futuro.result() for nome, futuro in futuros.items()}
+
         novo_state = {
             **state,
             'cooperativa_id': cooperativa_id,
@@ -119,15 +124,16 @@ def make_repo_backed_runners(
             }
 
         if repos:
-            tarefas = [
-                asyncio.to_thread(repo.get_snapshot, cooperativa_id)
-                for repo in repos.values()
-            ]
-            resultados = await asyncio.gather(*tarefas)
-            snapshots = {
-                nome.replace('repository', 'snapshot'): res
-                for nome, res in zip(repos.keys(), resultados)
-            }
+            with medir_span(f'postgres_snapshots_{agent.nome_agente}', categoria='postgres'):
+                tarefas = [
+                    asyncio.to_thread(getattr(repo, 'get_snapshot_cached', repo.get_snapshot), cooperativa_id)
+                    for repo in repos.values()
+                ]
+                resultados = await asyncio.gather(*tarefas)
+                snapshots = {
+                    nome.replace('repository', 'snapshot'): res
+                    for nome, res in zip(repos.keys(), resultados)
+                }
         else:
             snapshots = {}
 

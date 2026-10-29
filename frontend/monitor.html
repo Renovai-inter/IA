@@ -187,6 +187,11 @@
     </section>
 
     <article class="bloco tabela-larga">
+      <h2>Decomposição de Latência por Camada (Gargalos: Neo4j AuraDB, A2A, MongoDB, LLMs)</h2>
+      <div id="tabela-decomposicao"></div>
+    </article>
+
+    <article class="bloco tabela-larga">
       <h2>Turnos</h2>
       <div id="tabela-turnos"></div>
     </article>
@@ -301,31 +306,35 @@
       ctx.fillText(String(Math.round(min)), 4, altura - pad.b);
 
       if (limite != null) {
-        const y = yDe(limite);
+        const yLim = yDe(limite);
+        ctx.strokeStyle = "#8a5800";
         ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = "#b42318";
         ctx.beginPath();
-        ctx.moveTo(pad.l, y);
-        ctx.lineTo(largura - pad.r, y);
+        ctx.moveTo(pad.l, yLim);
+        ctx.lineTo(largura - pad.r, yLim);
         ctx.stroke();
         ctx.setLineDash([]);
+        ctx.fillStyle = "#8a5800";
+        ctx.fillText("limite " + ms(limite), pad.l + 6, Math.max(yLim - 4, pad.t + 10));
       }
 
+      ctx.strokeStyle = cor;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      pontos.forEach((pontoAtual, i) => {
+      pontos.forEach((p, i) => {
         const x = xDe(i);
-        const y = yDe(pontoAtual.valor);
+        const y = yDe(p.valor);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
-      ctx.strokeStyle = cor;
-      ctx.lineWidth = 2;
       ctx.stroke();
 
       ctx.fillStyle = cor;
-      pontos.forEach((pontoAtual, i) => {
+      pontos.forEach((p, i) => {
+        const x = xDe(i);
+        const y = yDe(p.valor);
         ctx.beginPath();
-        ctx.arc(xDe(i), yDe(pontoAtual.valor), 3, 0, Math.PI * 2);
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
         ctx.fill();
       });
     }
@@ -334,9 +343,10 @@
       const r = dados.resumo;
       const slo = dados.slo;
       const caixa = document.getElementById("slo");
-      caixa.classList.remove("ok", "estourou");
-      if (!r.turnos) {
-        document.getElementById("slo-titulo").textContent = "Sem turnos";
+      caixa.className = "slo";
+
+      if (r.turnos === 0) {
+        document.getElementById("slo-titulo").textContent = "Aguardando primeiro turno";
         document.getElementById("slo-texto").textContent = "Mande uma mensagem no chat. O registro vive na memória deste processo.";
       } else if (r.slo_ok) {
         caixa.classList.add("ok");
@@ -378,17 +388,40 @@
         null,
       );
 
+      // Decomposição da latência
+      if (dados.decomposicao_latencia) {
+        document.getElementById("tabela-decomposicao").innerHTML = tabela(
+          ["Camada / Componente", "Tempo Médio", "Tempo Total Acumulado", "Impacto Percentual"],
+          dados.decomposicao_latencia.map((d) => [
+            { texto: d.categoria.toUpperCase(), classe: "modelo" },
+            { texto: ms(d.media_ms) },
+            { texto: ms(d.total_ms) },
+            { texto: `<div style="display:flex;align-items:center;gap:10px;"><div style="background:var(--accent);height:8px;border-radius:4px;min-width:4px;width:${Math.max(d.percentual, 3)}%;"></div><span style="font-weight:600;">${pct(d.percentual / 100)}</span></div>` },
+          ]),
+          "Nenhum span de latência registrado ainda."
+        );
+      }
+
       document.getElementById("tabela-turnos").innerHTML = tabela(
-        ["Hora", "Latência", "Rota", "Status", "Tokens", "Custo", "Sessão"],
-        dados.turnos.map((t) => [
-          { texto: t.hora },
-          { texto: ms(t.latencia_ms) },
-          { texto: t.rota },
-          { texto: tagStatus(t.status) },
-          { texto: inteiro(t.tokens_total) },
-          { texto: usd(t.custo_usd) },
-          { texto: t.session_id, classe: "sessao" },
-        ]),
+        ["Hora", "Latência Total", "Gargalo Principal", "Rota", "Status", "Tokens", "Custo", "Sessão"],
+        dados.turnos.map((t) => {
+          let detalheGargalo = "—";
+          if (t.decomposicao && Object.keys(t.decomposicao).length) {
+            const itens = Object.entries(t.decomposicao).sort((a, b) => b[1] - a[1]);
+            const top = itens[0];
+            detalheGargalo = `${top[0].toUpperCase()}: ${ms(top[1])}`;
+          }
+          return [
+            { texto: t.hora },
+            { texto: ms(t.latencia_ms) },
+            { texto: detalheGargalo, classe: "modelo" },
+            { texto: t.rota },
+            { texto: tagStatus(t.status) },
+            { texto: inteiro(t.tokens_total) },
+            { texto: usd(t.custo_usd) },
+            { texto: t.session_id, classe: "sessao" },
+          ];
+        }),
         "Nenhum turno neste processo.",
       );
 

@@ -5,6 +5,7 @@ from neo4j import Driver
 from pydantic import BaseModel
 
 from app.repository.base import Repository
+from app.core.observabilidade import medir_span
 
 log = logging.getLogger(__name__)
 
@@ -114,15 +115,16 @@ class RecomendacaoRepository(Repository[RecomendacaoCooperativa, Driver]):
     ) -> List[RecomendacaoCooperativa]:
         log.debug('chegou no recomendacao_repository e consultou grafo Neo4j')
 
-        with self._db.session(database=self._database) as session:
-            result = session.run(
-                QUERY_RECOMENDAR_COOPERATIVAS,
-                material=material,
-                empresa_id=empresa_id or '',
-                volume_minimo=float(volume_minimo_kg),
-                raio_max_km=float(raio_max_km),
-                limit=max(int(limit) * 2, 10),
-            )
+        with medir_span('neo4j_recomendar_cooperativas', categoria='neo4j'):
+            with self._db.session(database=self._database) as session:
+                result = list(session.run(
+                    QUERY_RECOMENDAR_COOPERATIVAS,
+                    material=material,
+                    empresa_id=empresa_id or '',
+                    volume_minimo=float(volume_minimo_kg),
+                    raio_max_km=float(raio_max_km),
+                    limit=max(int(limit) * 2, 10),
+                ))
 
             recomendacoes: List[RecomendacaoCooperativa] = []
             for record in result:

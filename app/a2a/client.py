@@ -22,6 +22,7 @@ from app.a2a.schemas import (
 )
 from app.a2a.server import A2ACooperativaServer, A2AEmpresaServer
 from app.graph.state import EspecialistaOutput
+from app.core.observabilidade import medir_span
 
 log = logging.getLogger('renovai.a2a.client')
 
@@ -181,24 +182,25 @@ class A2AClient:
             callbacks=callbacks,
         )
 
-        url_remota = self.cooperativa_url if servico_alvo == 'cooperativa' else self.empresa_url
-        if url_remota:
-            payload_http = rpc_req.model_dump()
-            # Callbacks em memória não são serializáveis via JSON HTTP
-            for part in payload_http['params']['message']['parts']:
-                if part.get('type') == 'data' and 'callbacks' in part.get('data', {}):
-                    part['data'].pop('callbacks', None)
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.post(url_remota, json=payload_http)
-                resp.raise_for_status()
-                return JSONRPCResponse.model_validate(resp.json())
+        with medir_span(f'a2a_send_task_{skill}', categoria='a2a'):
+            url_remota = self.cooperativa_url if servico_alvo == 'cooperativa' else self.empresa_url
+            if url_remota:
+                payload_http = rpc_req.model_dump()
+                # Callbacks em memória não são serializáveis via JSON HTTP
+                for part in payload_http['params']['message']['parts']:
+                    if part.get('type') == 'data' and 'callbacks' in part.get('data', {}):
+                        part['data'].pop('callbacks', None)
+                with httpx.Client(timeout=self.timeout) as client:
+                    resp = client.post(url_remota, json=payload_http)
+                    resp.raise_for_status()
+                    return JSONRPCResponse.model_validate(resp.json())
 
-        servidor_local = (
-            self.cooperativa_server if servico_alvo == 'cooperativa' else self.empresa_server
-        )
-        if servidor_local is None:
-            raise RuntimeError(f"Servidor A2A '{servico_alvo}' não configurado no A2AClient.")
-        return servidor_local.handle_jsonrpc(rpc_req)
+            servidor_local = (
+                self.cooperativa_server if servico_alvo == 'cooperativa' else self.empresa_server
+            )
+            if servidor_local is None:
+                raise RuntimeError(f"Servidor A2A '{servico_alvo}' não configurado no A2AClient.")
+            return servidor_local.handle_jsonrpc(rpc_req)
 
     async def asend_task(
         self,
@@ -224,23 +226,24 @@ class A2AClient:
             callbacks=callbacks,
         )
 
-        url_remota = self.cooperativa_url if servico_alvo == 'cooperativa' else self.empresa_url
-        if url_remota:
-            payload_http = rpc_req.model_dump()
-            for part in payload_http['params']['message']['parts']:
-                if part.get('type') == 'data' and 'callbacks' in part.get('data', {}):
-                    part['data'].pop('callbacks', None)
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(url_remota, json=payload_http)
-                resp.raise_for_status()
-                return JSONRPCResponse.model_validate(resp.json())
+        with medir_span(f'a2a_asend_task_{skill}', categoria='a2a'):
+            url_remota = self.cooperativa_url if servico_alvo == 'cooperativa' else self.empresa_url
+            if url_remota:
+                payload_http = rpc_req.model_dump()
+                for part in payload_http['params']['message']['parts']:
+                    if part.get('type') == 'data' and 'callbacks' in part.get('data', {}):
+                        part['data'].pop('callbacks', None)
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.post(url_remota, json=payload_http)
+                    resp.raise_for_status()
+                    return JSONRPCResponse.model_validate(resp.json())
 
-        servidor_local = (
-            self.cooperativa_server if servico_alvo == 'cooperativa' else self.empresa_server
-        )
-        if servidor_local is None:
-            raise RuntimeError(f"Servidor A2A '{servico_alvo}' não configurado no A2AClient.")
-        return await servidor_local.ahandle_jsonrpc(rpc_req)
+            servidor_local = (
+                self.cooperativa_server if servico_alvo == 'cooperativa' else self.empresa_server
+            )
+            if servidor_local is None:
+                raise RuntimeError(f"Servidor A2A '{servico_alvo}' não configurado no A2AClient.")
+            return await servidor_local.ahandle_jsonrpc(rpc_req)
 
     @staticmethod
     def extrair_dados_artifact(rpc_response: JSONRPCResponse) -> Dict[str, Any]:
