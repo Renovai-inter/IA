@@ -28,7 +28,7 @@ _BATCH_SIZE    = 25
 settings = Settings()
 qdrant_factory = QdrantConnectionFactory(settings.QDRANT_URL, settings.QDRANT_API_KEY)
 qdrant = qdrant_factory.connect()
-embedding_service = EmbeddingService(settings.GEMINI_API_KEY)
+embedding_service = EmbeddingService(settings.HF_TOKEN)
 
 
 def _garantir_collection(collection_name: str, dim: int) -> None:
