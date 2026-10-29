@@ -162,7 +162,7 @@ def build_container(
     llm_map = agent_llm_map or settings.AGENT_LLM_MAP
 
     resumo_service = ResumoService(llm_factory, *llm_map['resumo_agent'])
-    embedding_service = EmbeddingService(settings.GEMINI_API_KEY)
+    embedding_service = EmbeddingService(settings.HF_TOKEN)
 
     mongo_memory = MongoMemory(_REPOSITORIES_MAP['sessao_repository'], resumo_service)
     qdrant_memory = QdrantMemory(_REPOSITORIES_MAP['resumo_repository'], embedding_service)

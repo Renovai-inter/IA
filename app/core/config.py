@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str
     QDRANT_API_KEY: str
     LANGSMITH_API_KEY: str | None = None
+    HF_TOKEN: str | None = None
 
     LAYA_API_KEY: str = ''
     LAYA_API_URL: str = 'https://api.laya.studio/v1/systemone'

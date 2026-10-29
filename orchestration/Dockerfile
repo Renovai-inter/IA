@@ -25,9 +25,6 @@ COPY app ./app
 COPY frontend ./frontend
 COPY data/FAQ_RENOVAI_COMPLETO.txt data/sp_bairros_zonas.csv data/sp_rotas_treinamento.csv ./data/
 
-# Pré-download do modelo de embeddings FastEmbed durante o build da imagem
-RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2')"
-
 # Garante permissões adequadas para o appuser
 RUN chown -R appuser:appuser /app /home/appuser
 
