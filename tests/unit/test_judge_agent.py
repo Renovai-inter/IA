@@ -1,18 +1,23 @@
-"""Testes unitários do JudgeAgent e do motor de decisão de fidelidade factual."""
+"""Testes unitários do JudgeAgent e do LayaDecisionEngine (Laya Studio API via LAYA_API_KEY)."""
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 from uuid import uuid4
+
+import httpx
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.agents.judge_agent import (
+    DEFAULT_LAYA_API_URL,
+    DEFAULT_LAYA_MODEL,
     FRASE_SEGURA,
     LIMIAR_NOUL_PADRAO,
-    DeterministicDecisionEngine,
+    DecisionEngine,
     JudgeAgent,
+    LayaDecisionEngine,
+    LayaMissingKeyError,
 )
 from app.graph.builder import GraphBuilder
 from app.graph.registro import RegistroEspecialista
@@ -21,51 +26,139 @@ from app.repository.postgresql.perfil_repository import PerfilContext
 from tests.support import StubAgent, StubRepository
 
 
-def test_deterministic_decision_engine_resposta_apoiada():
-    engine = DeterministicDecisionEngine()
-    pergunta = "quanto de papelão temos?"
-    resposta = "Temos 3.450 kg de papelão disponível."
-    evidencia = '{"material": "papelão", "quantidade_kg": 3450}'
+class StubDecisionEngine(DecisionEngine):
+    """Dublê de testes para o DecisionEngine, simulando o retorno da API Laya Studio."""
 
-    resultado = engine.predict(pergunta, resposta, evidencia)
-    assert resultado["veredito"]["choice"] == "apoiada"
-    assert resultado["fidelidade"]["noul"] >= LIMIAR_NOUL_PADRAO
+    def __init__(self, choice: str = "apoiada", noul: float = 0.92):
+        self.choice = choice
+        self.noul = noul
+        self.chamadas: list[tuple[dict, dict]] = []
+
+    def predict(self, state: dict, questions: list[dict] | dict) -> dict:
+        q_norm = LayaDecisionEngine._normalizar_questions(questions)
+        self.chamadas.append((state, q_norm))
+        return {
+            "model": DEFAULT_LAYA_MODEL,
+            "answers": {
+                "veredito": {
+                    "type": "choice",
+                    "choice": self.choice,
+                    "probabilities": {
+                        "apoiada": self.noul if self.choice == "apoiada" else 0.05,
+                        "parcial": 0.10,
+                        "sem_apoio": 0.85 if self.choice == "sem_apoio" else 0.05,
+                    },
+                    "confidence": 0.88,
+                },
+                "fidelidade": {
+                    "type": "noul",
+                    "noul": self.noul,
+                },
+            },
+        }
 
 
-def test_deterministic_decision_engine_resposta_alucinada_numeros():
-    engine = DeterministicDecisionEngine()
-    pergunta = "qual o valor do rateio?"
-    resposta = "O rateio de setembro foi de R$ 98.750,00 e bônus de R$ 15.000,00."
-    evidencia = '{"rateio_total": "26400.00"}'
+def test_laya_decision_engine_monta_payload_e_headers_corretos(monkeypatch: pytest.MonkeyPatch):
+    capturado: dict = {}
 
-    resultado = engine.predict(pergunta, resposta, evidencia)
-    assert resultado["veredito"]["choice"] == "sem_apoio"
-    assert resultado["fidelidade"]["noul"] < LIMIAR_NOUL_PADRAO
+    class _FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "model": "multilingual",
+                "answers": {
+                    "veredito": {"type": "choice", "choice": "apoiada", "confidence": 0.91},
+                    "fidelidade": {"type": "noul", "noul": 0.93},
+                },
+            }
+
+    class _FakeClient:
+        def __init__(self, timeout=None):
+            capturado["timeout"] = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, headers=None, json=None):
+            capturado["url"] = url
+            capturado["headers"] = headers
+            capturado["json"] = json
+            return _FakeResponse()
+
+    monkeypatch.setattr(httpx, "Client", _FakeClient)
+
+    engine = LayaDecisionEngine(api_key="lsk_live_teste_123")
+    state_in = {"pergunta": "quanto de papelão?", "resposta": "3.450 kg", "evidencia": "3450"}
+    questions_in = {
+        "veredito": {
+            "type": "choice",
+            "instructions": "Sustentada?",
+            "criteria": {"apoiada": "sim", "parcial": "parcial", "sem_apoio": "não"},
+        },
+        "fidelidade": {"type": "noul", "instructions": "Fiel?"},
+    }
+
+    res = engine.predict(state_in, questions_in)
+
+    assert capturado["url"] == DEFAULT_LAYA_API_URL
+    assert capturado["headers"]["Authorization"] == "Bearer lsk_live_teste_123"
+    assert capturado["json"]["model"] == DEFAULT_LAYA_MODEL
+    assert capturado["json"]["state"] == state_in
+    assert "veredito" in capturado["json"]["questions"]
+    assert "fidelidade" in capturado["json"]["questions"]
+    assert res["answers"]["veredito"]["choice"] == "apoiada"
+    assert res["answers"]["fidelidade"]["noul"] == 0.93
 
 
-def test_deterministic_decision_engine_saudacoes_e_abstencoes():
-    engine = DeterministicDecisionEngine()
-    # Saudação
-    res_saudacao = engine.predict(
-        "olá",
-        "Olá! Como posso ajudar com os dados da cooperativa hoje?",
-        "(nenhuma)",
-    )
-    assert res_saudacao["veredito"]["choice"] == "apoiada"
-    assert res_saudacao["fidelidade"]["noul"] >= LIMIAR_NOUL_PADRAO
+def test_laya_decision_engine_sem_chave_dispara_erro_e_judge_aplica_failsafe(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("LAYA_API_KEY", raising=False)
+    engine = LayaDecisionEngine(api_key="")
+    with pytest.raises(LayaMissingKeyError):
+        engine.predict({"pergunta": "oi"}, {"veredito": {"type": "noul", "instructions": "ok"}})
 
-    # Abstenção legítima
-    res_abstencao = engine.predict(
-        "quais as coletas de ontem?",
-        "Não foram encontrados registros de coletas para essa data.",
-        "[]",
-    )
-    assert res_abstencao["veredito"]["choice"] == "apoiada"
-    assert res_abstencao["fidelidade"]["noul"] >= LIMIAR_NOUL_PADRAO
+    agent = JudgeAgent(engine=engine)
+    state: GraphState = {
+        "messages": [
+            HumanMessage(content="qual o saldo?"),
+            AIMessage(content="O saldo é R$ 10.000,00."),
+        ],
+    }
+    resultado = agent.run(state, config={})
+    assert resultado["passou_juiz"] is False
+    assert resultado["veredito_juiz"] == "sem_chave"
+    assert resultado["agentes_chamados"] == ["judge:sem_chave"]
+    assert resultado["messages"][0]["content"] == FRASE_SEGURA
+
+
+def test_judge_agent_trata_erro_http_da_api_laya(monkeypatch: pytest.MonkeyPatch):
+    class _FailingEngine(DecisionEngine):
+        def predict(self, state: dict, questions: list[dict] | dict) -> dict:
+            req = httpx.Request("POST", DEFAULT_LAYA_API_URL)
+            resp = httpx.Response(429, request=req)
+            raise httpx.HTTPStatusError("Rate limit exceeded", request=req, response=resp)
+
+    agent = JudgeAgent(engine=_FailingEngine())
+    state: GraphState = {
+        "messages": [
+            HumanMessage(content="qual o rateio?"),
+            AIMessage(content="O rateio foi de R$ 26.400,00."),
+        ],
+    }
+    resultado = agent.run(state, config={})
+    assert resultado["passou_juiz"] is False
+    assert resultado["veredito_juiz"] == "erro_http"
+    assert resultado["agentes_chamados"] == ["judge:erro_http_429"]
+    assert resultado["messages"][0]["content"] == FRASE_SEGURA
 
 
 def test_judge_agent_aprova_resposta_fiel():
-    agent = JudgeAgent(engine=DeterministicDecisionEngine())
+    stub_engine = StubDecisionEngine(choice="apoiada", noul=0.92)
+    agent = JudgeAgent(engine=stub_engine)
 
     state: GraphState = {
         "messages": [
@@ -89,12 +182,16 @@ def test_judge_agent_aprova_resposta_fiel():
     assert resultado["passou_juiz"] is True
     assert resultado["veredito_juiz"] == "apoiada"
     assert resultado["score_juiz"] >= LIMIAR_NOUL_PADRAO
-    assert "messages" not in resultado  # aprovada -> mantém mensagem anterior
-    assert any("judge:apoiada" in a for a in resultado["agentes_chamados"])
+    assert "messages" not in resultado  # aprovada -> mantém mensagem anterior intacta
+    assert resultado["agentes_chamados"] == ["judge:apoiada noul=0.92"]
+    assert len(stub_engine.chamadas) == 1
+    enviado_state, _ = stub_engine.chamadas[0]
+    assert "3450" in enviado_state["evidencia"]
 
 
 def test_judge_agent_rejeita_alucinacao_e_aplica_frase_segura():
-    agent = JudgeAgent(engine=DeterministicDecisionEngine())
+    stub_engine = StubDecisionEngine(choice="sem_apoio", noul=0.12)
+    agent = JudgeAgent(engine=stub_engine)
 
     alucinacao = "O rateio de setembro foi de R$ 98.750,00 e o bônus de R$ 15.000,00."
     state: GraphState = {
@@ -117,16 +214,34 @@ def test_judge_agent_rejeita_alucinacao_e_aplica_frase_segura():
     resultado = agent.run(state, config={})
 
     assert resultado["passou_juiz"] is False
-    assert resultado["veredito_juiz"] in ["sem_apoio", "parcial"]
+    assert resultado["veredito_juiz"] == "sem_apoio"
     assert resultado["score_juiz"] < LIMIAR_NOUL_PADRAO
     assert resultado["frase_original"] == alucinacao
     assert len(resultado["messages"]) == 1
     assert resultado["messages"][0]["content"] == FRASE_SEGURA
-    assert any("judge:" in a for a in resultado["agentes_chamados"])
+    assert resultado["agentes_chamados"] == ["judge:sem_apoio noul=0.12"]
+
+
+def test_judge_agent_rejeita_apoiada_abaixo_do_limiar():
+    stub_engine = StubDecisionEngine(choice="apoiada", noul=0.55)
+    agent = JudgeAgent(engine=stub_engine)
+
+    state: GraphState = {
+        "messages": [
+            HumanMessage(content="qual o estoque?"),
+            AIMessage(content="Temos cerca de 500 kg."),
+        ],
+    }
+    resultado = agent.run(state, config={})
+
+    assert resultado["passou_juiz"] is False
+    assert resultado["veredito_juiz"] == "apoiada"
+    assert resultado["agentes_chamados"] == ["judge:apoiada:abaixo_do_limiar noul=0.55"]
+    assert resultado["messages"][0]["content"] == FRASE_SEGURA
 
 
 def test_judge_agent_arun_equivalente_ao_run():
-    agent = JudgeAgent(engine=DeterministicDecisionEngine())
+    agent = JudgeAgent(engine=StubDecisionEngine(choice="apoiada", noul=0.95))
 
     state: GraphState = {
         "messages": [
@@ -163,7 +278,6 @@ def test_grafo_executa_juiz_no_portao_terminal():
             }
         ],
     )
-    # Especialista retorna evidência real (3450 kg)
     especialista = StubAgent(
         "material_estoque",
         [
@@ -179,7 +293,6 @@ def test_grafo_executa_juiz_no_portao_terminal():
             }
         ],
     )
-    # Orquestrador alucina número não presente na evidência (99999 kg)
     orchestrator_alucinando = StubAgent(
         "orchestrator",
         [
@@ -205,7 +318,7 @@ def test_grafo_executa_juiz_no_portao_terminal():
         checkpointer=MemorySaver(),
         guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
         guardrail_saida=StubAgent("guardrail_saida", [{}]),
-        judge_agent=JudgeAgent(engine=DeterministicDecisionEngine()),
+        judge_agent=JudgeAgent(engine=StubDecisionEngine(choice="sem_apoio", noul=0.08)),
     )
     graph = builder.build_graph()
 
@@ -222,12 +335,9 @@ def test_grafo_executa_juiz_no_portao_terminal():
         config={"configurable": {"thread_id": "teste-juiz-terminal"}},
     )
 
-    # Verifica execução em ordem
     assert "material_estoque" in resultado["agentes_chamados"]
     assert "orchestrator" in resultado["agentes_chamados"]
-    assert any("judge:" in a for a in resultado["agentes_chamados"])
-
-    # Alucinação foi barrada e substituída pela frase segura
+    assert "judge:sem_apoio noul=0.08" in resultado["agentes_chamados"]
     assert resultado["passou_juiz"] is False
     assert resultado["messages"][-1].content == FRASE_SEGURA
     assert resultado["frase_original"] == "Temos 99.999 kg de papelão e 88.888 kg de vidro."

@@ -223,6 +223,7 @@ async def test_graph_ainvoke_multiplas_rotas_em_paralelo():
         checkpointer=MemorySaver(),
         guardrail_entrada=AsyncDelayStub("guardrail_entrada", [{"passou_guardrail": True}]),
         guardrail_saida=AsyncDelayStub("guardrail_saida", [{}]),
+        judge_agent=AsyncDelayStub("judge", [{"passou_juiz": True, "agentes_chamados": ["judge:apoiada noul=0.95"]}]),
     )
     graph = builder.build_graph()
 

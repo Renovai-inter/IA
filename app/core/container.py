@@ -265,6 +265,11 @@ def build_container(
             'prompt': '',
             'tools': [],
             'sem_llm': True,
+            'kwargs': {
+                'api_key': getattr(settings, 'LAYA_API_KEY', ''),
+                'api_url': getattr(settings, 'LAYA_API_URL', 'https://api.laya.studio/v1/systemone'),
+                'model': getattr(settings, 'LAYA_MODEL', 'multilingual'),
+            },
         },
     }
 

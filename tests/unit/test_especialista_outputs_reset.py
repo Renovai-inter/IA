@@ -103,6 +103,7 @@ def _build_graph():
         checkpointer=MemorySaver(),
         guardrail_entrada=StubAgent('guardrail_entrada', [{'passou_guardrail': True}]),
         guardrail_saida=StubAgent('guardrail_saida', [{}]),
+        judge_agent=StubAgent('judge', [{'passou_juiz': True, 'agentes_chamados': ['judge:apoiada noul=0.95']}]),
     ).build_graph()
 
 

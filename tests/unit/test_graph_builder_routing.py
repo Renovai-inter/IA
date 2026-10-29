@@ -73,6 +73,7 @@ def _build_graph(rota_do_roteador: str):
         checkpointer=MemorySaver(),
         guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
         guardrail_saida=StubAgent("guardrail_saida", [{}]),
+        judge_agent=StubAgent("judge", [{"passou_juiz": True, "agentes_chamados": ["judge:apoiada noul=0.95"]}]),
     )
     return builder.build_graph()
 
@@ -203,6 +204,7 @@ def test_multiplas_rotas_executam_especialistas_em_paralelo_e_convergem_no_orque
         checkpointer=MemorySaver(),
         guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
         guardrail_saida=StubAgent("guardrail_saida", [{}]),
+        judge_agent=StubAgent("judge", [{"passou_juiz": True, "agentes_chamados": ["judge:apoiada noul=0.95"]}]),
     )
     graph = builder.build_graph()
 
@@ -275,6 +277,7 @@ def test_rotas_parcialmente_mapeadas_executam_apenas_as_existentes():
         checkpointer=MemorySaver(),
         guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
         guardrail_saida=StubAgent("guardrail_saida", [{}]),
+        judge_agent=StubAgent("judge", [{"passou_juiz": True, "agentes_chamados": ["judge:apoiada noul=0.95"]}]),
     )
     graph = builder.build_graph()
 

@@ -1,29 +1,32 @@
-"""Agente Juiz (JudgeAgent) — Controle de Alucinação e Verificação de Evidências.
+"""Agente Juiz (JudgeAgent) — Controle de Alucinação e Verificação de Evidências via Laya Studio API.
 
-Implementa um modelo de decisão discriminativo ('System One') no portal de saída do grafo.
+Implementa um modelo de decisão discriminativo ('System One') no portal terminal do grafo,
+consumindo a API oficial do Laya Studio (`POST https://api.laya.studio/v1/systemone`) via `LAYA_API_KEY`.
 Avalia a resposta final (orquestrada/sintetizada) contra as evidências factuais do turno
 (snapshots de banco, saídas de especialistas e chunks RAG do Qdrant/PNRS).
 
-Não redige texto livre nem reinjeta ciclos lentos de reflexão.
-Se a resposta for fiel (choice == 'apoiada' e noul >= limiar), o texto original segue intacto.
-Se a resposta for infundada ou extrapolar a evidência, ela é substituída de forma
-determinística por uma frase segura pré-definida.
+Não redige texto livre, não carrega pesos pesados em RAM local e não reinjeta ciclos lentos de reflexão.
+Se a resposta for fiel (`choice == 'apoiada'` e `noul >= limiar`), o texto original segue intacto.
+Se a resposta for infundada, extrapolar a evidência, ou ocorrer falha/ausência de chave, ela é
+substituída de forma determinística pela frase segura pré-definida (`FRASE_SEGURA`).
 """
 from __future__ import annotations
 
-import json
+import inspect
 import logging
 import os
-import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
-from langchain_core.messages import BaseMessage, HumanMessage
+import httpx
 from langchain_core.runnables import RunnableConfig
 
 from app.agents.base import BaseAgent
-from app.graph.state import EspecialistaOutput, GraphState
+from app.graph.state import GraphState
 
 log = logging.getLogger('renovai.judge')
+
+DEFAULT_LAYA_API_URL = 'https://api.laya.studio/v1/systemone'
+DEFAULT_LAYA_MODEL = 'multilingual'
 
 FRASE_SEGURA = (
     'Não localizei evidências suficientes nos registros operacionais da cooperativa '
@@ -38,160 +41,87 @@ REGRAS_AVALIACAO = (
     'Valores numéricos de estoque (kg), preços médios, custos, despesas, datas de coleta, '
     'triagens, rotas de veículos, nomes de cooperativas e artigos da lei PNRS devem '
     'estar estritamente fundamentados na evidência disponível. '
-    'Números inventados, moedas trocadas, valores sem evidência ou afirmações factuais '
-    'não suportadas contam como sem_apoio.'
+    'Números inventados, moedas trocadas, opiniões tratadas como fato do sistema, '
+    'valores sem evidência ou afirmações factuais não suportadas contam como sem_apoio.'
 )
 
 
+class LayaMissingKeyError(RuntimeError):
+    """Exceção disparada quando LAYA_API_KEY não está configurada."""
+
+
 class DecisionEngine:
-    """Interface abstrata para o motor de decisão do Juiz."""
-    def predict(self, state: dict, questions: list[dict]) -> dict:
+    """Contrato base para o motor de decisão System One do Juiz."""
+
+    def predict(self, state: dict, questions: list[dict] | dict) -> dict:
         raise NotImplementedError
+
+    async def apredict(self, state: dict, questions: list[dict] | dict) -> dict:
+        return self.predict(state, questions)
 
 
 class LayaDecisionEngine(DecisionEngine):
-    """Motor de decisão usando o modelo open source Laya (Convai Innovations)."""
-    def __init__(self, default: str = 'multilingual', preload: bool = False):
-        from laya import Router
-        self._router = Router(default=default, preload=False)
-        if preload:
-            self._router.preload([default])
+    """Cliente HTTP para o motor de decisão System One do Laya Studio (`laya.studio`).
 
-    def predict(self, state: dict, questions: Any) -> dict:
+    Compatível com o protocolo `/v1/systemone` (JEV / Laya Studio), enviando `model`,
+    `state` e `questions` (`choice` e `noul`) e recebendo probabilidades calibradas
+    sem carregar PyTorch ou pesos do Hugging Face em memória RAM local.
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        api_url: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: float = 15.0,
+    ):
+        self.api_key = (api_key if api_key is not None else os.getenv('LAYA_API_KEY', '')).strip()
+        self.api_url = (api_url or os.getenv('LAYA_API_URL') or DEFAULT_LAYA_API_URL).strip()
+        self.model = (model or os.getenv('LAYA_MODEL') or DEFAULT_LAYA_MODEL).strip()
+        self.timeout = timeout
+
+    @staticmethod
+    def _normalizar_questions(questions: list[dict] | dict) -> dict[str, dict]:
         if isinstance(questions, list):
-            questions_dict = {
+            return {
                 q.get('id', str(i)): {k: v for k, v in q.items() if k != 'id'}
                 for i, q in enumerate(questions)
             }
-        else:
-            questions_dict = questions
+        return dict(questions)
 
-        state_payload = state if isinstance(state, (dict, list)) else json.dumps(state, ensure_ascii=False)
-        return self._router.predict(
-            state=state_payload,
-            questions=questions_dict,
-        )
+    def _montar_request(self, state: dict, questions: list[dict] | dict) -> tuple[dict[str, str], dict[str, Any]]:
+        if not self.api_key:
+            raise LayaMissingKeyError('LAYA_API_KEY não configurada.')
 
-
-def _normalizar_numero(num_str: str) -> set[str]:
-    variantes = {num_str}
-    limpo = num_str.replace('.', '')
-    variantes.add(limpo)
-    if ',' in limpo:
-        com_ponto = limpo.replace(',', '.')
-        variantes.add(com_ponto)
-        try:
-            val = float(com_ponto)
-            if val.is_integer():
-                variantes.add(str(int(val)))
-        except ValueError:
-            pass
-    elif '.' in num_str:
-        try:
-            val = float(num_str)
-            if val.is_integer():
-                variantes.add(str(int(val)))
-        except ValueError:
-            pass
-    return variantes
-
-
-class DeterministicDecisionEngine(DecisionEngine):
-    """Motor de decisão determinístico baseado em evidências e regras semânticas.
-    Atua em ambientes sem Laya instalado / GPU / offline, garantindo a mesma interface
-    e saída tipada de 'choice' e 'noul' calibrado."""
-
-    def predict(
-        self,
-        state_or_pergunta: dict | str,
-        questions_or_resposta: list[dict] | str | None = None,
-        evidencia: str = '',
-    ) -> dict:
-        if isinstance(state_or_pergunta, dict):
-            pergunta = state_or_pergunta.get('pergunta', '')
-            resposta = state_or_pergunta.get('resposta', '')
-            evidencia = state_or_pergunta.get('evidencia', '')
-        else:
-            pergunta = state_or_pergunta or ''
-            resposta = questions_or_resposta if isinstance(questions_or_resposta, str) else ''
-            evidencia = evidencia or ''
-
-        choice, noul = self._avaliar(pergunta, resposta, evidencia)
-
-        probs = {
-            'apoiada': 0.88 if choice == 'apoiada' else (0.30 if choice == 'parcial' else 0.08),
-            'parcial': 0.55 if choice == 'parcial' else 0.10,
-            'sem_apoio': 0.85 if choice == 'sem_apoio' else (0.15 if choice == 'parcial' else 0.02),
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json',
         }
-        return {
-            'veredito': {
-                'type': 'choice',
-                'choice': choice,
-                'probabilities': probs,
-                'confidence': max(probs.values()),
-            },
-            'fidelidade': {
-                'type': 'noul',
-                'noul': noul,
-            },
+        payload: dict[str, Any] = {
+            'model': self.model,
+            'state': state,
+            'questions': self._normalizar_questions(questions),
         }
+        return headers, payload
 
-    def _avaliar(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float]:
-        if not resposta or not resposta.strip():
-            return 'sem_apoio', 0.0
+    def predict(self, state: dict, questions: list[dict] | dict) -> dict:
+        headers, payload = self._montar_request(state, questions)
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.post(self.api_url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()
 
-        resp_lower = resposta.lower().strip()
-        perg_lower = pergunta.lower().strip()
-        evid_lower = evidencia.lower().strip()
-
-        # 1. Saudações, encerramentos, ofertas de ajuda e abstenções legítimas contam como apoiada
-        padroes_apoiados = (
-            'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'como posso ajudar',
-            'não encontrei', 'nao encontrei', 'não foram encontrados', 'nao foram encontrados',
-            'não há registros', 'nao ha registros', 'não consta', 'nao consta',
-            'nenhuma cooperativa compatível', 'nenhum registro', 'não tenho evidência',
-            'posso ajudar com', 'informações sobre o renovaí',
-        )
-        if any(p in resp_lower for p in padroes_apoiados) and len(resp_lower) < 250:
-            return 'apoiada', 0.95
-
-        # 2. Extração e validação de números significativos na resposta
-        numeros_resp_raw = set(re.findall(r'\b\d+(?:[\.,]\d+)*\b', resp_lower))
-        numeros_resp_significativos = {
-            n for n in numeros_resp_raw
-            if len(n) > 1 or n not in {'1', '2', '3', '4', '5'}
-        }
-
-        if numeros_resp_significativos:
-            numeros_evid_raw = set(re.findall(r'\b\d+(?:[\.,]\d+)*\b', evid_lower + ' ' + perg_lower))
-            todas_evid_variantes = set()
-            for n in numeros_evid_raw:
-                todas_evid_variantes.update(_normalizar_numero(n))
-
-            numeros_faltantes = set()
-            for n in numeros_resp_significativos:
-                variantes = _normalizar_numero(n)
-                if not (variantes & todas_evid_variantes):
-                    numeros_faltantes.add(n)
-
-            if numeros_faltantes:
-                proporcao_faltante = len(numeros_faltantes) / len(numeros_resp_significativos)
-                if proporcao_faltante > 0.4:
-                    return 'sem_apoio', 0.12
-                else:
-                    return 'parcial', 0.45
-
-        # 3. Evidência explicitamente vazia com resposta afirmativa longa
-        if ('(nenhuma evidência' in evid_lower or evid_lower == '[]') and len(resp_lower) > 80:
-            if not any(neg in resp_lower for neg in ['não', 'nao', 'nenhum', 'nenhuma', 'desculpe', 'infelizmente']):
-                return 'sem_apoio', 0.15
-
-        return 'apoiada', 0.88
+    async def apredict(self, state: dict, questions: list[dict] | dict) -> dict:
+        headers, payload = self._montar_request(state, questions)
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(self.api_url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()
 
 
 class JudgeAgent(BaseAgent):
     nome_agente: str = 'judge'
-    descricao: str = 'Juiz de fidelidade factual e controle de alucinação.'
+    descricao: str = 'Juiz de fidelidade factual e controle de alucinação via Laya Studio API.'
 
     def __init__(
         self,
@@ -201,26 +131,20 @@ class JudgeAgent(BaseAgent):
         limiar_noul: float = LIMIAR_NOUL_PADRAO,
         frase_segura: str = FRASE_SEGURA,
         engine: Optional[DecisionEngine] = None,
+        api_key: Optional[str] = None,
+        api_url: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: float = 15.0,
     ):
         super().__init__(llm, system_prompt, tools or [])
         self.limiar_noul = limiar_noul
         self.frase_segura = frase_segura
-
-        if engine is not None:
-            self._engine = engine
-        else:
-            engine_type = os.getenv('JUDGE_ENGINE', 'deterministic').lower()
-            if engine_type == 'deterministic':
-                self._engine = DeterministicDecisionEngine()
-                log.info('[judge] Motor DeterministicDecisionEngine selecionado via JUDGE_ENGINE.')
-            else:
-                try:
-                    preload = os.getenv('JUDGE_PRELOAD', 'false').lower() == 'true'
-                    self._engine = LayaDecisionEngine(preload=preload)
-                    log.info('[judge] Motor LayaDecisionEngine inicializado com sucesso.')
-                except Exception as e:
-                    log.info(f'[judge] Laya indisponível ({e}). Utilizando DeterministicDecisionEngine.')
-                    self._engine = DeterministicDecisionEngine()
+        self._engine: DecisionEngine = engine or LayaDecisionEngine(
+            api_key=api_key,
+            api_url=api_url,
+            model=model,
+            timeout=timeout,
+        )
 
     def _coletar_dados_turno(self, state: GraphState) -> tuple[str, str, str, Any]:
         msgs = list(state.get('messages') or [])
@@ -259,18 +183,18 @@ class JudgeAgent(BaseAgent):
         if not evidencia:
             evidencia = '(nenhuma evidência disponível neste turno)'
 
-        return pergunta, resposta, evidencia[-5000:], ultima_ai_msg
+        return pergunta, resposta, evidencia[-6000:], ultima_ai_msg
 
-    def _avaliar(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float]:
+    @staticmethod
+    def _construir_payload_avaliacao(pergunta: str, resposta: str, evidencia: str) -> tuple[dict, dict]:
         contexto = {
             'pergunta': pergunta,
             'resposta': resposta,
             'evidencia': evidencia,
             'regras': REGRAS_AVALIACAO,
         }
-        questions = [
-            {
-                'id': 'veredito',
+        questions = {
+            'veredito': {
                 'type': 'choice',
                 'instructions': 'Seguindo as regras, a resposta só afirma o que a evidência sustenta?',
                 'criteria': {
@@ -279,42 +203,60 @@ class JudgeAgent(BaseAgent):
                     'sem_apoio': 'há fato, número, regra ou opinião sem evidência',
                 },
             },
-            {
-                'id': 'fidelidade',
+            'fidelidade': {
                 'type': 'noul',
                 'instructions': (
                     'Seguindo as regras, a resposta é fiel à evidência: todo valor, moeda, '
                     'data e fato dela sai da evidência, da fala do usuário ou de contas sobre elas?'
                 ),
             },
-        ]
-        resultado = self._engine.predict(contexto, questions)
-        answers = resultado.get('answers', resultado)
+        }
+        return contexto, questions
 
+    @staticmethod
+    def _extrair_veredito(resultado: dict) -> tuple[str, float]:
+        answers = resultado.get('answers', resultado)
         veredito_data = answers.get('veredito', {})
         choice = veredito_data.get('choice') or 'sem_apoio'
 
-        fidelidade_data = answers.get('fidelidade', {})
+        fidelidade_data = answers.get('fidelidade') or answers.get('apoiada') or {}
         noul = float(fidelidade_data.get('noul', 0.0))
-
         return choice, noul
 
-    def run(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
-        pergunta, resposta, evidencia, ultima_ai_msg = self._coletar_dados_turno(state)
-        if not resposta:
-            return {
-                'agentes_chamados': [f'{self.nome_agente}:sem_resposta'],
-                'passou_juiz': True,
-            }
+    def _avaliar(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float]:
+        contexto, questions = self._construir_payload_avaliacao(pergunta, resposta, evidencia)
+        resultado = self._engine.predict(contexto, questions)
+        return self._extrair_veredito(resultado)
 
-        try:
-            choice, noul = self._avaliar(pergunta, resposta, evidencia)
-        except Exception as exc:
-            log.error(f'[judge] Falha na inferência do motor de decisão: {exc}. Aplicando fail-safe.')
-            choice, noul = 'sem_apoio', 0.0
+    async def _avaliar_async(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float]:
+        contexto, questions = self._construir_payload_avaliacao(pergunta, resposta, evidencia)
+        apredict_fn = getattr(self._engine, 'apredict', None)
+        if apredict_fn is not None and inspect.iscoroutinefunction(apredict_fn):
+            resultado = await apredict_fn(contexto, questions)
+        else:
+            resultado = self._engine.predict(contexto, questions)
+        return self._extrair_veredito(resultado)
 
-        aprovado = (choice == 'apoiada' and noul >= self.limiar_noul)
-        rotulo = f'apoiada noul={noul:.2f}' if aprovado else f'{choice} noul={noul:.2f}'
+    def _formatar_saida(
+        self,
+        choice: str,
+        noul: float,
+        resposta: str,
+        ultima_ai_msg: Any,
+        rotulo_erro: Optional[str] = None,
+    ) -> dict:
+        if rotulo_erro:
+            aprovado = False
+            rotulo = rotulo_erro
+        else:
+            aprovado = choice == 'apoiada' and noul >= self.limiar_noul
+            if aprovado:
+                rotulo = f'apoiada noul={noul:.2f}'
+            elif choice == 'apoiada':
+                rotulo = f'apoiada:abaixo_do_limiar noul={noul:.2f}'
+            else:
+                rotulo = f'{choice} noul={noul:.2f}'
+
         tag_agente = f'{self.nome_agente}:{rotulo}'
         log.info(f'[judge] veredito={tag_agente}')
 
@@ -326,20 +268,65 @@ class JudgeAgent(BaseAgent):
                 'score_juiz': noul,
                 'motivo_juiz': rotulo,
             }
-        else:
-            msg_dict = {'role': 'assistant', 'content': self.frase_segura}
-            msg_id = getattr(ultima_ai_msg, 'id', None)
-            if msg_id:
-                msg_dict['id'] = msg_id
+
+        msg_dict: dict[str, Any] = {'role': 'assistant', 'content': self.frase_segura}
+        msg_id = getattr(ultima_ai_msg, 'id', None)
+        if msg_id:
+            msg_dict['id'] = msg_id
+        return {
+            'messages': [msg_dict],
+            'agentes_chamados': [tag_agente],
+            'passou_juiz': False,
+            'veredito_juiz': choice,
+            'score_juiz': noul,
+            'motivo_juiz': rotulo,
+            'frase_original': resposta,
+        }
+
+    def run(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
+        pergunta, resposta, evidencia, ultima_ai_msg = self._coletar_dados_turno(state)
+        if not resposta:
             return {
-                'messages': [msg_dict],
-                'agentes_chamados': [tag_agente],
-                'passou_juiz': False,
-                'veredito_juiz': choice,
-                'score_juiz': noul,
-                'motivo_juiz': rotulo,
-                'frase_original': resposta,
+                'agentes_chamados': [f'{self.nome_agente}:sem_resposta'],
+                'passou_juiz': True,
             }
 
+        rotulo_erro: Optional[str] = None
+        try:
+            choice, noul = self._avaliar(pergunta, resposta, evidencia)
+        except LayaMissingKeyError:
+            log.warning('[judge] LAYA_API_KEY ausente. Aplicando fail-safe (sem_chave).')
+            choice, noul, rotulo_erro = 'sem_chave', 0.0, 'sem_chave'
+        except httpx.HTTPStatusError as exc:
+            code = exc.response.status_code
+            log.error(f'[judge] Erro HTTP {code} ao consultar Laya Studio API. Aplicando fail-safe.')
+            choice, noul, rotulo_erro = 'erro_http', 0.0, f'erro_http_{code}'
+        except Exception as exc:
+            log.error(f'[judge] Falha na inferência do Laya Studio API: {exc}. Aplicando fail-safe.')
+            choice, noul, rotulo_erro = 'erro', 0.0, 'erro'
+
+        return self._formatar_saida(choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro)
+
     async def arun(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
-        return self.run(state, config)
+        pergunta, resposta, evidencia, ultima_ai_msg = self._coletar_dados_turno(state)
+        if not resposta:
+            return {
+                'agentes_chamados': [f'{self.nome_agente}:sem_resposta'],
+                'passou_juiz': True,
+            }
+
+        rotulo_erro: Optional[str] = None
+        try:
+            choice, noul = await self._avaliar_async(pergunta, resposta, evidencia)
+        except LayaMissingKeyError:
+            log.warning('[judge] LAYA_API_KEY ausente. Aplicando fail-safe (sem_chave).')
+            choice, noul, rotulo_erro = 'sem_chave', 0.0, 'sem_chave'
+        except httpx.HTTPStatusError as exc:
+            code = exc.response.status_code
+            log.error(f'[judge] Erro HTTP {code} ao consultar Laya Studio API. Aplicando fail-safe.')
+            choice, noul, rotulo_erro = 'erro_http', 0.0, f'erro_http_{code}'
+        except Exception as exc:
+            log.error(f'[judge] Falha na inferência do Laya Studio API: {exc}. Aplicando fail-safe.')
+            choice, noul, rotulo_erro = 'erro', 0.0, 'erro'
+
+        return self._formatar_saida(choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro)

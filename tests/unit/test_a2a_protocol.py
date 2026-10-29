@@ -5,7 +5,7 @@
 3. Execução JSON-RPC 2.0 (`tasks/send`, `tasks/get`, `tasks/cancel`) em `A2ACooperativaServer`
    (`POST /a2a/cooperativa`) e `A2AEmpresaServer` (`POST /a2a/empresa`);
 4. Grafo Principal Unificado (Host Graph):
-   - `guardrail_entrada` -> `router_agent` -> [`rag_faq` local | `/a2a/cooperativa` | `/a2a/empresa`] -> `orchestrator_agent` -> `guardrail_saida`
+   - `guardrail_entrada` -> `router_agent` -> [`rag_faq` local | `/a2a/cooperativa` | `/a2a/empresa`] -> `orchestrator_agent` -> `guardrail_saida` -> `judge`
    - Uso direto de `cooperativa_id` e `empresa_id` nas queries dos repositórios/tools.
 """
 from __future__ import annotations
@@ -293,6 +293,7 @@ def test_host_graph_unificado_aciona_a2a_cooperativa_e_rag_faq_em_paralelo():
         guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
         guardrail_saida=StubAgent("guardrail_saida", [{"agentes_chamados": ["guardrail_saida:ok"]}]),
         a2a_client=a2a_client,
+        judge_agent=StubAgent("judge", [{"passou_juiz": True, "agentes_chamados": ["judge:apoiada noul=0.95"]}]),
     ).build_graph()
 
     resultado = graph.invoke(
@@ -405,6 +406,7 @@ def test_host_graph_roteia_cooperativa_id_e_empresa_id_para_servicos_a2a_distint
         guardrail_entrada=StubAgent("guardrail_entrada", [{"passou_guardrail": True}]),
         guardrail_saida=StubAgent("guardrail_saida", [{"agentes_chamados": ["guardrail_saida:ok"]}]),
         a2a_client=a2a_client,
+        judge_agent=StubAgent("judge", [{"passou_juiz": True, "agentes_chamados": ["judge:apoiada noul=0.95"]}]),
     ).build_graph()
 
     # 1. Turno com cooperativa_id -> Host Graph despacha 'coleta' para A2ACooperativaServer
