@@ -8,6 +8,7 @@ from neo4j import Driver
 from app.ml.route_model import PontoParada, ResultadoRotaOtimizada
 from app.ml.sp_zones import extrair_features_trecho, inferir_coordenadas_sp
 from app.repository.base import Repository
+from app.core.observabilidade import medir_span
 
 log = logging.getLogger(__name__)
 
@@ -220,21 +221,22 @@ class RotaRepository(Repository[ResultadoRotaOtimizada, Driver]):
 
             lat_ant, lon_ant, zona_ant = p_otim.latitude, p_otim.longitude, p_otim.zona
 
-        with self._db.session(database=self._database) as session:
-            registro = session.run(
-                QUERY_SALVAR_ROTA,
-                rota_id=rota_id_final,
-                nome_rota=nome_rota,
-                cooperativa_id=cooperativa_id or '',
-                qtd_paradas=len(paradas_payload),
-                distancia_total_km=resultado.distancia_total_km,
-                tempo_total_estimado_min=resultado.tempo_total_estimado_min,
-                tempo_ordem_original_min=resultado.tempo_ordem_original_min,
-                economia_estimada_min=resultado.economia_estimada_min,
-                economia_percentual=resultado.economia_percentual,
-                hora_saida=resultado.hora_saida,
-                paradas=paradas_payload,
-            ).single()
+        with medir_span('neo4j_salvar_rota', categoria='neo4j'):
+            with self._db.session(database=self._database) as session:
+                registro = session.run(
+                    QUERY_SALVAR_ROTA,
+                    rota_id=rota_id_final,
+                    nome_rota=nome_rota,
+                    cooperativa_id=cooperativa_id or '',
+                    qtd_paradas=len(paradas_payload),
+                    distancia_total_km=resultado.distancia_total_km,
+                    tempo_total_estimado_min=resultado.tempo_total_estimado_min,
+                    tempo_ordem_original_min=resultado.tempo_ordem_original_min,
+                    economia_estimada_min=resultado.economia_estimada_min,
+                    economia_percentual=resultado.economia_percentual,
+                    hora_saida=resultado.hora_saida,
+                    paradas=paradas_payload,
+                ).single()
 
         return {
             'rota_id':        registro['rota_id'] if registro else rota_id_final,
@@ -254,12 +256,13 @@ class RotaRepository(Repository[ResultadoRotaOtimizada, Driver]):
             {'ponto_id': str(k), 'tempo_real_min': float(v)}
             for k, v in tempos_reais_min.items()
         ]
-        with self._db.session(database=self._database) as session:
-            registro = session.run(
-                QUERY_REGISTRAR_TEMPOS_REAIS,
-                rota_id=rota_id,
-                execucoes=execucoes,
-            ).single()
+        with medir_span('neo4j_registrar_tempos_reais', categoria='neo4j'):
+            with self._db.session(database=self._database) as session:
+                registro = session.run(
+                    QUERY_REGISTRAR_TEMPOS_REAIS,
+                    rota_id=rota_id,
+                    execucoes=execucoes,
+                ).single()
         return int(registro['atualizados']) if registro else 0
 
     def buscar_trechos_treinamento(
@@ -271,24 +274,25 @@ class RotaRepository(Repository[ResultadoRotaOtimizada, Driver]):
         X: list[list[float]] = []
         y: list[float] = []
 
-        with self._db.session(database=self._database) as session:
-            resultado = session.run(
-                QUERY_BUSCAR_TRECHOS_TREINAMENTO,
-                apenas_reais=apenas_reais,
-            )
-            for row in resultado:
-                X.append([
-                    float(row['distancia_haversine_km']),
-                    float(row['distancia_viaria_km']),
-                    float(row['codigo_zona_origem']),
-                    float(row['codigo_zona_destino']),
-                    float(row['mudanca_zona']),
-                    float(row['fator_retencao']),
-                    float(row['fator_horario_sp']),
-                    float(row['hora_saida']),
-                    float(row['peso_estimado_kg']),
-                ])
-                y.append(float(row['tempo_total_min']))
+        with medir_span('neo4j_buscar_trechos_treinamento', categoria='neo4j'):
+            with self._db.session(database=self._database) as session:
+                resultado = session.run(
+                    QUERY_BUSCAR_TRECHOS_TREINAMENTO,
+                    apenas_reais=apenas_reais,
+                )
+                for row in resultado:
+                    X.append([
+                        float(row['distancia_haversine_km']),
+                        float(row['distancia_viaria_km']),
+                        float(row['codigo_zona_origem']),
+                        float(row['codigo_zona_destino']),
+                        float(row['mudanca_zona']),
+                        float(row['fator_retencao']),
+                        float(row['fator_horario_sp']),
+                        float(row['hora_saida']),
+                        float(row['peso_estimado_kg']),
+                    ])
+                    y.append(float(row['tempo_total_min']))
 
         return X, y
 
@@ -300,11 +304,12 @@ class RotaRepository(Repository[ResultadoRotaOtimizada, Driver]):
         if not cooperativa_id:
             return None
 
-        with self._db.session(database=self._database) as session:
-            registro = session.run(
-                QUERY_BUSCAR_DADOS_ROTA_COOPERATIVA,
-                cooperativa_id=cooperativa_id,
-            ).single()
+        with medir_span('neo4j_buscar_dados_rota_cooperativa', categoria='neo4j'):
+            with self._db.session(database=self._database) as session:
+                registro = session.run(
+                    QUERY_BUSCAR_DADOS_ROTA_COOPERATIVA,
+                    cooperativa_id=cooperativa_id,
+                ).single()
 
         if not registro:
             return None
