@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -50,14 +51,25 @@ class DecisionEngine:
 
 class LayaDecisionEngine(DecisionEngine):
     """Motor de decisão usando o modelo open source Laya (Convai Innovations)."""
-    def __init__(self, model_checkpoint: str = 'convaiinnovations/laya-multilingual'):
+    def __init__(self, default: str = 'multilingual', preload: bool = False):
         from laya import Router
-        self._router = Router(model_checkpoint=model_checkpoint)
+        self._router = Router(default=default, preload=False)
+        if preload:
+            self._router.preload([default])
 
-    def predict(self, state: dict, questions: list[dict]) -> dict:
+    def predict(self, state: dict, questions: Any) -> dict:
+        if isinstance(questions, list):
+            questions_dict = {
+                q.get('id', str(i)): {k: v for k, v in q.items() if k != 'id'}
+                for i, q in enumerate(questions)
+            }
+        else:
+            questions_dict = questions
+
+        state_payload = state if isinstance(state, (dict, list)) else json.dumps(state, ensure_ascii=False)
         return self._router.predict(
-            state=json.dumps(state, ensure_ascii=False),
-            questions=questions,
+            state=state_payload,
+            questions=questions_dict,
         )
 
 
@@ -197,12 +209,18 @@ class JudgeAgent(BaseAgent):
         if engine is not None:
             self._engine = engine
         else:
-            try:
-                self._engine = LayaDecisionEngine()
-                log.info('[judge] Motor LayaDecisionEngine inicializado com sucesso.')
-            except Exception as e:
-                log.info(f'[judge] Laya indisponível ({e}). Utilizando DeterministicDecisionEngine.')
+            engine_type = os.getenv('JUDGE_ENGINE', 'deterministic').lower()
+            if engine_type == 'deterministic':
                 self._engine = DeterministicDecisionEngine()
+                log.info('[judge] Motor DeterministicDecisionEngine selecionado via JUDGE_ENGINE.')
+            else:
+                try:
+                    preload = os.getenv('JUDGE_PRELOAD', 'false').lower() == 'true'
+                    self._engine = LayaDecisionEngine(preload=preload)
+                    log.info('[judge] Motor LayaDecisionEngine inicializado com sucesso.')
+                except Exception as e:
+                    log.info(f'[judge] Laya indisponível ({e}). Utilizando DeterministicDecisionEngine.')
+                    self._engine = DeterministicDecisionEngine()
 
     def _coletar_dados_turno(self, state: GraphState) -> tuple[str, str, str, Any]:
         msgs = list(state.get('messages') or [])
