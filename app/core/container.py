@@ -34,6 +34,7 @@ from app.agents.recomendacao_agent import RecomendacaoAgent
 from app.agents.logistica_agent import LogisticaAgent
 from app.agents.orchestrator_agent import OrchestratorAgent
 from app.agents.guardrail_agent import GuardrailEntradaAgent, GuardrailSaidaAgent
+from app.agents.judge_agent import JudgeAgent
 
 from app.graph.builder import GraphBuilder
 from app.repository.mongodb.db import MongoConnectionFactory
@@ -82,7 +83,7 @@ def build_container(
 ) -> 'Container':
     """
     Construção do contêiner com:
-    - Grafo Principal Unificado (Host Graph): `guardrail_entrada`, `router_agent`, `faq_agent`, `orchestrator_agent`, `guardrail_saida`
+    - Grafo Principal Unificado (Host Graph): `guardrail_entrada`, `router_agent`, `faq_agent`, `orchestrator_agent`, `guardrail_saida`, `judge`
     - Microsserviço A2A Cooperativa (`/a2a/cooperativa`): subgrafo `estoque`, `coleta`, `financeiro`, `logistica`
     - Microsserviço A2A Empresa (`/a2a/empresa`): subgrafo `pedidos` (`recomendacao`)
     """
@@ -259,6 +260,12 @@ def build_container(
             'tools': [],
             'rotas_revisao': getattr(settings, 'GUARDRAIL_ROTAS_REVISAO', ('financeiro',)),
         },
+        'judge': {
+            'cls': JudgeAgent,
+            'prompt': '',
+            'tools': [],
+            'sem_llm': True,
+        },
     }
 
     specialists: list[RegistroEspecialista] = []
@@ -316,6 +323,7 @@ def build_container(
         guardrail_entrada=agents['guardrail_entrada'],
         guardrail_saida=agents['guardrail_saida'],
         a2a_client=a2a_client,
+        judge_agent=agents['judge'],
     ).build_graph()
 
     return Container(
@@ -331,6 +339,7 @@ def build_container(
         a2a_cooperativa_server=a2a_cooperativa_server,
         a2a_empresa_server=a2a_empresa_server,
         a2a_client=a2a_client,
+        judge_agent=agents['judge'],
     )
 
 
@@ -349,6 +358,7 @@ class Container:
         a2a_cooperativa_server: A2ACooperativaServer | None = None,
         a2a_empresa_server: A2AEmpresaServer | None = None,
         a2a_client: A2AClient | None = None,
+        judge_agent: BaseAgent | None = None,
     ):
         self.graph = graph
         self.agentes = agentes
@@ -366,3 +376,4 @@ class Container:
             cooperativa_server=self.a2a_cooperativa_server,
             empresa_server=self.a2a_empresa_server,
         )
+        self.judge_agent = judge_agent or self.agentes.get('judge')

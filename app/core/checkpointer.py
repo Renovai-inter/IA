@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
+import dataclasses
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -19,8 +20,6 @@ from app.repository.postgresql.perfil_repository import PerfilContext
 
 log = logging.getLogger(__name__)
 
-import dataclasses
-
 # Modelos do GraphState (Pydantic ou dataclass).
 TIPOS_DO_ESTADO: tuple[type, ...] = (PerfilContext, EspecialistaOutput)
 
@@ -33,6 +32,10 @@ def _id_lc(cls: type) -> tuple[str, ...]:
 def _reconstruir_objeto(cls: type, kwargs: dict[str, Any]) -> Any:
     if isinstance(cls, type) and issubclass(cls, BaseModel):
         return cls.model_validate(kwargs)
+    if dataclasses.is_dataclass(cls):
+        campos = {f.name for f in dataclasses.fields(cls)}
+        kwargs_filtrados = {k: v for k, v in kwargs.items() if k in campos}
+        return cls(**kwargs_filtrados)
     return cls(**kwargs)
 
 
