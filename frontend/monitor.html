@@ -200,6 +200,14 @@
       <div id="tabela-fila-redis"></div>
     </article>
 
+    <h2 class="faixa">Model Context Protocol (MCP — JSON-RPC 2.0 / RFC 2024-11-05)</h2>
+    <section class="numeros" id="numeros-mcp"></section>
+
+    <article class="bloco tabela-larga">
+      <h2>Ferramentas MCP & Desempenho de Invocação (Descoberta via `tools/list` e Execução via `tools/call`)</h2>
+      <div id="tabela-mcp-tools"></div>
+    </article>
+
     <section class="graficos">
       <article class="grafico">
         <h2>Latência por turno (limite 8s)</h2>
@@ -247,6 +255,7 @@
     const numerosRoi = document.getElementById("numeros-roi");
     const numerosIa = document.getElementById("numeros-ia");
     const numerosRedis = document.getElementById("numeros-redis");
+    const numerosMcp = document.getElementById("numeros-mcp");
     const aviso = document.getElementById("aviso");
     const ponto = document.getElementById("ponto");
     const atualizado = document.getElementById("atualizado");
@@ -511,6 +520,52 @@
         [...ativosLista, ...recentesLista],
         "Nenhum turno na fila de processamento ainda."
       );
+
+      // Model Context Protocol (MCP)
+      const mcp = dados.mcp || {};
+      const mcpResumo = mcp.resumo || {};
+      const mcpPorTool = mcp.por_tool || [];
+
+      if (numerosMcp) {
+        numerosMcp.innerHTML = [
+          card(
+            "Protocolo MCP",
+            "JSON-RPC 2.0",
+            mcp.protocolo || "v2024-11-05"
+          ),
+          card(
+            "Tools Registradas",
+            inteiro(mcpResumo.tools_registradas || 0),
+            "Descoberta via /mcp/tools e tools/list"
+          ),
+          card(
+            "Resources / Prompts",
+            `${inteiro(mcpResumo.resources_registrados || 0)} / ${inteiro(mcpResumo.prompts_registrados || 0)}`,
+            "renovai://normas/pnrs · sre · redis"
+          ),
+          card(
+            "Chamadas de Tools MCP",
+            inteiro(mcpResumo.total_chamadas_tools || 0),
+            `${inteiro(mcpResumo.total_erros_tools || 0)} erros · ${inteiro(mcpResumo.total_resources_lidos || 0)} resources lidos`
+          ),
+        ].join("");
+      }
+
+      const tabelaMcpEl = document.getElementById("tabela-mcp-tools");
+      if (tabelaMcpEl) {
+        tabelaMcpEl.innerHTML = tabela(
+          ["Ferramenta MCP", "Toolkit", "Domínio", "Chamadas", "Erros", "Latência Média"],
+          mcpPorTool.map((t) => [
+            { texto: t.tool, classe: "modelo" },
+            { texto: t.toolkit },
+            { texto: tagStatus(t.dominio || "TRANSVERSAL") },
+            { texto: inteiro(t.chamadas) },
+            { texto: inteiro(t.erros) },
+            { texto: ms(t.latencia_media_ms) },
+          ]),
+          "Nenhuma chamada MCP registrada ainda."
+        );
+      }
 
       desenharLinha(
         document.getElementById("grafico-latencia"),

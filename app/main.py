@@ -24,6 +24,7 @@ logging.getLogger('google_genai.models').addFilter(_SilenciarAFCFilter())
 logging.getLogger('google_genai').addFilter(_SilenciarAFCFilter())
 
 from app.a2a.server import router as a2a_router
+from app.mcp.server import router as mcp_router
 from app.core.container import build_container
 from app.api.routes import chat, sessions, monitor, rotas
 from app.core.config import Settings
@@ -53,6 +54,11 @@ async def lifespan(app: FastAPI):
                     await container.a2a_client.aclose()
                 except Exception:
                     logger.exception('Falha ao fechar conexões HTTP do A2AClient')
+            if hasattr(container, 'mcp_client') and hasattr(container.mcp_client, 'aclose'):
+                try:
+                    await container.mcp_client.aclose()
+                except Exception:
+                    logger.exception('Falha ao fechar conexões HTTP do MCPClient')
             for factory, conn in container.factories.values():
                 try:
                     factory.close(conn)
@@ -80,6 +86,7 @@ app.include_router(sessions.router)
 app.include_router(monitor.router)
 app.include_router(rotas.router)
 app.include_router(a2a_router)
+app.include_router(mcp_router)
 
 
 @app.get('/health')
