@@ -10,7 +10,7 @@ from langchain_core.runnables import RunnableConfig
 from app.agents.base import BaseAgent
 from app.graph.state import EspecialistaOutput, GraphState, resolver_contexto_dominio
 from app.ml.route_model import ModeloRotaSupervisionadoSP, PontoParada
-from app.ml.sp_zones import BAIRROS_COORDS_SP
+from app.ml.sp_zones import BAIRROS_COORDS_SP, LOGRADOUROS_COORDS_SP, inferir_coordenadas_sp
 from app.repository.neo4j.rota_repository import RotaRepository
 
 log = logging.getLogger('renovai.logistica')
@@ -21,7 +21,13 @@ def _normalizar_texto(texto: str) -> str:
         ch for ch in unicodedata.normalize('NFKD', texto or '')
         if not unicodedata.combining(ch)
     )
-    return re.sub(r'\s+', ' ', sem_acento).strip().lower()
+    limpo = re.sub(r'\b(av|avenida)\.?\s+', 'av ', sem_acento.lower())
+    limpo = re.sub(r'\b(r|rua)\.?\s+', 'rua ', limpo)
+    limpo = re.sub(r'\b(pc|praca)\.?\s+', 'praca ', limpo)
+    limpo = re.sub(r'\b(al|alameda)\.?\s+', 'alameda ', limpo)
+    limpo = re.sub(r'\b(rod|rodovia)\.?\s+', 'rodovia ', limpo)
+    limpo = re.sub(r'\b(estr|estrada)\.?\s+', 'estrada ', limpo)
+    return re.sub(r'\s+', ' ', limpo).strip()
 
 
 _PADRAO_HORA = re.compile(
@@ -33,9 +39,24 @@ _PADRAO_HORA = re.compile(
 _PADRAO_CEP = re.compile(r'\b(0[1-58]\d{3}-?\d{3})\b')
 
 _PADRAO_ORIGEM = re.compile(
-    r'(?:saindo\s+d[aeo]s?\s+|partindo\s+d[aeo]s?\s+|origem\s+(?:em|n[ao])\s+)([a-zA-ZÀ-ÿ\s]{3,25})',
+    r'(?:saindo\s+d[aeo]s?\s+|partindo\s+d[aeo]s?\s+|origem\s+(?:em|n[ao]|d[aeo]s?)\s+)'
+    r'([a-zA-ZÀ-ÿ0-9\.\s]{3,45}?)(?=\s+(?:[aà]s\b|passando\b|indo\b|para\b|at[eé]\b|e\b|,|;|$))',
     re.IGNORECASE,
 )
+
+_PADRAO_LOGRADOURO_LIVRE = re.compile(
+    r'\b((?:Avenida|Av\.?|Rua|R\.?|Pra[çc]a|P[çc]\.?|Largo|Alameda|Al\.?|Estrada|Estr\.?|'
+    r'Rodovia|Rod\.?|Marginal|Terminal|Parque|Viaduto|Travessa|Tv\.?)\s+'
+    r'[A-ZÀ-Ÿ0-9a-zà-ÿ][A-ZÀ-Ÿ0-9a-zà-ÿ\s\.\-\']{2,45}?(?:,\s*\d{1,5})?)'
+    r'(?=\s*(?:,|;|\bpassando\b|\bsaindo\b|\bpartindo\b|\bpara\b|\bat[eé]\b|\b[aà]s\b|\bas\b|'
+    r'\be\s+(?:Avenida|Av|Rua|R\.|Pra[çc]a|Largo|Alameda|Estrada|Rodovia|Marginal|Terminal|Parque|pela|pelo|na|no|em)\b|'
+    r'\be\b|$|\?|\.))',
+    re.IGNORECASE,
+)
+
+_STOPWORDS_ENDERECO = {
+    'rota', 'melhor rota', 'caminho', 'trajeto', 'coleta', 'paradas', 'pontos', 'hoje', 'agora',
+}
 
 
 def _extrair_hora_saida(texto: str, padrao: int = 8) -> int:
@@ -49,6 +70,15 @@ def _extrair_hora_saida(texto: str, padrao: int = 8) -> int:
     return padrao
 
 
+def _slug_id(prefixo: str, nome: str) -> str:
+    base = re.sub(r'[^a-z0-9]+', '-', _normalizar_texto(nome)).strip('-')
+    return f'{prefixo}-{base[:32]}'
+
+
+def _intervalo_sobreposto(ini: int, fim: int, ocupados: list[tuple[int, int]]) -> bool:
+    return any(not (fim <= a or ini >= b) for a, b in ocupados)
+
+
 def _extrair_locais_mensagem_sp(
     texto: str,
 ) -> tuple[Optional[PontoParada], List[PontoParada]]:
@@ -58,23 +88,54 @@ def _extrair_locais_mensagem_sp(
 
     texto_norm = _normalizar_texto(texto)
 
-    bairro_origem_explicito: Optional[str] = None
+    chave_origem_explicita: Optional[str] = None
     m_orig = _PADRAO_ORIGEM.search(texto)
     if m_orig:
         trecho_orig = _normalizar_texto(m_orig.group(1))
-        for b_key in sorted(BAIRROS_COORDS_SP.keys(), key=len, reverse=True):
-            if b_key in trecho_orig:
-                bairro_origem_explicito = b_key
+        for l_key in sorted(LOGRADOUROS_COORDS_SP.keys(), key=len, reverse=True):
+            if re.search(rf'\b{re.escape(l_key)}\b', trecho_orig):
+                chave_origem_explicita = _slug_id('local', l_key)
                 break
+        if not chave_origem_explicita:
+            for b_key in sorted(BAIRROS_COORDS_SP.keys(), key=len, reverse=True):
+                if re.search(rf'\b{re.escape(b_key)}\b', trecho_orig):
+                    chave_origem_explicita = f"bairro-{b_key.replace(' ', '-')}"
+                    break
+        if not chave_origem_explicita and trecho_orig:
+            m_orig_livre = _PADRAO_LOGRADOURO_LIVRE.search(m_orig.group(1))
+            if m_orig_livre:
+                chave_origem_explicita = _slug_id('end', _normalizar_texto(m_orig_livre.group(1)))
 
     ocorrencias: list[tuple[int, PontoParada]] = []
     intervalos_ocupados: list[tuple[int, int]] = []
 
+    # 1. Logradouros, avenidas e marcos conhecidos do catálogo de SP
+    for l_key in sorted(LOGRADOUROS_COORDS_SP.keys(), key=len, reverse=True):
+        padrao_l = re.compile(rf'\b{re.escape(l_key)}(?:\s*,\s*\d{{1,5}})?\b')
+        for m in padrao_l.finditer(texto_norm):
+            ini, fim = m.span()
+            if _intervalo_sobreposto(ini, fim, intervalos_ocupados):
+                continue
+            intervalos_ocupados.append((ini, fim))
+            lat, lon, _, bairro_ref = LOGRADOUROS_COORDS_SP[l_key]
+            ocorrencias.append((
+                ini,
+                PontoParada(
+                    id=_slug_id('local', l_key),
+                    endereco=m.group(0).title(),
+                    bairro=bairro_ref,
+                    latitude=lat,
+                    longitude=lon,
+                    peso_estimado_kg=200.0,
+                ),
+            ))
+
+    # 2. Bairros conhecidos de São Paulo
     for b_key in sorted(BAIRROS_COORDS_SP.keys(), key=len, reverse=True):
         padrao_b = re.compile(rf'\b{re.escape(b_key)}\b')
         for m in padrao_b.finditer(texto_norm):
             ini, fim = m.span()
-            if any(not (fim <= a or ini >= b) for a, b in intervalos_ocupados):
+            if _intervalo_sobreposto(ini, fim, intervalos_ocupados):
                 continue
             intervalos_ocupados.append((ini, fim))
             lat, lon, _ = BAIRROS_COORDS_SP[b_key]
@@ -90,10 +151,41 @@ def _extrair_locais_mensagem_sp(
                 ),
             ))
 
+    # 3. Logradouros livres (qualquer Rua/Av./Praça/Largo/Alameda/Estrada/Rodovia em SP)
+    for m_log in _PADRAO_LOGRADOURO_LIVRE.finditer(texto):
+        trecho_bruto = m_log.group(1).strip(' ,;.-')
+        trecho_norm = _normalizar_texto(trecho_bruto)
+        if not trecho_norm or trecho_norm in _STOPWORDS_ENDERECO:
+            continue
+        m_pos = re.search(rf'\b{re.escape(trecho_norm)}', texto_norm)
+        ini = m_pos.start() if m_pos else m_log.start()
+        fim = ini + len(trecho_norm)
+        if _intervalo_sobreposto(ini, fim, intervalos_ocupados):
+            continue
+        intervalos_ocupados.append((ini, fim))
+        lat, lon, _ = inferir_coordenadas_sp(endereco=trecho_bruto)
+        ocorrencias.append((
+            ini,
+            PontoParada(
+                id=_slug_id('end', trecho_norm),
+                endereco=trecho_bruto,
+                latitude=lat,
+                longitude=lon,
+                peso_estimado_kg=200.0,
+            ),
+        ))
+
+    # 4. CEPs paulistanos explícitos
     for m_cep in _PADRAO_CEP.finditer(texto):
         cep_str = m_cep.group(1)
+        m_pos_cep = re.search(re.escape(cep_str.lower()), texto_norm)
+        ini = m_pos_cep.start() if m_pos_cep else m_cep.start()
+        fim = ini + len(cep_str)
+        if _intervalo_sobreposto(ini, fim, intervalos_ocupados):
+            continue
+        intervalos_ocupados.append((ini, fim))
         ocorrencias.append((
-            m_cep.start(),
+            ini,
             PontoParada(
                 id=f'cep-{cep_str}',
                 endereco=f'CEP {cep_str}',
@@ -108,9 +200,8 @@ def _extrair_locais_mensagem_sp(
     if not pontos:
         return None, []
 
-    if bairro_origem_explicito:
-        id_alvo = f"bairro-{bairro_origem_explicito.replace(' ', '-')}"
-        origem = next((p for p in pontos if p.id == id_alvo), pontos[0])
+    if chave_origem_explicita:
+        origem = next((p for p in pontos if p.id == chave_origem_explicita), pontos[0])
         paradas = [p for p in pontos if p.id != origem.id]
         return origem, paradas
 
