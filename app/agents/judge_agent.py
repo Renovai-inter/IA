@@ -215,6 +215,19 @@ class JudgeAgent(BaseAgent):
 
     @staticmethod
     def _extrair_veredito(resultado: dict) -> tuple[str, float]:
+        usage = resultado.get('usage')
+        if isinstance(usage, dict):
+            from app.core import observabilidade as obs_mod
+            inst = getattr(obs_mod, '_instancia_observabilidade', None)
+            if inst is not None:
+                modelo_resp = str(resultado.get('model') or 'laya-multilingual')
+                inst.registrar_chamada_externa(
+                    modelo=modelo_resp,
+                    no='judge',
+                    tokens_entrada=int(usage.get('input_tokens') or 0),
+                    tokens_saida=int(usage.get('output_tokens') or 0),
+                )
+
         answers = resultado.get('answers', resultado)
         veredito_data = answers.get('veredito', {})
         choice = veredito_data.get('choice') or 'sem_apoio'
