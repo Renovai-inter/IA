@@ -63,7 +63,7 @@ def test_judge_agent_trata_erro_http_do_motor_de_decisao(monkeypatch: pytest.Mon
             resp = httpx.Response(429, request=req)
             raise httpx.HTTPStatusError("Rate limit exceeded", request=req, response=resp)
 
-    agent = JudgeAgent(engine=_FailingEngine())
+    agent = JudgeAgent(engine=_FailingEngine(), bloquear_sem_veredito=True)
     state: GraphState = {
         "messages": [
             HumanMessage(content="qual o rateio?"),
@@ -283,7 +283,7 @@ def test_gemini_decision_engine_sem_chave_dispara_failsafe(monkeypatch: pytest.M
     from app.agents.judge_agent import GeminiMissingKeyError
 
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    agent = JudgeAgent(gemini_api_key="")
+    agent = JudgeAgent(gemini_api_key="", bloquear_sem_veredito=True)
 
     state: GraphState = {
         "messages": [
@@ -393,3 +393,75 @@ def test_judge_agent_fast_path_aprova_saudacao_em_0ms():
     assert len(stub_engine.chamadas) == 0
     assert "fast_path" in resultado["motivo_juiz"]
 
+
+class _MotorFora(DecisionEngine):
+    """Motor do Juiz indisponível (o caso do 402 do Laya: chat inteiro virava a frase segura)."""
+
+    def __init__(self, exc: Exception):
+        self.exc = exc
+
+    def predict(self, state: dict, questions: list[dict] | dict) -> dict:
+        raise self.exc
+
+
+def _erro_http(code: int) -> httpx.HTTPStatusError:
+    req = httpx.Request("POST", "https://juiz.example")
+    return httpx.HTTPStatusError("falha", request=req, response=httpx.Response(code, request=req))
+
+
+_TURNO_COM_DADO = {
+    "messages": [
+        HumanMessage(content="quanto papelão temos?"),
+        AIMessage(content="Temos 3.450 kg de papelão."),
+    ],
+}
+
+
+@pytest.mark.parametrize(
+    "exc, motivo",
+    [
+        (_erro_http(402), "erro_http_402"),
+        (_erro_http(429), "erro_http_429"),
+        (RuntimeError("timeout"), "erro"),
+    ],
+)
+def test_juiz_indisponivel_libera_a_resposta_rotulada(monkeypatch, exc, motivo):
+    monkeypatch.delenv("JUIZ_BLOQUEAR_SEM_VEREDITO", raising=False)
+    resultado = JudgeAgent(engine=_MotorFora(exc)).run(dict(_TURNO_COM_DADO), config={})
+    assert resultado["passou_juiz"] is True
+    assert resultado["veredito_juiz"] == "indisponivel"
+    assert resultado["motivo_juiz"] == motivo
+    assert resultado["agentes_chamados"] == [f"judge:indisponivel:{motivo}"]
+    assert "messages" not in resultado  # a resposta do orquestrador segue intacta
+
+
+def test_juiz_sem_chave_libera_a_resposta_rotulada(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("JUIZ_BLOQUEAR_SEM_VEREDITO", raising=False)
+    resultado = JudgeAgent(gemini_api_key="").run(dict(_TURNO_COM_DADO), config={})
+    assert resultado["passou_juiz"] is True
+    assert resultado["agentes_chamados"] == ["judge:indisponivel:sem_chave"]
+    assert "messages" not in resultado
+
+
+def test_variavel_de_ambiente_volta_a_bloquear_sem_veredito(monkeypatch):
+    monkeypatch.setenv("JUIZ_BLOQUEAR_SEM_VEREDITO", "true")
+    resultado = JudgeAgent(engine=_MotorFora(_erro_http(402))).run(dict(_TURNO_COM_DADO), config={})
+    assert resultado["passou_juiz"] is False
+    assert resultado["agentes_chamados"] == ["judge:erro_http_402"]
+    assert resultado["messages"][0]["content"] == FRASE_SEGURA
+
+
+def test_juiz_indisponivel_nao_libera_alucinacao_avaliada(monkeypatch):
+    """Controle: com o Juiz funcionando, "sem_apoio" continua bloqueando mesmo no modo padrão."""
+    monkeypatch.delenv("JUIZ_BLOQUEAR_SEM_VEREDITO", raising=False)
+    agent = JudgeAgent(engine=StubDecisionEngine(choice="sem_apoio", noul=0.1))
+    resultado = agent.run(dict(_TURNO_COM_DADO), config={})
+    assert resultado["passou_juiz"] is False
+    assert resultado["messages"][0]["content"] == FRASE_SEGURA
+
+
+def test_chat_trata_juiz_indisponivel_como_resposta_ok():
+    """O /chat só marca 'recusado_juiz' quando passou_juiz é False."""
+    resultado = JudgeAgent(engine=_MotorFora(_erro_http(402))).run(dict(_TURNO_COM_DADO), config={})
+    assert resultado.get("passou_juiz", True) is True
