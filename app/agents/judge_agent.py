@@ -38,8 +38,9 @@ LIMIAR_NOUL_PADRAO = 0.70
 
 REGRAS_AVALIACAO = (
     'A pergunta do usuário é evidência do que ele solicitou, declarou ou informou ter feito. '
-    'Somas, contagens, conclusões lógicas, sugestões de próximo passo, ofertas de ajuda, '
-    'saudações e confirmação de ausência de registros contam como apoiada. '
+    'Somas, contagens, conclusões lógicas, correlações analíticas entre múltiplos especialistas, '
+    'cálculos de proporção/diferença, apontamento de divergências entre registros, sugestões de '
+    'próximo passo, ofertas de ajuda, saudações e confirmação de ausência de registros contam como apoiada. '
     'Valores numéricos de estoque (kg), preços médios, custos, despesas, datas de coleta, '
     'triagens, rotas de veículos, nomes de cooperativas e artigos da lei PNRS devem '
     'estar estritamente fundamentados na evidência disponível. '
