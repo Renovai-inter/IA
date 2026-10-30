@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 import unicodedata
 from typing import Any, List, Optional
@@ -11,6 +12,8 @@ from app.graph.state import EspecialistaOutput, GraphState, resolver_contexto_do
 from app.ml.route_model import ModeloRotaSupervisionadoSP, PontoParada
 from app.ml.sp_zones import BAIRROS_COORDS_SP
 from app.repository.neo4j.rota_repository import RotaRepository
+
+log = logging.getLogger('renovai.logistica')
 
 
 def _normalizar_texto(texto: str) -> str:
@@ -35,7 +38,7 @@ _PADRAO_ORIGEM = re.compile(
 )
 
 
-def extrair_hora_saida(texto: str, padrao: int = 8) -> int:
+def _extrair_hora_saida(texto: str, padrao: int = 8) -> int:
     """Extrai o horário de saída (0..23) mencionado na mensagem, ou devolve o horário padrão."""
     for match in _PADRAO_HORA.finditer(texto or ''):
         valor = match.group(1) or match.group(2)
@@ -46,7 +49,7 @@ def extrair_hora_saida(texto: str, padrao: int = 8) -> int:
     return padrao
 
 
-def extrair_locais_mensagem_sp(
+def _extrair_locais_mensagem_sp(
     texto: str,
 ) -> tuple[Optional[PontoParada], List[PontoParada]]:
     """Extrai de forma determinística (sem LLM) a origem e as paradas em SP citadas na mensagem."""
@@ -114,6 +117,11 @@ def extrair_locais_mensagem_sp(
     return None, pontos
 
 
+# Compatibilidade retroativa com testes que importam diretamente
+extrair_hora_saida = _extrair_hora_saida
+extrair_locais_mensagem_sp = _extrair_locais_mensagem_sp
+
+
 class LogisticaAgent(BaseAgent):
     """Nó determinístico de logística que executa diretamente o pipeline
     supervisionado (StandardScaler + GradientBoostingRegressor + 2-Opt) sem invocar LLM."""
@@ -143,17 +151,21 @@ class LogisticaAgent(BaseAgent):
 
     def _executar_pipeline(self, state: GraphState, config: RunnableConfig | None = None) -> dict[str, Any]:
         pergunta = self._obter_ultima_pergunta(state)
-        hora_saida = extrair_hora_saida(pergunta, padrao=8)
+        hora_saida = _extrair_hora_saida(pergunta, padrao=8)
 
         cooperativa_id, _, _ = resolver_contexto_dominio(state, config)
 
-        origem_msg, paradas_msg = extrair_locais_mensagem_sp(pergunta)
+        origem_msg, paradas_msg = _extrair_locais_mensagem_sp(pergunta)
 
         dados_neo4j: Optional[dict[str, Any]] = None
         if cooperativa_id and self.rota_repository is not None:
             try:
                 dados_neo4j = self.rota_repository.buscar_dados_rota_cooperativa(cooperativa_id)
-            except Exception:
+            except Exception as exc:
+                log.warning(
+                    f'[logistica] Falha ao consultar rota prévia no Neo4j ({exc}). '
+                    'Continuando com os pontos extraídos da mensagem.'
+                )
                 dados_neo4j = None
 
         origem: Optional[PontoParada] = origem_msg
@@ -175,11 +187,11 @@ class LogisticaAgent(BaseAgent):
 
         if origem is None or len(paradas) == 0:
             payload_esclarecer = {
-                'dominio':      'logistica',
-                'intencao':     'otimizar_rota',
-                'resposta':     'Não encontrei pontos de parada suficientes para calcular a rota otimizada.',
+                'dominio': 'logistica',
+                'intencao': 'otimizar_rota',
+                'resposta': 'Não encontrei pontos de parada suficientes para calcular a rota otimizada.',
                 'recomendacao': '',
-                'esclarecer':   (
+                'esclarecer': (
                     'Informe os bairros ou CEPs de origem e de parada em São Paulo '
                     '(ex.: "Saindo do Tatuapé às 8h passando pela Mooca, Pinheiros e Sé").'
                 ),
@@ -205,48 +217,52 @@ class LogisticaAgent(BaseAgent):
                 )
                 rota_id_neo4j = info_salvo.get('rota_id')
                 salvo_neo4j = True
-            except Exception:
+            except Exception as exc:
+                log.error(f'[logistica] Falha ao persistir rota otimizada no Neo4j: {exc}')
                 salvo_neo4j = False
 
         passos_fmt = [
-            f"{p.ordem}º {p.endereco} ({p.zona} — {p.distancia_trecho_km:.1f} km, ~{p.tempo_trecho_min:.0f} min)"
+            f'{p.ordem}º {p.endereco} ({p.zona} — {p.distancia_trecho_km:.1f} km, ~{p.tempo_trecho_min:.0f} min)'
             for p in resultado.paradas_ordenadas
         ]
         sequencia_str = ' -> '.join(passos_fmt)
 
         economia_txt = (
-            f"economia estimada de {resultado.economia_estimada_min:.1f} min ({resultado.economia_percentual:.1f}%)"
+            f'economia estimada de {resultado.economia_estimada_min:.1f} min ({resultado.economia_percentual:.1f}%)'
             if resultado.economia_estimada_min > 0
             else 'a sequência informada já é a mais rápida para o horário'
         )
 
         resposta_sintese = (
-            f"Rota otimizada saindo de {resultado.origem} às {resultado.hora_saida}h: "
-            f"{sequencia_str}. Distância viária total: {resultado.distancia_total_km:.1f} km; "
-            f"tempo total estimado pelo modelo supervisionado: {resultado.tempo_total_estimado_min:.1f} min "
-            f"({economia_txt})."
+            f'Rota otimizada saindo de {resultado.origem} às {resultado.hora_saida}h: '
+            f'{sequencia_str}. Distância viária total: {resultado.distancia_total_km:.1f} km; '
+            f'tempo total estimado pelo modelo supervisionado: {resultado.tempo_total_estimado_min:.1f} min '
+            f'({economia_txt}).'
         )
 
         recomendacao_operacional = (
             'Siga a ordem otimizada para minimizar cruzamentos de zona e retenção viária em São Paulo.'
             if not (7 <= resultado.hora_saida <= 9 or 17 <= resultado.hora_saida <= 19)
-            else 'Atenção: saída em horário de pico em São Paulo; priorize as paradas da mesma macrozona antes de cruzar o Centro ou Marginais.'
+            else (
+                'Atenção: saída em horário de pico em São Paulo; '
+                'priorize as paradas da mesma macrozona antes de cruzar o Centro ou Marginais.'
+            )
         )
 
         payload_ok = {
-            'dominio':      'logistica',
-            'intencao':     'otimizar_rota',
-            'resposta':     resposta_sintese,
+            'dominio': 'logistica',
+            'intencao': 'otimizar_rota',
+            'resposta': resposta_sintese,
             'recomendacao': recomendacao_operacional,
-            'indicadores':  {
-                'qtd_paradas':              len(resultado.paradas_ordenadas),
-                'distancia_total_km':       resultado.distancia_total_km,
+            'indicadores': {
+                'qtd_paradas': len(resultado.paradas_ordenadas),
+                'distancia_total_km': resultado.distancia_total_km,
                 'tempo_total_estimado_min': resultado.tempo_total_estimado_min,
                 'tempo_ordem_original_min': resultado.tempo_ordem_original_min,
-                'economia_estimada_min':    resultado.economia_estimada_min,
-                'economia_percentual':      resultado.economia_percentual,
-                'hora_saida':               resultado.hora_saida,
-                'salvo_no_neo4j':           salvo_neo4j,
+                'economia_estimada_min': resultado.economia_estimada_min,
+                'economia_percentual': resultado.economia_percentual,
+                'hora_saida': resultado.hora_saida,
+                'salvo_no_neo4j': salvo_neo4j,
             },
         }
         return self._empacotar_saida(payload_ok)
@@ -254,8 +270,8 @@ class LogisticaAgent(BaseAgent):
     def _empacotar_saida(self, payload: dict[str, Any]) -> dict[str, Any]:
         conteudo_json = json.dumps(payload, ensure_ascii=False)
         return {
-            'messages':             [{'role': 'assistant', 'content': conteudo_json}],
-            'agentes_chamados':     [self.nome_agente],
+            'messages': [{'role': 'assistant', 'content': conteudo_json}],
+            'agentes_chamados': [self.nome_agente],
             'especialista_outputs': {
                 self.nome_agente: EspecialistaOutput(
                     conteudo=conteudo_json,

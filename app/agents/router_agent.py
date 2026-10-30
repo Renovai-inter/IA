@@ -8,12 +8,12 @@ from app.graph.state import GraphState
 
 
 def _extrair_rotas_protocolo(texto: str) -> list[str]:
-    texto_strip = (texto or "").strip()
+    texto_strip = (texto or '').strip()
     if not texto_strip:
         return []
 
     candidatos_json: list[str] = []
-    if "```" in texto_strip:
+    if '```' in texto_strip:
         for match in re.finditer(r"```(?:json)?\s*([\s\S]*?)\s*```", texto_strip, re.IGNORECASE):
             candidatos_json.append(match.group(1).strip())
 
@@ -25,15 +25,15 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
         try:
             dados = json.loads(bloco)
             if isinstance(dados, dict):
-                for chave in ("ROUTES", "ROUTE", "routes", "route"):
+                for chave in ('ROUTES', 'ROUTE', 'routes', 'route'):
                     if chave in dados:
                         val = dados[chave]
                         rotas: list[str] = []
                         if isinstance(val, list):
                             rotas = [str(r).strip().strip("'\"") for r in val if str(r).strip()]
                         elif isinstance(val, str):
-                            val_clean = val.strip().strip("[]")
-                            rotas = [r.strip().strip("'\"") for r in val_clean.split(",") if r.strip().strip("'\"")]
+                            val_clean = val.strip().strip('[]')
+                            rotas = [r.strip().strip("'\"") for r in val_clean.split(',') if r.strip().strip("'\"")]
                         if rotas:
                             return [r for r in rotas if r not in ('fim', 'fim_direto')]
         except Exception:
@@ -56,7 +56,7 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
         return [r for r in rotas_linhas if r not in ('fim', 'fim_direto')]
 
     match_inline = re.search(
-        r"""(?:["'`*]*\bROUTES?\b["'`*]*)\s*[:=]\s*(\[[^\]]*\]|"[^"\n]+"|'[^'\n]+'|[^\s,;\n]+(?:,\s*[^\s,;\n]+)*)""",
+        r"""(?:["'`*]*\bROUTES?\b["'`*]*)\s*[:=]\s*(\[[^\]]*\]|'[^'\n]+"|'[^'\n]+'|[^\s,;\n]+(?:,\s*[^\s,;\n]+)*)""",
         texto,
     )
     if match_inline:
