@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Renovaí IA — Console de Observabilidade</title>
+  <title>Renovaí IA — Console de Observabilidade, SRE e ROI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -82,8 +82,8 @@
     .numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px;
+      min-width: 0;
     }
-    .card { min-width: 0; }
     #numeros-sre .card .valor { color: var(--accent); }
     #numeros-sre .card:nth-child(4) { background: var(--accent); border-color: var(--accent); }
     #numeros-sre .card:nth-child(4) .rotulo { color: #ead9e0; }
@@ -92,6 +92,9 @@
     #numeros-ia .card { background: transparent; border: 0; border-radius: 0; }
     #numeros-ia .rotulo, #numeros-ia .nota { color: var(--brand-green-text); }
     #numeros-ia .valor { color: var(--accent); }
+    #numeros-roi .card { border-color: #d6c5cc; }
+    #numeros-roi .card:nth-child(2) { background: var(--brand-green-soft); border-color: #c1d383; }
+    #numeros-roi .card:nth-child(2) .valor { color: var(--ok); }
     .card .rotulo { color: var(--muted); font-size: 0.8125rem; font-weight: 500; line-height: 1.5; }
     .card .valor { margin-top: 10px; font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
     .card .valor.pequeno { font-size: 1rem; white-space: normal; overflow-wrap: anywhere; }
@@ -112,7 +115,7 @@
     .tag { display: inline-block; font-size: 0.6875rem; font-weight: 600; line-height: 1.5; text-transform: uppercase; border-radius: 999px; padding: 4px 10px; }
     .tag.ok { color: var(--ok); background: var(--ok-soft); }
     .tag.erro { color: var(--erro); background: var(--erro-soft); }
-    .tag.bloqueado { color: var(--warn); background: var(--warn-soft); }
+    .tag.bloqueado, .tag.recusado_juiz { color: var(--warn); background: var(--warn-soft); }
     .tag.debug { color: var(--muted); background: var(--panel-alt); }
     .tag.info { color: var(--accent); background: var(--accent-soft); }
     .tag.warning { color: var(--warn); background: var(--warn-soft); }
@@ -149,8 +152,8 @@
         <div class="marca">
           <img class="logo" src="assets/renovai.png" alt="Renovaí" width="283" height="77" />
           <div class="titulo">
-            <h1>Observabilidade</h1>
-            <p class="sub">Desempenho e consumo do chatbot</p>
+            <h1>Observabilidade, SRE e FinOps (ROI)</h1>
+            <p class="sub">Desempenho interagentes, controle de alucinação e projeção de custos</p>
           </div>
         </div>
       </div>
@@ -169,11 +172,33 @@
       </div>
     </section>
 
-    <h2 class="faixa">Serviço (SRE)</h2>
+    <h2 class="faixa">Serviço e Confiabilidade (SRE)</h2>
     <section class="numeros" id="numeros-sre"></section>
 
-    <h2 class="faixa">Inteligência artificial (LLMs)</h2>
+    <h2 class="faixa">FinOps, Custo por Resolução e ROI (Projeção 100 e 1.000 Usuários/Semana)</h2>
+    <section class="numeros" id="numeros-roi"></section>
+
+    <h2 class="faixa">Inteligência Artificial (LLMs e Juiz Laya)</h2>
     <section class="numeros" id="numeros-ia"></section>
+
+    <h2 class="faixa">Redis em Tempo Real (Rate Limiting, Fila de Processamento e Ranking ZSET)</h2>
+    <section class="numeros" id="numeros-redis"></section>
+
+    <section class="graficos">
+      <article class="bloco">
+        <h2>Ranking em Tempo Real — Cooperativas / Empresas (ZSET)</h2>
+        <div id="tabela-ranking-entidades"></div>
+      </article>
+      <article class="bloco">
+        <h2>Ranking em Tempo Real — Especialistas Acionados (ZSET)</h2>
+        <div id="tabela-ranking-rotas"></div>
+      </article>
+    </section>
+
+    <article class="bloco tabela-larga">
+      <h2>Fila de Processamento em Tempo Real no Redis (Turnos Ativos e Stream Recente)</h2>
+      <div id="tabela-fila-redis"></div>
+    </article>
 
     <section class="graficos">
       <article class="grafico">
@@ -187,7 +212,12 @@
     </section>
 
     <article class="bloco tabela-larga">
-      <h2>Decomposição de Latência por Camada (Gargalos: Neo4j AuraDB, A2A, MongoDB, LLMs)</h2>
+      <h2>Latência Interagentes vs. Tempo Total de Resposta</h2>
+      <div id="tabela-interagentes"></div>
+    </article>
+
+    <article class="bloco tabela-larga">
+      <h2>Decomposição de Latência por Camada (Gargalos: Neo4j AuraDB, A2A, MongoDB, Postgres, LLMs)</h2>
       <div id="tabela-decomposicao"></div>
     </article>
 
@@ -210,26 +240,31 @@
       <h2>Logs e debugs unificados</h2>
       <div id="tabela-logs"></div>
     </article>
-
-
   </div>
 
   <script>
     const numerosSre = document.getElementById("numeros-sre");
+    const numerosRoi = document.getElementById("numeros-roi");
     const numerosIa = document.getElementById("numeros-ia");
+    const numerosRedis = document.getElementById("numeros-redis");
     const aviso = document.getElementById("aviso");
     const ponto = document.getElementById("ponto");
     const atualizado = document.getElementById("atualizado");
 
     function ms(valor) {
       if (valor >= 1000) {
-        return (valor / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " s";
+        return (valor / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) + " s";
       }
-      return Math.round(valor).toLocaleString("pt-BR") + " ms";
+      return Math.round(valor || 0).toLocaleString("pt-BR") + " ms";
     }
 
-    function usd(valor) {
-      return valor.toLocaleString("pt-BR", { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 6 });
+    function usd(valor, digitosMin = 4, digitosMax = 6) {
+      return Number(valor || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: digitosMin,
+        maximumFractionDigits: digitosMax,
+      });
     }
 
     function inteiro(valor) {
@@ -237,7 +272,7 @@
     }
 
     function pct(valor) {
-      return (valor * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
+      return (Number(valor || 0) * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
     }
 
     function duracao(segundos) {
@@ -342,38 +377,140 @@
     function render(dados) {
       const r = dados.resumo;
       const slo = dados.slo;
+      const sreRoi = dados.sre_roi || {};
+      const roi = sreRoi.roi || {};
+      const cenarios = sreRoi.cenarios_usuarios_semanais || {};
+      const c100 = cenarios.cenario_100_usuarios || {};
+      const c1000 = cenarios.cenario_1000_usuarios || {};
+
       const caixa = document.getElementById("slo");
       caixa.className = "slo";
 
       if (r.turnos === 0) {
-        document.getElementById("slo-titulo").textContent = "Aguardando primeiro turno";
-        document.getElementById("slo-texto").textContent = "Mande uma mensagem no chat. O registro vive na memória deste processo.";
+        document.getElementById("slo-titulo").textContent = "Aguardando primeiro turno (Projeções em Baseline Arquitetural)";
+        document.getElementById("slo-texto").textContent = "Mande uma mensagem no chat para calibrar custos e latências interagentes com dados reais da execução.";
       } else if (r.slo_ok) {
         caixa.classList.add("ok");
         document.getElementById("slo-titulo").textContent = "Dentro do SLO";
-        document.getElementById("slo-texto").textContent = `P95 até ${ms(slo.latencia_p95_limite_ms)} e erro até ${pct(slo.taxa_erro_limite)}.`;
+        document.getElementById("slo-texto").textContent = `P95 até ${ms(slo.latencia_p95_limite_ms)} e índice de erro até ${pct(slo.taxa_erro_limite)}.`;
       } else {
         caixa.classList.add("estourou");
         document.getElementById("slo-titulo").textContent = "SLO estourou";
-        document.getElementById("slo-texto").textContent = `P95 até ${ms(slo.latencia_p95_limite_ms)} e erro até ${pct(slo.taxa_erro_limite)}.`;
+        document.getElementById("slo-texto").textContent = `P95 até ${ms(slo.latencia_p95_limite_ms)} e índice de erro até ${pct(slo.taxa_erro_limite)}.`;
       }
 
       numerosSre.innerHTML = [
-        card("Turnos", inteiro(r.turnos)),
-        card("Taxa de erro", pct(r.taxa_erro), "Exceção no turno"),
-        card("Latência média", ms(r.latencia_media_ms)),
-        card("Latência P95", ms(r.latencia_p95_ms)),
-        card("No ar", duracao(r.no_ar_segundos)),
-        card("Em andamento", inteiro(r.em_andamento)),
-        card("Bloqueios", inteiro(r.bloqueios), "Guardrail de entrada"),
+        card("Turnos totais", inteiro(r.turnos), `${inteiro(r.turnos_resolvidos || 0)} resolvidos (${pct(r.taxa_resolucao || 0)})`),
+        card("Índice de erros", pct(r.taxa_erro), "Exceções técnicas no turno"),
+        card("Tempo total médio", ms(r.latencia_media_ms), "Resposta ponta a ponta"),
+        card("Latência P95", ms(r.latencia_p95_ms), `Meta SLO ≤ ${ms(slo.latencia_p95_limite_ms)}`),
+        card("Bloqueios Guardrail", inteiro(r.bloqueios), `Taxa: ${pct(r.taxa_bloqueio || 0)}`),
+        card("Recusas Juiz (Laya)", inteiro(r.recusas_juiz || 0), `Alucinações barradas: ${pct(r.taxa_recusa_juiz || 0)}`),
+        card("Em andamento", inteiro(r.em_andamento), "Requisições concorrentes"),
+        card("No ar (Uptime)", duracao(r.no_ar_segundos)),
+      ].join("");
+
+      numerosRoi.innerHTML = [
+        card(
+          "Custo por resolução (CPR)",
+          usd(r.custo_por_resolucao_usd),
+          `vs. ${usd(roi.valor_manual_por_resolucao_usd || 0.70, 2, 2)} processo manual (${roi.tempo_manual_minutos_por_resolucao || 6} min)`
+        ),
+        card(
+          "Custo / Retorno (ROI)",
+          `${inteiro(r.multiplicador_retorno_custo || 0)}x`,
+          `Economia líquida: ${usd(roi.economia_liquida_por_resolucao_usd || 0, 4, 4)} / resolução`
+        ),
+        card(
+          "100 Usuários Semanais",
+          `${usd(c100.custo_semanal_usd || 0, 2, 2)} / sem`,
+          `${inteiro(c100.turnos_semanais || 1500)} turnos/sem · ${usd(c100.custo_mensal_usd || 0, 2, 2)}/mês · ${c100.horas_economizadas_semana || 0}h poupadas/sem`
+        ),
+        card(
+          "1.000 Usuários Semanais",
+          `${usd(c1000.custo_semanal_usd || 0, 2, 2)} / sem`,
+          `${inteiro(c1000.turnos_semanais || 15000)} turnos/sem · ${usd(c1000.custo_mensal_usd || 0, 2, 2)}/mês · ${c1000.horas_economizadas_semana || 0}h poupadas/sem`
+        ),
       ].join("");
 
       numerosIa.innerHTML = [
-        card("Tokens", inteiro(r.tokens_total), `${inteiro(r.tokens_entrada)} entrada · ${inteiro(r.tokens_saida)} saída`),
-        card("Custo", usd(r.custo_usd), "Tabela fixa, não é a fatura"),
-        card("Modelo mais usado", r.modelo_mais_usado, "", true),
+        card("Tokens acumulados", inteiro(r.tokens_total), `${inteiro(r.tokens_entrada)} entrada · ${inteiro(r.tokens_saida)} saída`),
+        card("Custo acumulado", usd(r.custo_usd), `Média/turno: ${usd(r.custo_medio_turno_usd)}`),
+        card("Modelo mais acionado", r.modelo_mais_usado, "", true),
         card("Fallbacks", inteiro(r.fallbacks), "Especialista saiu do Gemini"),
       ].join("");
+
+      const redisRt = dados.redis_realtime || {};
+      const rl = redisRt.rate_limit || {};
+      const fila = redisRt.fila_processamento || {};
+      const rankings = redisRt.rankings_tempo_real || {};
+
+      numerosRedis.innerHTML = [
+        card(
+          "Backend Tempo Real",
+          (redisRt.backend || "memoria_fallback").toUpperCase(),
+          rl.algoritmo || "Sliding Window ZSET + Queue LIST"
+        ),
+        card(
+          "Rate Limit (Janela)",
+          `${inteiro(rl.max_requests || 15)} req / ${inteiro(rl.window_seconds || 60)}s`,
+          "Algoritmo Sliding Window Log (ZSET)"
+        ),
+        card(
+          "Bloqueios Rate Limit (429)",
+          inteiro(rl.bloqueios_totais || 0),
+          "Proteção contra abuso de cota LLM"
+        ),
+        card(
+          "Fila de Processamento",
+          `${inteiro(fila.tamanho_fila_ativa || 0)} ativos`,
+          `${inteiro((fila.ultimos_processados || []).length)} recentes no stream`
+        ),
+      ].join("");
+
+      document.getElementById("tabela-ranking-entidades").innerHTML = tabela(
+        ["#", "Entidade (Cooperativa / Empresa)", "Consultas"],
+        (rankings.entidades_mais_ativas || []).map((item) => [
+          { texto: `${item.posicao}º` },
+          { texto: item.membro, classe: "modelo" },
+          { texto: inteiro(item.interacoes) },
+        ]),
+        "Nenhuma entidade consultada no ranking ainda."
+      );
+
+      document.getElementById("tabela-ranking-rotas").innerHTML = tabela(
+        ["#", "Rota / Especialista", "Acionamentos"],
+        (rankings.rotas_mais_demandadas || []).map((item) => [
+          { texto: `${item.posicao}º` },
+          { texto: item.membro, classe: "modelo" },
+          { texto: inteiro(item.interacoes) },
+        ]),
+        "Nenhuma rota acionada no ranking ainda."
+      );
+
+      const ativosLista = (fila.em_processamento_agora || []).map((t) => [
+        { texto: tagStatus(t.estado || "em_processamento") },
+        { texto: t.turno_id, classe: "sessao" },
+        { texto: t.session_id || "—", classe: "sessao" },
+        { texto: `${t.tipo_fluxo || "COOPERATIVA"}:${t.entidade_id || "—"}` },
+        { texto: t.rota || "em execução", classe: "modelo" },
+        { texto: "—" },
+        { texto: t.pergunta_resumo || "—", classe: "msg" },
+      ]);
+      const recentesLista = (fila.ultimos_processados || []).slice(0, 12).map((t) => [
+        { texto: tagStatus(t.estado || "ok") },
+        { texto: t.turno_id, classe: "sessao" },
+        { texto: t.session_id || "—", classe: "sessao" },
+        { texto: `${t.tipo_fluxo || "COOPERATIVA"}:${t.entidade_id || "—"}` },
+        { texto: t.rota || "—", classe: "modelo" },
+        { texto: ms(t.latencia_ms || 0) },
+        { texto: t.atualizado_em || "—", classe: "msg" },
+      ]);
+      document.getElementById("tabela-fila-redis").innerHTML = tabela(
+        ["Status", "Turno ID", "Sessão", "Entidade", "Rota", "Latência", "Atualizado / Resumo"],
+        [...ativosLista, ...recentesLista],
+        "Nenhum turno na fila de processamento ainda."
+      );
 
       desenharLinha(
         document.getElementById("grafico-latencia"),
@@ -388,7 +525,23 @@
         null,
       );
 
-      // Decomposição da latência
+      // Latência interagentes
+      if (dados.latencia_interagentes) {
+        document.getElementById("tabela-interagentes").innerHTML = tabela(
+          ["Agente / Nó do Grafo", "Execuções", "Latência Média", "Latência P95", "Latência Máxima", "Participação no Pipeline"],
+          dados.latencia_interagentes.map((ag) => [
+            { texto: ag.agente, classe: "modelo" },
+            { texto: inteiro(ag.execucoes) },
+            { texto: ms(ag.latencia_media_ms) },
+            { texto: ms(ag.latencia_p95_ms) },
+            { texto: ms(ag.latencia_max_ms) },
+            { texto: `<div style="display:flex;align-items:center;gap:10px;"><div style="background:var(--accent);height:8px;border-radius:4px;min-width:4px;width:${Math.max(ag.participacao_pct, 3)}%;"></div><span style="font-weight:600;">${pct(ag.participacao_pct / 100)}</span></div>` },
+          ]),
+          "Nenhuma execução interagentes registrada ainda."
+        );
+      }
+
+      // Decomposição da latência por camada
       if (dados.decomposicao_latencia) {
         document.getElementById("tabela-decomposicao").innerHTML = tabela(
           ["Camada / Componente", "Tempo Médio", "Tempo Total Acumulado", "Impacto Percentual"],
@@ -403,7 +556,7 @@
       }
 
       document.getElementById("tabela-turnos").innerHTML = tabela(
-        ["Hora", "Latência Total", "Gargalo Principal", "Rota", "Status", "Tokens", "Custo", "Sessão"],
+        ["Hora", "Tempo Total", "Latência Interagentes", "Gargalo Camada", "Rota", "Status", "Tokens", "Custo", "Sessão"],
         dados.turnos.map((t) => {
           let detalheGargalo = "—";
           if (t.decomposicao && Object.keys(t.decomposicao).length) {
@@ -411,9 +564,16 @@
             const top = itens[0];
             detalheGargalo = `${top[0].toUpperCase()}: ${ms(top[1])}`;
           }
+          let resumoAgentes = "—";
+          if (t.latencia_agentes && Object.keys(t.latencia_agentes).length) {
+            resumoAgentes = Object.entries(t.latencia_agentes)
+              .map(([k, v]) => `${k}=${ms(v)}`)
+              .join(" · ");
+          }
           return [
             { texto: t.hora },
             { texto: ms(t.latencia_ms) },
+            { texto: resumoAgentes, classe: "modelo" },
             { texto: detalheGargalo, classe: "modelo" },
             { texto: t.rota },
             { texto: tagStatus(t.status) },
