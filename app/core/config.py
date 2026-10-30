@@ -41,9 +41,10 @@ class Settings(BaseSettings):
     NEO4J_DATABASE: str = 'neo4j'
 
     # URLs opcionais para comunicação HTTP remota entre o Host Graph e os
-    # Microsserviços A2A de Cooperativa (/a2a/cooperativa) e Empresa (/a2a/empresa).
+    # Microsserviços A2A (/a2a/cooperativa e /a2a/empresa) e Servidor MCP (/mcp).
     COOPERATIVA_A2A_URL: str = ''
     EMPRESA_A2A_URL: str = ''
+    MCP_SERVER_URL: str = ''
 
     FAQ_PATH: str
     PNRS_PATH: str = str(BASE_DIR / 'data' / 'PNRS.txt')
