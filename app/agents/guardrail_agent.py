@@ -21,7 +21,11 @@ log = logging.getLogger('guardrail')
 
 
 def _ultima_humana(state: GraphState):
-    return next((m for m in reversed(list(state['messages'])) if m.type == 'human'), None)
+    for m in reversed(list(state.get('messages') or [])):
+        role = (m.get('role') or m.get('type')) if isinstance(m, dict) else getattr(m, 'type', None)
+        if role in ('human', 'user'):
+            return m
+    return None
 
 
 class GuardrailEntradaAgent(BaseAgent):
@@ -101,9 +105,13 @@ class GuardrailSaidaAgent(BaseAgent):
 
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
         mapa_pii = ((config or {}).get('configurable') or {}).get('mapa_pii') or {}
-        ultima = list(state['messages'])[-1]
+        msgs = list(state.get('messages') or [])
+        if not msgs:
+            return {'agentes_chamados': [f'{self.nome_agente}:sem_resposta']}
+        ultima = msgs[-1]
 
-        if ultima.type != 'ai':
+        role_ult = (ultima.get('role') or ultima.get('type')) if isinstance(ultima, dict) else getattr(ultima, 'type', None)
+        if role_ult not in ('ai', 'assistant'):
             return {'agentes_chamados': [f'{self.nome_agente}:sem_resposta']}
 
         original = self._obter_texto_mensagem(ultima)
@@ -114,24 +122,34 @@ class GuardrailSaidaAgent(BaseAgent):
         revisar = '*' in self._rotas_revisao or any(r in self._rotas_revisao for r in rotas_ativas)
         if revisar and motivo != 'vazamento_protocolo':
             resposta = self.llm.invoke(
-                [SystemMessage(content=self.system_prompt),
-                 HumanMessage(content=f'<resposta>\n{texto}\n</resposta>')],
+                [
+                    SystemMessage(content=self.system_prompt),
+                    HumanMessage(content=f'<resposta>\n{texto}\n</resposta>'),
+                ],
                 config=config,
             )
             veredito = saida.interpretar_veredito(self._obter_texto_mensagem(resposta))
             texto, motivo_llm = saida.aplicar_veredito(texto, veredito)
             motivo = motivo_llm or motivo
 
-        update = {'agentes_chamados': [f"{self.nome_agente}:{motivo or 'ok'}"]}
+        update = {'agentes_chamados': [f'{self.nome_agente}:{motivo or "ok"}']}
         if texto != original:
-            update['messages'] = [{'role': 'assistant', 'content': texto, 'id': ultima.id}]
+            msg_id = getattr(ultima, 'id', None) if not isinstance(ultima, dict) else ultima.get('id')
+            dict_msg = {'role': 'assistant', 'content': texto}
+            if msg_id:
+                dict_msg['id'] = msg_id
+            update['messages'] = [dict_msg]
         return update
 
     async def arun(self, state: GraphState, config: RunnableConfig) -> dict:
         mapa_pii = ((config or {}).get('configurable') or {}).get('mapa_pii') or {}
-        ultima = list(state['messages'])[-1]
+        msgs = list(state.get('messages') or [])
+        if not msgs:
+            return {'agentes_chamados': [f'{self.nome_agente}:sem_resposta']}
+        ultima = msgs[-1]
 
-        if ultima.type != 'ai':
+        role_ult = (ultima.get('role') or ultima.get('type')) if isinstance(ultima, dict) else getattr(ultima, 'type', None)
+        if role_ult not in ('ai', 'assistant'):
             return {'agentes_chamados': [f'{self.nome_agente}:sem_resposta']}
 
         original = self._obter_texto_mensagem(ultima)
@@ -142,15 +160,21 @@ class GuardrailSaidaAgent(BaseAgent):
         revisar = '*' in self._rotas_revisao or any(r in self._rotas_revisao for r in rotas_ativas)
         if revisar and motivo != 'vazamento_protocolo':
             resposta = await self.llm.ainvoke(
-                [SystemMessage(content=self.system_prompt),
-                 HumanMessage(content=f'<resposta>\n{texto}\n</resposta>')],
+                [
+                    SystemMessage(content=self.system_prompt),
+                    HumanMessage(content=f'<resposta>\n{texto}\n</resposta>'),
+                ],
                 config=config,
             )
             veredito = saida.interpretar_veredito(self._obter_texto_mensagem(resposta))
             texto, motivo_llm = saida.aplicar_veredito(texto, veredito)
             motivo = motivo_llm or motivo
 
-        update = {'agentes_chamados': [f"{self.nome_agente}:{motivo or 'ok'}"]}
+        update = {'agentes_chamados': [f'{self.nome_agente}:{motivo or "ok"}']}
         if texto != original:
-            update['messages'] = [{'role': 'assistant', 'content': texto, 'id': ultima.id}]
+            msg_id = getattr(ultima, 'id', None) if not isinstance(ultima, dict) else ultima.get('id')
+            dict_msg = {'role': 'assistant', 'content': texto}
+            if msg_id:
+                dict_msg['id'] = msg_id
+            update['messages'] = [dict_msg]
         return update

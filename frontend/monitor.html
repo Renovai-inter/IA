@@ -178,7 +178,7 @@
     <h2 class="faixa">FinOps, Custo por Resolução e ROI (Projeção 100 e 1.000 Usuários/Semana)</h2>
     <section class="numeros" id="numeros-roi"></section>
 
-    <h2 class="faixa">Inteligência Artificial (LLMs e Juiz Laya)</h2>
+    <h2 class="faixa">Inteligência Artificial (LLMs e Juiz Gemini)</h2>
     <section class="numeros" id="numeros-ia"></section>
 
     <h2 class="faixa">Redis em Tempo Real (Rate Limiting, Fila de Processamento e Ranking ZSET)</h2>
@@ -405,7 +405,7 @@
         card("Tempo total médio", ms(r.latencia_media_ms), "Resposta ponta a ponta"),
         card("Latência P95", ms(r.latencia_p95_ms), `Meta SLO ≤ ${ms(slo.latencia_p95_limite_ms)}`),
         card("Bloqueios Guardrail", inteiro(r.bloqueios), `Taxa: ${pct(r.taxa_bloqueio || 0)}`),
-        card("Recusas Juiz (Laya)", inteiro(r.recusas_juiz || 0), `Alucinações barradas: ${pct(r.taxa_recusa_juiz || 0)}`),
+        card("Recusas Juiz (System One)", inteiro(r.recusas_juiz || 0), `Alucinações barradas: ${pct(r.taxa_recusa_juiz || 0)}`),
         card("Em andamento", inteiro(r.em_andamento), "Requisições concorrentes"),
         card("No ar (Uptime)", duracao(r.no_ar_segundos)),
       ].join("");

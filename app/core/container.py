@@ -215,13 +215,14 @@ def build_container(
         'router_agent': {
             'cls': RouterAgent,
             'prompt': ROUTER_PROMPT_COMPLETO,
-            'tools': memoria_toolkit.get_tools()
+            'tools': [],
         },
         'faq_agent': {
             'route': 'rag_faq',
             'cls': FaqAgent,
             'prompt': FAQ_PROMPT_COMPLETO,
-            'tools': faq_toolkit.get_tools()
+            'tools': faq_toolkit.get_tools(),
+            'llm_overrides': {'temperature': 0.1},
         },
         'material_estoque_agent': {
             'route': 'estoque',
@@ -261,7 +262,8 @@ def build_container(
         'orchestrator_agent': {
             'cls': OrchestratorAgent,
             'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
-            'tools': []
+            'tools': [],
+            'llm_overrides': {'temperature': 0.1},
         },
         'guardrail_saida': {
             'cls': GuardrailSaidaAgent,
@@ -283,7 +285,8 @@ def build_container(
             llm = None
         else:
             provider_tier = llm_map.get(name) or settings.AGENT_LLM_MAP.get(name, ('GEMINI', 'HIGH'))
-            llm = llm_factory.get(*provider_tier)
+            llm_overrides = spec.get('llm_overrides') or {}
+            llm = llm_factory.get(*provider_tier, **llm_overrides)
         agent_repos = settings.AGENT_REPOSITORY_MAP.get(name, [])
         kwargs = dict(spec.get('kwargs') or {})
         if 'rotas_revisao' in spec:

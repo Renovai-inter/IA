@@ -14,34 +14,45 @@ from langchain_groq import ChatGroq
 
 from app.llms.tuning import kwargs_suportados
 
+
 class GroqProvider(LLMProvider):
     def __init__(self, api_key):
         super().__init__(api_key)
         self._LLMs = {
-                'HIGH' : ChatGroq(
-                    model='qwen/qwen3.8-27b',
-                    temperature=0.7,
-                    api_key=self.api_key
+            'HIGH': ChatGroq(
+                model='qwen/qwen3.8-27b',
+                temperature=0.7,
+                api_key=self.api_key,
+                **kwargs_suportados(
+                    ChatGroq,
+                    timeout=5.0,
+                    max_retries=0,
                 ),
-                'MEDIUM' : ChatGroq(
-                    model='openai/gpt-oss-120b',
-                    temperature=0.7,
-                    api_key=self.api_key
+            ),
+            'MEDIUM': ChatGroq(
+                model='openai/gpt-oss-120b',
+                temperature=0.7,
+                api_key=self.api_key,
+                **kwargs_suportados(
+                    ChatGroq,
+                    timeout=5.0,
+                    max_retries=0,
                 ),
-                # LOW = router/orquestrador: saída curta, sem necessidade de raciocínio longo
-                'LOW' : ChatGroq(
-                    model='openai/gpt-oss-20b',
-                    temperature=0.0,
-                    api_key=self.api_key,
-                    **kwargs_suportados(
-                        ChatGroq,
-                        reasoning_effort='low',
-                        max_tokens=1024,
-                        timeout=20,
-                        max_retries=1,
-                    ),
+            ),
+            # LOW = router/orquestrador: saída curta, sem necessidade de raciocínio longo
+            'LOW': ChatGroq(
+                model='openai/gpt-oss-20b',
+                temperature=0.0,
+                api_key=self.api_key,
+                **kwargs_suportados(
+                    ChatGroq,
+                    reasoning_effort='low',
+                    max_tokens=1024,
+                    timeout=4.5,
+                    max_retries=0,
                 ),
-            }
+            ),
+        }
 
     def get_llm(self, tier, **overrides):
         """

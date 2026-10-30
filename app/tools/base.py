@@ -1,14 +1,12 @@
-from app.repository.base import Repository
-from app.core.observabilidade import timed as obs_timed
-
-from langchain_core.tools import StructuredTool
 from abc import ABC, abstractmethod
+import logging
 from typing import Dict
 
-import inspect
-import time as tm, functools, logging
+from langchain_core.tools import StructuredTool
 
-import logging
+from app.core.observabilidade import timed as obs_timed
+from app.repository.base import Repository
+
 log = logging.getLogger(__name__)
 
 
@@ -20,8 +18,7 @@ class Toolkit(ABC):
     nome: str
     descricao: str
     repositories: Dict[str, Repository]
-
-    log = logging.getLogger(__name__)
+    log = log
 
     @staticmethod
     def timed(categoria: str, nome: str):

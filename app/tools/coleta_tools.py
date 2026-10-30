@@ -20,7 +20,7 @@ from app.repository.postgresql.material_repository import MaterialRepository, Ma
 class ConsultarColetasArgs(BaseModel):
     coleta_ids: Optional[List[UUID]] = Field(
         default=None,
-        description="Lista opcional de UUIDs de coletas específicas para filtrar."
+        description='Lista opcional de UUIDs de coletas específicas para filtrar.'
     )
     status: Optional[str] = Field(
         default=None,
@@ -32,55 +32,55 @@ class ConsultarColetasArgs(BaseModel):
     )
     cooperado_id: Optional[UUID] = Field(
         default=None,
-        description="UUID do cooperado/funcionário responsável pela coleta."
+        description='UUID do cooperado/funcionário responsável pela coleta.'
     )
     cooperado_nome: Optional[str] = Field(
         default=None,
-        description="Nome (ou parte do nome) do cooperado responsável pela coleta."
+        description='Nome (ou parte do nome) do cooperado responsável pela coleta.'
     )
     equipe_id: Optional[UUID] = Field(
         default=None,
-        description="UUID da equipe (filtra coletas realizadas por membros da equipe ou triadas pela equipe)."
+        description='UUID da equipe (filtra coletas realizadas por membros da equipe ou triadas pela equipe).'
     )
     equipe_nome: Optional[str] = Field(
         default=None,
-        description="Nome (ou parte do nome) da equipe responsável."
+        description='Nome (ou parte do nome) da equipe responsável.'
     )
     rota_id: Optional[UUID] = Field(
         default=None,
-        description="UUID da rota associada à coleta."
+        description='UUID da rota associada à coleta.'
     )
     data_inicio: Optional[datetime] = Field(
         default=None,
-        description="Data inicial do intervalo de busca (ISO 8601)."
+        description='Data inicial do intervalo de busca (ISO 8601).'
     )
     data_fim: Optional[datetime] = Field(
         default=None,
-        description="Data final do intervalo de busca (ISO 8601)."
+        description='Data final do intervalo de busca (ISO 8601).'
     )
     quantidade_min_kg: Optional[float] = Field(
         default=None,
-        description="Quantidade mínima coletada (kg)."
+        description='Quantidade mínima coletada (kg).'
     )
     quantidade_max_kg: Optional[float] = Field(
         default=None,
-        description="Quantidade máxima coletada (kg)."
+        description='Quantidade máxima coletada (kg).'
     )
-    limite: int = Field(default=20, description="Número máximo de coletas detalhadas retornadas.")
+    limite: int = Field(default=20, description='Número máximo de coletas detalhadas retornadas.')
 
 
 class ConsultarTriagensArgs(BaseModel):
     triagem_ids: Optional[List[UUID]] = Field(
         default=None,
-        description="Lista opcional de UUIDs de triagens específicas."
+        description='Lista opcional de UUIDs de triagens específicas.'
     )
     coleta_id: Optional[UUID] = Field(
         default=None,
-        description="UUID da coleta de origem para listar todas as N triagens daquela coleta."
+        description='UUID da coleta de origem para listar todas as N triagens daquela coleta.'
     )
     material_ids: Optional[List[UUID]] = Field(
         default=None,
-        description="Lista de UUIDs de materiais para filtrar triagens."
+        description='Lista de UUIDs de materiais para filtrar triagens.'
     )
     material_nomes: Optional[List[str]] = Field(
         default=None,
@@ -88,11 +88,11 @@ class ConsultarTriagensArgs(BaseModel):
     )
     equipe_id: Optional[UUID] = Field(
         default=None,
-        description="UUID da equipe responsável pela triagem."
+        description='UUID da equipe responsável pela triagem.'
     )
     equipe_nome: Optional[str] = Field(
         default=None,
-        description="Nome (ou parte do nome) da equipe de triagem."
+        description='Nome (ou parte do nome) da equipe de triagem.'
     )
     status: Optional[str] = Field(
         default=None,
@@ -100,31 +100,31 @@ class ConsultarTriagensArgs(BaseModel):
     )
     data_inicio: Optional[datetime] = Field(
         default=None,
-        description="Data inicial do intervalo de triagem (ISO 8601)."
+        description='Data inicial do intervalo de triagem (ISO 8601).'
     )
     data_fim: Optional[datetime] = Field(
         default=None,
-        description="Data final do intervalo de triagem (ISO 8601)."
+        description='Data final do intervalo de triagem (ISO 8601).'
     )
-    limite: int = Field(default=20, description="Número máximo de triagens detalhadas retornadas.")
+    limite: int = Field(default=20, description='Número máximo de triagens detalhadas retornadas.')
 
 
 class ConsultarEquipesCooperadosArgs(BaseModel):
     equipe_id: Optional[UUID] = Field(
         default=None,
-        description="UUID de uma equipe específica."
+        description='UUID de uma equipe específica.'
     )
     equipe_nome: Optional[str] = Field(
         default=None,
-        description="Nome (ou parte do nome) da equipe."
+        description='Nome (ou parte do nome) da equipe.'
     )
     cooperado_id: Optional[UUID] = Field(
         default=None,
-        description="UUID de um funcionário/cooperado específico."
+        description='UUID de um funcionário/cooperado específico.'
     )
     cooperado_nome: Optional[str] = Field(
         default=None,
-        description="Nome (ou parte do nome) do cooperado ou gestor."
+        description='Nome (ou parte do nome) do cooperado ou gestor.'
     )
     cargo: Optional[str] = Field(
         default=None,
@@ -132,18 +132,18 @@ class ConsultarEquipesCooperadosArgs(BaseModel):
     )
     apenas_ativos: bool = Field(
         default=True,
-        description="Se true, retorna apenas equipes e funcionários ativos."
+        description='Se true, retorna apenas equipes e funcionários ativos.'
     )
 
 
 class ResumoOperacionalArgs(BaseModel):
     data_inicio: Optional[datetime] = Field(
         default=None,
-        description="Data inicial opcional para restringir o resumo operacional (ISO 8601)."
+        description='Data inicial opcional para restringir o resumo operacional (ISO 8601).'
     )
     data_fim: Optional[datetime] = Field(
         default=None,
-        description="Data final opcional para restringir o resumo operacional (ISO 8601)."
+        description='Data final opcional para restringir o resumo operacional (ISO 8601).'
     )
 
 

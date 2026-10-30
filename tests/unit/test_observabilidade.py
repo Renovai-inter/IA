@@ -66,9 +66,9 @@ def test_calculo_custo_usd():
     custo = obs.custo_usd("gemini-2.5-flash", 1_000, 1_000)
     assert pytest.approx(custo, rel=1e-5) == 0.0028
 
-    # Laya multilingual: $0.042/M in, $0.00/M out
-    custo_laya = obs.custo_usd("laya-multilingual", 10_000, 100)
-    assert pytest.approx(custo_laya, rel=1e-5) == 0.00042
+    # Gemini 3.5 flash-lite: $0.15/M in, $0.60/M out
+    custo_lite = obs.custo_usd("gemini-3.5-flash-lite", 10_000, 100)
+    assert pytest.approx(custo_lite, rel=1e-5) == 0.00156
 
     # Modelo local Ollama => $0.00
     custo_local = obs.custo_usd("ollama/llama3", 5_000, 5_000)

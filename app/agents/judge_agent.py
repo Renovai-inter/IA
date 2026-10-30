@@ -13,9 +13,10 @@ substituída de forma determinística pela frase segura pré-definida (`FRASE_SE
 from __future__ import annotations
 
 import inspect
+import json
 import logging
 import os
-import warnings
+import re
 from typing import Any, Optional
 
 import httpx
@@ -24,17 +25,10 @@ from langchain_core.runnables import RunnableConfig
 from app.agents.base import BaseAgent
 from app.graph.state import GraphState
 
-# Silencia aviso de automatic function calling gerado internamente pelo SDK google-genai
-warnings.filterwarnings("ignore", message=".*automatic function calling.*")
-
 log = logging.getLogger('renovai.judge')
 
 DEFAULT_GEMINI_JUDGE_MODEL = 'gemini-3.5-flash-lite'
 FALLBACK_GEMINI_JUDGE_MODEL = 'gemini-2.5-flash'
-
-# Constantes legadas mantidas para retrocompatibilidade
-DEFAULT_LAYA_API_URL = 'https://api.laya.studio/v1/systemone'
-DEFAULT_LAYA_MODEL = 'multilingual'
 
 FRASE_SEGURA = (
     'Não localizei evidências suficientes nos registros operacionais da cooperativa '
@@ -54,12 +48,21 @@ REGRAS_AVALIACAO = (
 )
 
 
+_PADROES_SAUDACAO_OU_CORTESIA = re.compile(
+    r'\b(ol[áa]|bom dia|boa tarde|boa noite|como posso ajudar|em que posso ajudar|'
+    r'como posso te ajudar|estou [àa] disposi[çc][ãa]o|dispor|at[ée] logo|at[ée] mais|'
+    r'tchau|obrigad[oa]|por nada|de nada|por favor[, ]+(?:informe|especifique|poderia)|'
+    r'posso te ajudar com)\b',
+    re.IGNORECASE,
+)
+_PADROES_DADOS_FACTUAIS = re.compile(
+    r'(\d+[\.,]?\d*|\bR\$\b|\bUS\$\b|\bkg\b|\bton\b|\btoneladas?\b|\blitros?\b|\bkm\b|\bcep\b|\bcpf\b|\bcnpj\b|\blei\b|\bartigo\b)',
+    re.IGNORECASE,
+)
+
+
 class GeminiMissingKeyError(RuntimeError):
     """Exceção disparada quando GEMINI_API_KEY não está configurada."""
-
-
-class LayaMissingKeyError(RuntimeError):
-    """Exceção disparada quando LAYA_API_KEY não está configurada (legado)."""
 
 
 class DecisionEngine:
@@ -88,7 +91,7 @@ class GeminiDecisionEngine(DecisionEngine):
         timeout: float = 10.0,
         max_retries: int = 1,
     ):
-        self.api_key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
+        self.api_key = (api_key or os.getenv('GEMINI_API_KEY') or '').strip()
         self.model = (model or DEFAULT_GEMINI_JUDGE_MODEL).strip()
         self.timeout = timeout
         self.max_retries = max_retries
@@ -97,22 +100,21 @@ class GeminiDecisionEngine(DecisionEngine):
     def _obter_llm(self, model_name: Optional[str] = None):
         target_model = model_name or self.model
         if self._llm is not None:
-            # Se já há um LLM injetado (via AGENT_LLM_MAP) e não estamos pedindo fallback
-            if model_name is None or getattr(self._llm, "model", None) == target_model:
+            if model_name is None or getattr(self._llm, 'model', None) == target_model:
                 return self._llm
 
         if not self.api_key:
-            raise GeminiMissingKeyError("GEMINI_API_KEY não configurada para o GeminiDecisionEngine.")
+            raise GeminiMissingKeyError('GEMINI_API_KEY não configurada para o GeminiDecisionEngine.')
         from langchain_google_genai import ChatGoogleGenerativeAI
         from app.llms.tuning import kwargs_suportados
 
         kwargs = kwargs_suportados(
             ChatGoogleGenerativeAI,
-            thinking_level="low",
+            thinking_level='low',
             max_retries=self.max_retries,
             timeout=self.timeout,
             max_output_tokens=256,
-            response_mime_type="application/json",
+            response_mime_type='application/json',
         )
         return ChatGoogleGenerativeAI(
             model=target_model,
@@ -122,26 +124,27 @@ class GeminiDecisionEngine(DecisionEngine):
         )
 
     def _montar_prompt(self, state: dict) -> str:
-        pergunta = state.get("pergunta", "")
-        resposta = state.get("resposta", "")
-        evidencia = state.get("evidencia", "")
-        regras = state.get("regras", REGRAS_AVALIACAO)
+        pergunta = state.get('pergunta', '')
+        resposta = state.get('resposta', '')
+        evidencia = state.get('evidencia', '')
+        regras = state.get('regras', REGRAS_AVALIACAO)
         return (
-            "Você é um classificador discriminativo estrito de fidelidade factual (System One).\n"
-            "Sua única função é avaliar se a resposta afirmada pelo sistema está estritamente fundamentada na evidência disponível.\n"
-            "NÃO gere explicações, NÃO converse, NÃO justifique e NÃO reescreva o texto.\n\n"
-            f"REGRAS DE AVALIAÇÃO:\n{regras}\n\n"
-            f"PERGUNTA DO USUÁRIO:\n{pergunta}\n\n"
-            f"EVIDÊNCIAS DISPONÍVEIS:\n{evidencia}\n\n"
-            f"RESPOSTA GERADA:\n{resposta}\n\n"
-            "Responda EXCLUSIVAMENTE um objeto JSON válido com este formato:\n"
-            "{\n"
+            'Você é um classificador discriminativo estrito de fidelidade factual (System One).\n'
+            'Sua única função é avaliar se a resposta afirmada pelo sistema está estritamente '
+            'fundamentada na evidência disponível.\n'
+            'NÃO gere explicações, NÃO converse, NÃO justifique e NÃO reescreva o texto.\n\n'
+            f'REGRAS DE AVALIAÇÃO:\n{regras}\n\n'
+            f'PERGUNTA DO USUÁRIO:\n{pergunta}\n\n'
+            f'EVIDÊNCIAS DISPONÍVEIS:\n{evidencia}\n\n'
+            f'RESPOSTA GERADA:\n{resposta}\n\n'
+            'Responda EXCLUSIVAMENTE um objeto JSON válido com este formato:\n'
+            '{\n'
             '  "choice": "apoiada",\n'
             '  "noul": 0.95\n'
-            "}\n"
-            "Onde:\n"
-            '- "choice" deve ser exatamente "apoiada" (se os fatos estiverem na evidência) ou "sem_apoio" (se houver alucinação ou extrapolação).\n'
-            '- "noul" deve ser um float entre 0.00 e 1.00 representando a probabilidade/certeza de fidelidade.'
+            '}\n'
+            'Onde:\n'
+            '- "choice" deve ser exatamente "apoiada" ou "sem_apoio".\n'
+            '- "noul" deve ser um float entre 0.00 e 1.00 representando a probabilidade de fidelidade.'
         )
 
     @staticmethod
@@ -150,52 +153,49 @@ class GeminiDecisionEngine(DecisionEngine):
         usage_metadata: Optional[dict] = None,
         model_name: str = DEFAULT_GEMINI_JUDGE_MODEL,
     ) -> dict:
-        import json
-        import re
-
         texto_limpo = texto.strip()
-        match = re.search(r"\{.*\}", texto_limpo, re.DOTALL)
+        match = re.search(r'\{.*\}', texto_limpo, re.DOTALL)
         if match:
             texto_limpo = match.group(0)
         try:
             dados = json.loads(texto_limpo)
-            choice_raw = str(dados.get("choice", "sem_apoio")).lower().strip()
-            choice = "apoiada" if "apoiada" in choice_raw else "sem_apoio"
-            noul = float(dados.get("noul", 0.0))
+            choice_raw = str(dados.get('choice', 'sem_apoio')).lower().strip()
+            choice = 'apoiada' if 'apoiada' in choice_raw else 'sem_apoio'
+            noul = float(dados.get('noul', 0.0))
             noul = max(0.0, min(1.0, noul))
         except Exception:
-            choice = "sem_apoio"
+            choice = 'sem_apoio'
             noul = 0.0
 
         res: dict[str, Any] = {
-            "model": model_name,
-            "answers": {
-                "veredito": {"type": "choice", "choice": choice},
-                "fidelidade": {"type": "noul", "noul": noul},
+            'model': model_name,
+            'answers': {
+                'veredito': {'type': 'choice', 'choice': choice},
+                'fidelidade': {'type': 'noul', 'noul': noul},
             },
-            "_origem": "gemini",
+            '_origem': 'gemini',
         }
         if usage_metadata and isinstance(usage_metadata, dict):
-            res["usage"] = {
-                "input_tokens": usage_metadata.get("input_tokens", 0),
-                "output_tokens": usage_metadata.get("output_tokens", 0),
+            res['usage'] = {
+                'input_tokens': usage_metadata.get('input_tokens', 0),
+                'output_tokens': usage_metadata.get('output_tokens', 0),
             }
         return res
 
     def predict(self, state: dict, questions: list[dict] | dict) -> dict:
         prompt = self._montar_prompt(state)
-        current_model = getattr(self._llm, "model", getattr(self._llm, "model_name", self.model))
+        current_model = getattr(self._llm, 'model', getattr(self._llm, 'model_name', self.model))
         try:
             llm = self._obter_llm(current_model)
             resp = llm.invoke(prompt)
         except Exception as exc:
             err_str = str(exc)
-            if any(k in err_str for k in ("404", "NOT_FOUND", "504", "DEADLINE_EXCEEDED", "Deadline")):
+            if any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline', '429', 'RESOURCE_EXHAUSTED', 'ResourceExhausted', 'Quota', 'Too Many Requests', 'rate limit')):
                 fallback_mod = FALLBACK_GEMINI_JUDGE_MODEL
                 if current_model != fallback_mod:
                     log.warning(
-                        f"[judge] Falha com modelo principal {current_model} ({exc}). "
-                        f"Tentando modelo de contingência {fallback_mod}..."
+                        f'[judge] Falha com modelo principal {current_model} ({exc}). '
+                        f'Tentando modelo de contingência {fallback_mod}...'
                     )
                     current_model = fallback_mod
                     llm = self._obter_llm(current_model)
@@ -204,26 +204,26 @@ class GeminiDecisionEngine(DecisionEngine):
                     raise
             else:
                 raise
-        conteudo = getattr(resp, "content", "")
+        conteudo = getattr(resp, 'content', '')
         if isinstance(conteudo, list):
-            conteudo = "".join(b.get("text", "") for b in conteudo if isinstance(b, dict))
-        usage = getattr(resp, "usage_metadata", None)
+            conteudo = ''.join(b.get('text', '') for b in conteudo if isinstance(b, dict))
+        usage = getattr(resp, 'usage_metadata', None)
         return self._parsear_resposta(str(conteudo), usage_metadata=usage, model_name=current_model)
 
     async def apredict(self, state: dict, questions: list[dict] | dict) -> dict:
         prompt = self._montar_prompt(state)
-        current_model = getattr(self._llm, "model", getattr(self._llm, "model_name", self.model))
+        current_model = getattr(self._llm, 'model', getattr(self._llm, 'model_name', self.model))
         try:
             llm = self._obter_llm(current_model)
             resp = await llm.ainvoke(prompt)
         except Exception as exc:
             err_str = str(exc)
-            if any(k in err_str for k in ("404", "NOT_FOUND", "504", "DEADLINE_EXCEEDED", "Deadline")):
+            if any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline', '429', 'RESOURCE_EXHAUSTED', 'ResourceExhausted', 'Quota', 'Too Many Requests', 'rate limit')):
                 fallback_mod = FALLBACK_GEMINI_JUDGE_MODEL
                 if current_model != fallback_mod:
                     log.warning(
-                        f"[judge] Falha com modelo principal {current_model} ({exc}). "
-                        f"Tentando modelo de contingência {fallback_mod}..."
+                        f'[judge] Falha com modelo principal {current_model} ({exc}). '
+                        f'Tentando modelo de contingência {fallback_mod}...'
                     )
                     current_model = fallback_mod
                     llm = self._obter_llm(current_model)
@@ -232,72 +232,11 @@ class GeminiDecisionEngine(DecisionEngine):
                     raise
             else:
                 raise
-        conteudo = getattr(resp, "content", "")
+        conteudo = getattr(resp, 'content', '')
         if isinstance(conteudo, list):
-            conteudo = "".join(b.get("text", "") for b in conteudo if isinstance(b, dict))
-        usage = getattr(resp, "usage_metadata", None)
+            conteudo = ''.join(b.get('text', '') for b in conteudo if isinstance(b, dict))
+        usage = getattr(resp, 'usage_metadata', None)
         return self._parsear_resposta(str(conteudo), usage_metadata=usage, model_name=current_model)
-
-
-class LayaDecisionEngine(DecisionEngine):
-    """Cliente HTTP para o motor de decisão System One do Laya Studio (`laya.studio`) [Legado].
-
-    Mantido como classe secundária para compatibilidade retroativa e testes pontuais.
-    """
-
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        api_url: Optional[str] = None,
-        model: Optional[str] = None,
-        timeout: float = 15.0,
-    ):
-        self.api_key = (api_key if api_key is not None else os.getenv('LAYA_API_KEY', '')).strip()
-        self.api_url = (api_url or os.getenv('LAYA_API_URL') or DEFAULT_LAYA_API_URL).strip()
-        self.model = (model or os.getenv('LAYA_MODEL') or DEFAULT_LAYA_MODEL).strip()
-        self.timeout = timeout
-
-    @staticmethod
-    def _normalizar_questions(questions: list[dict] | dict) -> dict[str, dict]:
-        if isinstance(questions, list):
-            return {
-                q.get('id', str(i)): {k: v for k, v in q.items() if k != 'id'}
-                for i, q in enumerate(questions)
-            }
-        return dict(questions)
-
-    def _montar_request(self, state: dict, questions: list[dict] | dict) -> tuple[dict[str, str], dict[str, Any]]:
-        if not self.api_key:
-            raise LayaMissingKeyError('LAYA_API_KEY não configurada.')
-
-        headers = {
-            'Authorization': f'Bearer {self.api_key}',
-            'Content-Type': 'application/json',
-        }
-        payload: dict[str, Any] = {
-            'model': self.model,
-            'state': state,
-            'questions': self._normalizar_questions(questions),
-        }
-        return headers, payload
-
-    def predict(self, state: dict, questions: list[dict] | dict) -> dict:
-        headers, payload = self._montar_request(state, questions)
-        with httpx.Client(timeout=self.timeout) as client:
-            response = client.post(self.api_url, headers=headers, json=payload)
-            response.raise_for_status()
-            res = response.json()
-            res["_origem"] = "laya"
-            return res
-
-    async def apredict(self, state: dict, questions: list[dict] | dict) -> dict:
-        headers, payload = self._montar_request(state, questions)
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(self.api_url, headers=headers, json=payload)
-            response.raise_for_status()
-            res = response.json()
-            res["_origem"] = "laya"
-            return res
 
 
 class JudgeAgent(BaseAgent):
@@ -317,13 +256,12 @@ class JudgeAgent(BaseAgent):
         model: Optional[str] = None,
         timeout: float = 10.0,
         max_retries: int = 1,
-        # Parâmetros legados mantidos para compatibilidade retroativa
-        api_key: Optional[str] = None,
-        api_url: Optional[str] = None,
+        fast_path: bool = True,
     ):
         super().__init__(llm, system_prompt, tools or [])
         self.limiar_noul = limiar_noul
         self.frase_segura = frase_segura
+        self.fast_path = fast_path
 
         if engine is not None:
             self._engine: DecisionEngine = engine
@@ -434,18 +372,18 @@ class JudgeAgent(BaseAgent):
 
     def _avaliar(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float, str]:
         contexto, questions = self._construir_payload_avaliacao(pergunta, resposta, evidencia)
-        origem = "gemini"
+        origem = 'gemini'
         try:
             resultado = self._engine.predict(contexto, questions)
-            origem = resultado.get("_origem", "gemini")
+            origem = resultado.get('_origem', 'gemini')
         except Exception as exc:
             if self._fallback_engine is not None:
                 log.warning(
-                    f"[judge] Falha no motor principal do Juiz ({exc}). "
-                    "Ativando fallback de contingência..."
+                    f'[judge] Falha no motor principal do Juiz ({exc}). '
+                    'Ativando fallback de contingência...'
                 )
                 resultado = self._fallback_engine.predict(contexto, questions)
-                origem = resultado.get("_origem", "fallback")
+                origem = resultado.get('_origem', 'fallback')
             else:
                 raise
         choice, noul = self._extrair_veredito(resultado)
@@ -453,26 +391,26 @@ class JudgeAgent(BaseAgent):
 
     async def _avaliar_async(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float, str]:
         contexto, questions = self._construir_payload_avaliacao(pergunta, resposta, evidencia)
-        origem = "gemini"
+        origem = 'gemini'
         try:
             apredict_fn = getattr(self._engine, 'apredict', None)
             if apredict_fn is not None and inspect.iscoroutinefunction(apredict_fn):
                 resultado = await apredict_fn(contexto, questions)
             else:
                 resultado = self._engine.predict(contexto, questions)
-            origem = resultado.get("_origem", "gemini")
+            origem = resultado.get('_origem', 'gemini')
         except Exception as exc:
             if self._fallback_engine is not None:
                 log.warning(
-                    f"[judge] Falha no motor principal do Juiz ({exc}). "
-                    "Ativando fallback de contingência..."
+                    f'[judge] Falha no motor principal do Juiz ({exc}). '
+                    'Ativando fallback de contingência...'
                 )
                 apredict_fb = getattr(self._fallback_engine, 'apredict', None)
                 if apredict_fb is not None and inspect.iscoroutinefunction(apredict_fb):
                     resultado = await apredict_fb(contexto, questions)
                 else:
                     resultado = self._fallback_engine.predict(contexto, questions)
-                origem = resultado.get("_origem", "fallback")
+                origem = resultado.get('_origem', 'fallback')
             else:
                 raise
         choice, noul = self._extrair_veredito(resultado)
@@ -485,9 +423,9 @@ class JudgeAgent(BaseAgent):
         resposta: str,
         ultima_ai_msg: Any,
         rotulo_erro: Optional[str] = None,
-        origem: str = "gemini",
+        origem: str = 'gemini',
     ) -> dict:
-        sufixo_origem = f" ({origem})" if origem not in ("gemini", "laya") else ""
+        sufixo_origem = f' ({origem})' if origem != 'gemini' else ''
         if rotulo_erro:
             aprovado = False
             rotulo = rotulo_erro
@@ -513,7 +451,7 @@ class JudgeAgent(BaseAgent):
             }
 
         msg_dict: dict[str, Any] = {'role': 'assistant', 'content': self.frase_segura}
-        msg_id = getattr(ultima_ai_msg, 'id', None)
+        msg_id = getattr(ultima_ai_msg, 'id', None) if not isinstance(ultima_ai_msg, dict) else ultima_ai_msg.get('id')
         if msg_id:
             msg_dict['id'] = msg_id
         return {
@@ -526,6 +464,29 @@ class JudgeAgent(BaseAgent):
             'frase_original': resposta,
         }
 
+    def _eh_fast_path(self, pergunta: str, resposta: str, state: GraphState) -> bool:
+        """Determina se a resposta do turno é uma saudação, esclarecimento ou resposta curta
+        sem nenhuma alegação factual que demande inferência no motor System One do Juiz."""
+        if not resposta:
+            return True
+
+        # Se houver números, moedas, pesos, distâncias ou citações de lei, NÃO é fast path
+        if _PADROES_DADOS_FACTUAIS.search(resposta):
+            return False
+
+        # Se a resposta contiver padrão de saudação/cortesia/ajuda e tiver tamanho razoável (< 300 chars)
+        if len(resposta) < 300 and _PADROES_SAUDACAO_OU_CORTESIA.search(resposta):
+            return True
+
+        # Se nenhum especialista foi chamado nem há snapshots (resposta direta do roteador) e sem fatos
+        tem_especialista = bool(state.get('especialista_outputs'))
+        tem_snapshot = bool(state.get('snapshots'))
+        tem_rag = bool(state.get('chunk_contexto'))
+        if not tem_especialista and not tem_snapshot and not tem_rag and len(resposta) < 250:
+            return True
+
+        return False
+
     def run(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
         pergunta, resposta, evidencia, ultima_ai_msg = self._coletar_dados_turno(state)
         if not resposta:
@@ -534,11 +495,21 @@ class JudgeAgent(BaseAgent):
                 'passou_juiz': True,
             }
 
+        if self.fast_path and self._eh_fast_path(pergunta, resposta, state):
+            log.info(f'[judge] Fast-Path ativado para resposta curta/saudação ({resposta[:50]!r}). Aprovada em 0ms.')
+            return self._formatar_saida(
+                choice='apoiada',
+                noul=1.0,
+                resposta=resposta,
+                ultima_ai_msg=ultima_ai_msg,
+                origem='fast_path',
+            )
+
         rotulo_erro: Optional[str] = None
-        origem = "gemini"
+        origem = 'gemini'
         try:
             choice, noul, origem = self._avaliar(pergunta, resposta, evidencia)
-        except (GeminiMissingKeyError, LayaMissingKeyError):
+        except GeminiMissingKeyError:
             log.warning('[judge] Chave de API ausente. Aplicando fail-safe (sem_chave).')
             choice, noul, rotulo_erro = 'sem_chave', 0.0, 'sem_chave'
         except httpx.HTTPStatusError as exc:
@@ -549,7 +520,9 @@ class JudgeAgent(BaseAgent):
             log.error(f'[judge] Falha na inferência do Juiz: {exc}. Aplicando fail-safe.')
             choice, noul, rotulo_erro = 'erro', 0.0, 'erro'
 
-        return self._formatar_saida(choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro, origem=origem)
+        return self._formatar_saida(
+            choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro, origem=origem
+        )
 
     async def arun(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
         pergunta, resposta, evidencia, ultima_ai_msg = self._coletar_dados_turno(state)
@@ -559,11 +532,21 @@ class JudgeAgent(BaseAgent):
                 'passou_juiz': True,
             }
 
+        if self.fast_path and self._eh_fast_path(pergunta, resposta, state):
+            log.info(f'[judge] Fast-Path ativado para resposta curta/saudação ({resposta[:50]!r}). Aprovada em 0ms.')
+            return self._formatar_saida(
+                choice='apoiada',
+                noul=1.0,
+                resposta=resposta,
+                ultima_ai_msg=ultima_ai_msg,
+                origem='fast_path',
+            )
+
         rotulo_erro: Optional[str] = None
-        origem = "gemini"
+        origem = 'gemini'
         try:
             choice, noul, origem = await self._avaliar_async(pergunta, resposta, evidencia)
-        except (GeminiMissingKeyError, LayaMissingKeyError):
+        except GeminiMissingKeyError:
             log.warning('[judge] Chave de API ausente. Aplicando fail-safe (sem_chave).')
             choice, noul, rotulo_erro = 'sem_chave', 0.0, 'sem_chave'
         except httpx.HTTPStatusError as exc:
@@ -574,4 +557,6 @@ class JudgeAgent(BaseAgent):
             log.error(f'[judge] Falha na inferência do Juiz: {exc}. Aplicando fail-safe.')
             choice, noul, rotulo_erro = 'erro', 0.0, 'erro'
 
-        return self._formatar_saida(choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro, origem=origem)
+        return self._formatar_saida(
+            choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro, origem=origem
+        )

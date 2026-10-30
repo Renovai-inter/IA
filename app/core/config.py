@@ -30,10 +30,6 @@ class Settings(BaseSettings):
     LANGSMITH_API_KEY: str | None = None
     HF_TOKEN: str | None = None
 
-    LAYA_API_KEY: str = ''
-    LAYA_API_URL: str = 'https://api.laya.studio/v1/systemone'
-    LAYA_MODEL: str = 'multilingual'
-
     DATABASE_URL: str
     QDRANT_URL: str
     REDIS_URL: str = ''
@@ -61,12 +57,6 @@ class Settings(BaseSettings):
 
     def model_post_init(self, __context: Any) -> None:
         import os
-        if self.LAYA_API_KEY:
-            os.environ['LAYA_API_KEY'] = self.LAYA_API_KEY
-        if self.LAYA_API_URL:
-            os.environ['LAYA_API_URL'] = self.LAYA_API_URL
-        if self.LAYA_MODEL:
-            os.environ['LAYA_MODEL'] = self.LAYA_MODEL
         if self.LANGSMITH_TRACING:
             os.environ['LANGSMITH_TRACING'] = 'true'
             if self.LANGSMITH_API_KEY:
@@ -86,15 +76,15 @@ class Settings(BaseSettings):
 
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'router_agent':           ('GROQ',   'LOW'),
-        'faq_agent':              ('GEMINI', 'MEDIUM'),
+        'faq_agent':              ('GEMINI', 'HIGH'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
-        'recomendacao_agent':     ('GEMINI', 'HIGH'),
+        'recomendacao_agent':     ('GROQ',   'HIGH'),
         'orchestrator_agent':     ('GROQ',   'MEDIUM'),
         'resumo_agent':           ('GROQ',   'LOW'),
         'guardrail_entrada':      ('GROQ',   'LOW'),
         'guardrail_saida':        ('GROQ',   'LOW'),
         'coleta_agent':           ('GEMINI', 'HIGH'),
-        'financeiro_agent':       ('GEMINI', 'HIGH'),
+        'financeiro_agent':       ('GROQ',   'HIGH'),
         'judge':                  ('GEMINI', 'HIGH'),
     }
     GUARDRAIL_ROTAS_REVISAO: Tuple[str, ...] = ('financeiro',)

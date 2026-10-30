@@ -1,4 +1,4 @@
-"""Testes unitários do JudgeAgent e do LayaDecisionEngine (Laya Studio API via LAYA_API_KEY)."""
+"""Testes unitários do JudgeAgent e do GeminiDecisionEngine (System One discriminativo)."""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -10,14 +10,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.agents.judge_agent import (
-    DEFAULT_LAYA_API_URL,
-    DEFAULT_LAYA_MODEL,
     FRASE_SEGURA,
     LIMIAR_NOUL_PADRAO,
     DecisionEngine,
+    GeminiDecisionEngine,
+    GeminiMissingKeyError,
     JudgeAgent,
-    LayaDecisionEngine,
-    LayaMissingKeyError,
 )
 from app.graph.builder import GraphBuilder
 from app.graph.registro import RegistroEspecialista
@@ -27,7 +25,7 @@ from tests.support import StubAgent, StubRepository
 
 
 class StubDecisionEngine(DecisionEngine):
-    """Dublê de testes para o DecisionEngine, simulando o retorno da API Laya Studio."""
+    """Dublê de testes para o DecisionEngine, simulando o retorno estruturado System One."""
 
     def __init__(self, choice: str = "apoiada", noul: float = 0.92):
         self.choice = choice
@@ -35,10 +33,10 @@ class StubDecisionEngine(DecisionEngine):
         self.chamadas: list[tuple[dict, dict]] = []
 
     def predict(self, state: dict, questions: list[dict] | dict) -> dict:
-        q_norm = LayaDecisionEngine._normalizar_questions(questions)
-        self.chamadas.append((state, q_norm))
+        self.chamadas.append((state, questions))
         return {
-            "model": DEFAULT_LAYA_MODEL,
+            "model": "gemini-3.5-flash-lite",
+            "_origem": "gemini",
             "answers": {
                 "veredito": {
                     "type": "choice",
@@ -58,87 +56,10 @@ class StubDecisionEngine(DecisionEngine):
         }
 
 
-def test_laya_decision_engine_monta_payload_e_headers_corretos(monkeypatch: pytest.MonkeyPatch):
-    capturado: dict = {}
-
-    class _FakeResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {
-                "model": "multilingual",
-                "answers": {
-                    "veredito": {"type": "choice", "choice": "apoiada", "confidence": 0.91},
-                    "fidelidade": {"type": "noul", "noul": 0.93},
-                },
-            }
-
-    class _FakeClient:
-        def __init__(self, timeout=None):
-            capturado["timeout"] = timeout
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def post(self, url, headers=None, json=None):
-            capturado["url"] = url
-            capturado["headers"] = headers
-            capturado["json"] = json
-            return _FakeResponse()
-
-    monkeypatch.setattr(httpx, "Client", _FakeClient)
-
-    engine = LayaDecisionEngine(api_key="lsk_live_teste_123")
-    state_in = {"pergunta": "quanto de papelão?", "resposta": "3.450 kg", "evidencia": "3450"}
-    questions_in = {
-        "veredito": {
-            "type": "choice",
-            "instructions": "Sustentada?",
-            "criteria": {"apoiada": "sim", "parcial": "parcial", "sem_apoio": "não"},
-        },
-        "fidelidade": {"type": "noul", "instructions": "Fiel?"},
-    }
-
-    res = engine.predict(state_in, questions_in)
-
-    assert capturado["url"] == DEFAULT_LAYA_API_URL
-    assert capturado["headers"]["Authorization"] == "Bearer lsk_live_teste_123"
-    assert capturado["json"]["model"] == DEFAULT_LAYA_MODEL
-    assert capturado["json"]["state"] == state_in
-    assert "veredito" in capturado["json"]["questions"]
-    assert "fidelidade" in capturado["json"]["questions"]
-    assert res["answers"]["veredito"]["choice"] == "apoiada"
-    assert res["answers"]["fidelidade"]["noul"] == 0.93
-
-
-def test_laya_decision_engine_sem_chave_dispara_erro_e_judge_aplica_failsafe(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("LAYA_API_KEY", raising=False)
-    engine = LayaDecisionEngine(api_key="")
-    with pytest.raises(LayaMissingKeyError):
-        engine.predict({"pergunta": "oi"}, {"veredito": {"type": "noul", "instructions": "ok"}})
-
-    agent = JudgeAgent(engine=engine)
-    state: GraphState = {
-        "messages": [
-            HumanMessage(content="qual o saldo?"),
-            AIMessage(content="O saldo é R$ 10.000,00."),
-        ],
-    }
-    resultado = agent.run(state, config={})
-    assert resultado["passou_juiz"] is False
-    assert resultado["veredito_juiz"] == "sem_chave"
-    assert resultado["agentes_chamados"] == ["judge:sem_chave"]
-    assert resultado["messages"][0]["content"] == FRASE_SEGURA
-
-
-def test_judge_agent_trata_erro_http_da_api_laya(monkeypatch: pytest.MonkeyPatch):
+def test_judge_agent_trata_erro_http_do_motor_de_decisao(monkeypatch: pytest.MonkeyPatch):
     class _FailingEngine(DecisionEngine):
         def predict(self, state: dict, questions: list[dict] | dict) -> dict:
-            req = httpx.Request("POST", DEFAULT_LAYA_API_URL)
+            req = httpx.Request("POST", "https://api.generativelanguage.googleapis.com")
             resp = httpx.Response(429, request=req)
             raise httpx.HTTPStatusError("Rate limit exceeded", request=req, response=resp)
 
@@ -446,4 +367,29 @@ def test_gemini_decision_engine_fallback_em_erro_transiente(monkeypatch: pytest.
     assert "gemini-2.5-flash" in chamadas_modelos
     assert res["answers"]["veredito"]["choice"] == "apoiada"
     assert res["model"] == "gemini-2.5-flash"
+
+
+def test_judge_agent_fast_path_aprova_saudacao_em_0ms():
+    """Valida que saudações e respostas curtas sem alegações factuais ativam o Fast-Path sem chamar o LLM."""
+    stub_engine = StubDecisionEngine(choice="sem_apoio", noul=0.10)
+    agent = JudgeAgent(engine=stub_engine, fast_path=True)
+
+    state: GraphState = {
+        "messages": [
+            HumanMessage(content="olá, bom dia"),
+            AIMessage(content="Olá! Como posso ajudar você hoje no Renovaí?"),
+        ],
+        "snapshots": {},
+        "especialista_outputs": {},
+        "agentes_chamados": ["router"],
+    }
+
+    resultado = agent.run(state, config={})
+    assert resultado["passou_juiz"] is True
+    assert resultado["veredito_juiz"] == "apoiada"
+    assert resultado["score_juiz"] == 1.0
+    assert "messages" not in resultado
+    # O motor discriminativo NÃO deve ser acionado (0 chamadas, 0ms de LLM)
+    assert len(stub_engine.chamadas) == 0
+    assert "fast_path" in resultado["motivo_juiz"]
 

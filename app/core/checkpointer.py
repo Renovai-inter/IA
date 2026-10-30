@@ -67,8 +67,11 @@ class RenovaiRedisSerializer(JsonPlusRedisSerializer):
         return super()._revive_if_needed(obj)
 
 
-def criar_serializer() -> RenovaiRedisSerializer:
+def _criar_serializer() -> RenovaiRedisSerializer:
     return RenovaiRedisSerializer()
+
+
+criar_serializer = _criar_serializer
 
 
 # Patch idempotente no JsonPlusRedisSerializer e no BaseRedisSaver para que

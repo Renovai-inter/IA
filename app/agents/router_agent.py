@@ -8,12 +8,12 @@ from app.graph.state import GraphState
 
 
 def _extrair_rotas_protocolo(texto: str) -> list[str]:
-    texto_strip = (texto or "").strip()
+    texto_strip = (texto or '').strip()
     if not texto_strip:
         return []
 
     candidatos_json: list[str] = []
-    if "```" in texto_strip:
+    if '```' in texto_strip:
         for match in re.finditer(r"```(?:json)?\s*([\s\S]*?)\s*```", texto_strip, re.IGNORECASE):
             candidatos_json.append(match.group(1).strip())
 
@@ -25,15 +25,15 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
         try:
             dados = json.loads(bloco)
             if isinstance(dados, dict):
-                for chave in ("ROUTES", "ROUTE", "routes", "route"):
+                for chave in ('ROUTES', 'ROUTE', 'routes', 'route'):
                     if chave in dados:
                         val = dados[chave]
                         rotas: list[str] = []
                         if isinstance(val, list):
                             rotas = [str(r).strip().strip("'\"") for r in val if str(r).strip()]
                         elif isinstance(val, str):
-                            val_clean = val.strip().strip("[]")
-                            rotas = [r.strip().strip("'\"") for r in val_clean.split(",") if r.strip().strip("'\"")]
+                            val_clean = val.strip().strip('[]')
+                            rotas = [r.strip().strip("'\"") for r in val_clean.split(',') if r.strip().strip("'\"")]
                         if rotas:
                             return [r for r in rotas if r not in ('fim', 'fim_direto')]
         except Exception:
@@ -56,7 +56,7 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
         return [r for r in rotas_linhas if r not in ('fim', 'fim_direto')]
 
     match_inline = re.search(
-        r"""(?:["'`*]*\bROUTES?\b["'`*]*)\s*[:=]\s*(\[[^\]]*\]|"[^"\n]+"|'[^'\n]+'|[^\s,;\n]+(?:,\s*[^\s,;\n]+)*)""",
+        r"""(?:["'`*]*\bROUTES?\b["'`*]*)\s*[:=]\s*(\[[^\]]*\]|'[^'\n]+"|'[^'\n]+'|[^\s,;\n]+(?:,\s*[^\s,;\n]+)*)""",
         texto,
     )
     if match_inline:
@@ -79,6 +79,25 @@ class RouterAgent(BaseAgent):
             system_prompt=system_prompt,
             tools=self.tools,
         )
+
+    def _montar_mensagens_llm(self, state: GraphState) -> list:
+        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
+        mensagens: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
+        for m in self._mensagens_recentes(state):
+            if isinstance(m, BaseMessage):
+                mensagens.append(m)
+            elif isinstance(m, dict):
+                role = str(m.get('role') or m.get('type') or '')
+                texto = self._obter_texto_mensagem(m)
+                if role in ('human', 'user'):
+                    mensagens.append(HumanMessage(content=texto))
+                elif role in ('ai', 'assistant'):
+                    mensagens.append(AIMessage(content=texto))
+                elif role == 'system':
+                    mensagens.append(SystemMessage(content=texto))
+                else:
+                    mensagens.append(HumanMessage(content=texto))
+        return mensagens
 
     def _processar_resultado(self, resultado: dict) -> dict:
         texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
@@ -103,6 +122,11 @@ class RouterAgent(BaseAgent):
         }
 
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
+        if self.llm is not None and not self.tools:
+            msgs = self._montar_mensagens_llm(state)
+            resposta = self.llm.invoke(msgs, config=self._config_interno(config))
+            return self._processar_resultado({'messages': [resposta]})
+
         resultado = self._runnable.invoke(
             {'messages': self._mensagens_recentes(state)},
             config=self._config_interno(config)
@@ -110,6 +134,11 @@ class RouterAgent(BaseAgent):
         return self._processar_resultado(resultado)
 
     async def arun(self, state: GraphState, config: RunnableConfig) -> dict:
+        if self.llm is not None and not self.tools:
+            msgs = self._montar_mensagens_llm(state)
+            resposta = await self.llm.ainvoke(msgs, config=self._config_interno(config))
+            return self._processar_resultado({'messages': [resposta]})
+
         resultado = await self._runnable.ainvoke(
             {'messages': self._mensagens_recentes(state)},
             config=self._config_interno(config)

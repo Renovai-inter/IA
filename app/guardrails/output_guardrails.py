@@ -18,7 +18,7 @@ from typing import Optional
 from app.guardrails.pii import MapaPII, redigir, resolver_tokens
 
 MENSAGEM_FALHA_FORMATACAO = (
-    "Não consegui montar a resposta agora. Pode repetir a pergunta, de outra forma se possível?"
+    'Não consegui montar a resposta agora. Pode repetir a pergunta, de outra forma se possível?'
 )
 
 _PROTOCOLO_INTERNO = re.compile(
@@ -28,13 +28,13 @@ _PROTOCOLO_INTERNO = re.compile(
 
 
 def _parece_json_de_especialista(texto: str) -> bool:
-    bruto = texto.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-    if not (bruto.startswith("{") and bruto.endswith("}")):
+    bruto = texto.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip()
+    if not (bruto.startswith('{') and bruto.endswith('}')):
         return False
     try:
         dados = json.loads(bruto)
         if isinstance(dados, dict):
-            return any(k in dados for k in ("dominio", "ROUTE", "ROUTES", "route", "routes", "PERGUNTA_ORIGINAL"))
+            return any(k in dados for k in ('dominio', 'ROUTE', 'ROUTES', 'route', 'routes', 'PERGUNTA_ORIGINAL'))
         return False
     except ValueError:
         return False
@@ -45,10 +45,10 @@ def higienizar(texto: str, mapa_pii: MapaPII) -> tuple[str, Optional[str]]:
     Devolve (texto_final, motivo_de_correcao | None).
     """
     if _PROTOCOLO_INTERNO.search(texto) or _parece_json_de_especialista(texto):
-        return MENSAGEM_FALHA_FORMATACAO, "vazamento_protocolo"
+        return MENSAGEM_FALHA_FORMATACAO, 'vazamento_protocolo'
 
     limpo = resolver_tokens(redigir(texto), mapa_pii)
-    return limpo, ("pii_redigida" if limpo != texto else None)
+    return limpo, ('pii_redigida' if limpo != texto else None)
 
 
 # ------------------------------------------------------------------------------
@@ -56,25 +56,25 @@ def higienizar(texto: str, mapa_pii: MapaPII) -> tuple[str, Optional[str]]:
 # ------------------------------------------------------------------------------
 AVISO_PROMESSA_FINANCEIRA = (
     "\n\n_Valores calculados a partir dos registros atuais do sistema. O valor final de "
-    "rateio/pagamento depende do fechamento do período e da confirmação da cooperativa._"
+    'rateio/pagamento depende do fechamento do período e da confirmação da cooperativa._'
 )
 
 MENSAGEM_ORIENTACAO_PERIGOSA = (
-    "Não consigo orientar esse procedimento por aqui. Para manuseio ou descarte de resíduos "
-    "perigosos, siga as normas da sua cooperativa e procure um ponto de descarte licenciado."
+    'Não consigo orientar esse procedimento por aqui. Para manuseio ou descarte de resíduos '
+    'perigosos, siga as normas da sua cooperativa e procure um ponto de descarte licenciado.'
 )
 
 _VEREDITO_RE = re.compile(r"^\s*VEREDITO\s*=\s*([A-Z_]+)", re.MULTILINE)
 
 
 def interpretar_veredito(texto_llm: str) -> str:
-    m = _VEREDITO_RE.search(texto_llm or "")
-    return m.group(1) if m else "OK"
+    m = _VEREDITO_RE.search(texto_llm or '')
+    return m.group(1) if m else 'OK'
 
 
 def aplicar_veredito(texto: str, veredito: str) -> tuple[str, Optional[str]]:
-    if veredito == "PROMESSA_FINANCEIRA":
-        return texto + AVISO_PROMESSA_FINANCEIRA, "aviso_financeiro"
-    if veredito == "ORIENTACAO_PERIGOSA":
-        return MENSAGEM_ORIENTACAO_PERIGOSA, "orientacao_perigosa"
+    if veredito == 'PROMESSA_FINANCEIRA':
+        return texto + AVISO_PROMESSA_FINANCEIRA, 'aviso_financeiro'
+    if veredito == 'ORIENTACAO_PERIGOSA':
+        return MENSAGEM_ORIENTACAO_PERIGOSA, 'orientacao_perigosa'
     return texto, None
