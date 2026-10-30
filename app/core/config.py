@@ -95,6 +95,7 @@ class Settings(BaseSettings):
         'guardrail_saida':        ('GROQ',   'LOW'),
         'coleta_agent':           ('GEMINI', 'HIGH'),
         'financeiro_agent':       ('GEMINI', 'HIGH'),
+        'judge':                  ('GEMINI', 'HIGH'),
     }
     GUARDRAIL_ROTAS_REVISAO: Tuple[str, ...] = ('financeiro',)
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {

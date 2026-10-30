@@ -1,11 +1,11 @@
-"""Agente Juiz (JudgeAgent) — Controle de Alucinação e Verificação de Evidências via Laya Studio API.
+"""Agente Juiz (JudgeAgent) — Controle de Alucinação e Verificação de Evidências via Gemini (System One).
 
 Implementa um modelo de decisão discriminativo ('System One') no portal terminal do grafo,
-consumindo a API oficial do Laya Studio (`POST https://api.laya.studio/v1/systemone`) via `LAYA_API_KEY`.
-Avalia a resposta final (orquestrada/sintetizada) contra as evidências factuais do turno
+utilizando o Google Gemini com temperatura 0.0, saída estritamente estruturada em JSON e
+thinking de baixa latência para validar a resposta final contra as evidências factuais do turno
 (snapshots de banco, saídas de especialistas e chunks RAG do Qdrant/PNRS).
 
-Não redige texto livre, não carrega pesos pesados em RAM local e não reinjeta ciclos lentos de reflexão.
+Não redige texto livre, não reinjeta ciclos lentos de reflexão e finaliza a decisão em frações de segundo.
 Se a resposta for fiel (`choice == 'apoiada'` e `noul >= limiar`), o texto original segue intacto.
 Se a resposta for infundada, extrapolar a evidência, ou ocorrer falha/ausência de chave, ela é
 substituída de forma determinística pela frase segura pré-definida (`FRASE_SEGURA`).
@@ -15,6 +15,7 @@ from __future__ import annotations
 import inspect
 import logging
 import os
+import warnings
 from typing import Any, Optional
 
 import httpx
@@ -23,8 +24,15 @@ from langchain_core.runnables import RunnableConfig
 from app.agents.base import BaseAgent
 from app.graph.state import GraphState
 
+# Silencia aviso de automatic function calling gerado internamente pelo SDK google-genai
+warnings.filterwarnings("ignore", message=".*automatic function calling.*")
+
 log = logging.getLogger('renovai.judge')
 
+DEFAULT_GEMINI_JUDGE_MODEL = 'gemini-3.5-flash-lite'
+FALLBACK_GEMINI_JUDGE_MODEL = 'gemini-2.5-flash'
+
+# Constantes legadas mantidas para retrocompatibilidade
 DEFAULT_LAYA_API_URL = 'https://api.laya.studio/v1/systemone'
 DEFAULT_LAYA_MODEL = 'multilingual'
 
@@ -46,8 +54,12 @@ REGRAS_AVALIACAO = (
 )
 
 
+class GeminiMissingKeyError(RuntimeError):
+    """Exceção disparada quando GEMINI_API_KEY não está configurada."""
+
+
 class LayaMissingKeyError(RuntimeError):
-    """Exceção disparada quando LAYA_API_KEY não está configurada."""
+    """Exceção disparada quando LAYA_API_KEY não está configurada (legado)."""
 
 
 class DecisionEngine:
@@ -60,12 +72,177 @@ class DecisionEngine:
         return self.predict(state, questions)
 
 
-class LayaDecisionEngine(DecisionEngine):
-    """Cliente HTTP para o motor de decisão System One do Laya Studio (`laya.studio`).
+class GeminiDecisionEngine(DecisionEngine):
+    """Motor de decisão System One principal baseado no Gemini (temperatura 0.0).
 
-    Compatível com o protocolo `/v1/systemone` (JEV / Laya Studio), enviando `model`,
-    `state` e `questions` (`choice` e `noul`) e recebendo probabilidades calibradas
-    sem carregar PyTorch ou pesos do Hugging Face em memória RAM local.
+    Atua exclusivamente como classificador discriminativo estruturado (sem geração de texto livre),
+    respeitando o protocolo System One e retornando probabilidades calibradas de 'choice' e 'noul'.
+    Otimizado para baixa latência (thinking='low', max_retries=1, timeout controlado).
+    """
+
+    def __init__(
+        self,
+        llm: Any = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: float = 10.0,
+        max_retries: int = 1,
+    ):
+        self.api_key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
+        self.model = (model or DEFAULT_GEMINI_JUDGE_MODEL).strip()
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self._llm = llm
+
+    def _obter_llm(self, model_name: Optional[str] = None):
+        target_model = model_name or self.model
+        if self._llm is not None:
+            # Se já há um LLM injetado (via AGENT_LLM_MAP) e não estamos pedindo fallback
+            if model_name is None or getattr(self._llm, "model", None) == target_model:
+                return self._llm
+
+        if not self.api_key:
+            raise GeminiMissingKeyError("GEMINI_API_KEY não configurada para o GeminiDecisionEngine.")
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        from app.llms.tuning import kwargs_suportados
+
+        kwargs = kwargs_suportados(
+            ChatGoogleGenerativeAI,
+            thinking_level="low",
+            max_retries=self.max_retries,
+            timeout=self.timeout,
+            max_output_tokens=256,
+            response_mime_type="application/json",
+        )
+        return ChatGoogleGenerativeAI(
+            model=target_model,
+            google_api_key=self.api_key,
+            temperature=0.0,
+            **kwargs,
+        )
+
+    def _montar_prompt(self, state: dict) -> str:
+        pergunta = state.get("pergunta", "")
+        resposta = state.get("resposta", "")
+        evidencia = state.get("evidencia", "")
+        regras = state.get("regras", REGRAS_AVALIACAO)
+        return (
+            "Você é um classificador discriminativo estrito de fidelidade factual (System One).\n"
+            "Sua única função é avaliar se a resposta afirmada pelo sistema está estritamente fundamentada na evidência disponível.\n"
+            "NÃO gere explicações, NÃO converse, NÃO justifique e NÃO reescreva o texto.\n\n"
+            f"REGRAS DE AVALIAÇÃO:\n{regras}\n\n"
+            f"PERGUNTA DO USUÁRIO:\n{pergunta}\n\n"
+            f"EVIDÊNCIAS DISPONÍVEIS:\n{evidencia}\n\n"
+            f"RESPOSTA GERADA:\n{resposta}\n\n"
+            "Responda EXCLUSIVAMENTE um objeto JSON válido com este formato:\n"
+            "{\n"
+            '  "choice": "apoiada",\n'
+            '  "noul": 0.95\n'
+            "}\n"
+            "Onde:\n"
+            '- "choice" deve ser exatamente "apoiada" (se os fatos estiverem na evidência) ou "sem_apoio" (se houver alucinação ou extrapolação).\n'
+            '- "noul" deve ser um float entre 0.00 e 1.00 representando a probabilidade/certeza de fidelidade.'
+        )
+
+    @staticmethod
+    def _parsear_resposta(
+        texto: str,
+        usage_metadata: Optional[dict] = None,
+        model_name: str = DEFAULT_GEMINI_JUDGE_MODEL,
+    ) -> dict:
+        import json
+        import re
+
+        texto_limpo = texto.strip()
+        match = re.search(r"\{.*\}", texto_limpo, re.DOTALL)
+        if match:
+            texto_limpo = match.group(0)
+        try:
+            dados = json.loads(texto_limpo)
+            choice_raw = str(dados.get("choice", "sem_apoio")).lower().strip()
+            choice = "apoiada" if "apoiada" in choice_raw else "sem_apoio"
+            noul = float(dados.get("noul", 0.0))
+            noul = max(0.0, min(1.0, noul))
+        except Exception:
+            choice = "sem_apoio"
+            noul = 0.0
+
+        res: dict[str, Any] = {
+            "model": model_name,
+            "answers": {
+                "veredito": {"type": "choice", "choice": choice},
+                "fidelidade": {"type": "noul", "noul": noul},
+            },
+            "_origem": "gemini",
+        }
+        if usage_metadata and isinstance(usage_metadata, dict):
+            res["usage"] = {
+                "input_tokens": usage_metadata.get("input_tokens", 0),
+                "output_tokens": usage_metadata.get("output_tokens", 0),
+            }
+        return res
+
+    def predict(self, state: dict, questions: list[dict] | dict) -> dict:
+        prompt = self._montar_prompt(state)
+        current_model = getattr(self._llm, "model", getattr(self._llm, "model_name", self.model))
+        try:
+            llm = self._obter_llm(current_model)
+            resp = llm.invoke(prompt)
+        except Exception as exc:
+            err_str = str(exc)
+            if any(k in err_str for k in ("404", "NOT_FOUND", "504", "DEADLINE_EXCEEDED", "Deadline")):
+                fallback_mod = FALLBACK_GEMINI_JUDGE_MODEL
+                if current_model != fallback_mod:
+                    log.warning(
+                        f"[judge] Falha com modelo principal {current_model} ({exc}). "
+                        f"Tentando modelo de contingência {fallback_mod}..."
+                    )
+                    current_model = fallback_mod
+                    llm = self._obter_llm(current_model)
+                    resp = llm.invoke(prompt)
+                else:
+                    raise
+            else:
+                raise
+        conteudo = getattr(resp, "content", "")
+        if isinstance(conteudo, list):
+            conteudo = "".join(b.get("text", "") for b in conteudo if isinstance(b, dict))
+        usage = getattr(resp, "usage_metadata", None)
+        return self._parsear_resposta(str(conteudo), usage_metadata=usage, model_name=current_model)
+
+    async def apredict(self, state: dict, questions: list[dict] | dict) -> dict:
+        prompt = self._montar_prompt(state)
+        current_model = getattr(self._llm, "model", getattr(self._llm, "model_name", self.model))
+        try:
+            llm = self._obter_llm(current_model)
+            resp = await llm.ainvoke(prompt)
+        except Exception as exc:
+            err_str = str(exc)
+            if any(k in err_str for k in ("404", "NOT_FOUND", "504", "DEADLINE_EXCEEDED", "Deadline")):
+                fallback_mod = FALLBACK_GEMINI_JUDGE_MODEL
+                if current_model != fallback_mod:
+                    log.warning(
+                        f"[judge] Falha com modelo principal {current_model} ({exc}). "
+                        f"Tentando modelo de contingência {fallback_mod}..."
+                    )
+                    current_model = fallback_mod
+                    llm = self._obter_llm(current_model)
+                    resp = await llm.ainvoke(prompt)
+                else:
+                    raise
+            else:
+                raise
+        conteudo = getattr(resp, "content", "")
+        if isinstance(conteudo, list):
+            conteudo = "".join(b.get("text", "") for b in conteudo if isinstance(b, dict))
+        usage = getattr(resp, "usage_metadata", None)
+        return self._parsear_resposta(str(conteudo), usage_metadata=usage, model_name=current_model)
+
+
+class LayaDecisionEngine(DecisionEngine):
+    """Cliente HTTP para o motor de decisão System One do Laya Studio (`laya.studio`) [Legado].
+
+    Mantido como classe secundária para compatibilidade retroativa e testes pontuais.
     """
 
     def __init__(
@@ -109,19 +286,23 @@ class LayaDecisionEngine(DecisionEngine):
         with httpx.Client(timeout=self.timeout) as client:
             response = client.post(self.api_url, headers=headers, json=payload)
             response.raise_for_status()
-            return response.json()
+            res = response.json()
+            res["_origem"] = "laya"
+            return res
 
     async def apredict(self, state: dict, questions: list[dict] | dict) -> dict:
         headers, payload = self._montar_request(state, questions)
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(self.api_url, headers=headers, json=payload)
             response.raise_for_status()
-            return response.json()
+            res = response.json()
+            res["_origem"] = "laya"
+            return res
 
 
 class JudgeAgent(BaseAgent):
     nome_agente: str = 'judge'
-    descricao: str = 'Juiz de fidelidade factual e controle de alucinação via Laya Studio API.'
+    descricao: str = 'Juiz de fidelidade factual e controle de alucinação via Gemini (System One).'
 
     def __init__(
         self,
@@ -131,20 +312,31 @@ class JudgeAgent(BaseAgent):
         limiar_noul: float = LIMIAR_NOUL_PADRAO,
         frase_segura: str = FRASE_SEGURA,
         engine: Optional[DecisionEngine] = None,
+        fallback_engine: Optional[DecisionEngine] = None,
+        gemini_api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: float = 10.0,
+        max_retries: int = 1,
+        # Parâmetros legados mantidos para compatibilidade retroativa
         api_key: Optional[str] = None,
         api_url: Optional[str] = None,
-        model: Optional[str] = None,
-        timeout: float = 15.0,
     ):
         super().__init__(llm, system_prompt, tools or [])
         self.limiar_noul = limiar_noul
         self.frase_segura = frase_segura
-        self._engine: DecisionEngine = engine or LayaDecisionEngine(
-            api_key=api_key,
-            api_url=api_url,
-            model=model,
-            timeout=timeout,
-        )
+
+        if engine is not None:
+            self._engine: DecisionEngine = engine
+        else:
+            gem_key = (gemini_api_key or os.getenv('GEMINI_API_KEY') or '').strip()
+            self._engine = GeminiDecisionEngine(
+                llm=llm,
+                api_key=gem_key,
+                model=model or DEFAULT_GEMINI_JUDGE_MODEL,
+                timeout=timeout,
+                max_retries=max_retries,
+            )
+        self._fallback_engine: Optional[DecisionEngine] = fallback_engine
 
     def _coletar_dados_turno(self, state: GraphState) -> tuple[str, str, str, Any]:
         msgs = list(state.get('messages') or [])
@@ -153,8 +345,12 @@ class JudgeAgent(BaseAgent):
         ultima_ai_msg = None
 
         for m in reversed(msgs):
-            tipo = getattr(m, 'type', '')
-            role = getattr(m, 'role', '')
+            if isinstance(m, dict):
+                tipo = m.get('type') or m.get('role') or ''
+                role = m.get('role') or ''
+            else:
+                tipo = getattr(m, 'type', '')
+                role = getattr(m, 'role', '')
             conteudo = self._obter_texto_mensagem(m).strip()
             if not resposta and (tipo == 'ai' or role in ('ai', 'assistant')) and conteudo:
                 resposta = conteudo
@@ -220,7 +416,7 @@ class JudgeAgent(BaseAgent):
             from app.core import observabilidade as obs_mod
             inst = getattr(obs_mod, '_instancia_observabilidade', None)
             if inst is not None:
-                modelo_resp = str(resultado.get('model') or 'laya-multilingual')
+                modelo_resp = str(resultado.get('model') or DEFAULT_GEMINI_JUDGE_MODEL)
                 inst.registrar_chamada_externa(
                     modelo=modelo_resp,
                     no='judge',
@@ -236,19 +432,51 @@ class JudgeAgent(BaseAgent):
         noul = float(fidelidade_data.get('noul', 0.0))
         return choice, noul
 
-    def _avaliar(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float]:
+    def _avaliar(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float, str]:
         contexto, questions = self._construir_payload_avaliacao(pergunta, resposta, evidencia)
-        resultado = self._engine.predict(contexto, questions)
-        return self._extrair_veredito(resultado)
-
-    async def _avaliar_async(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float]:
-        contexto, questions = self._construir_payload_avaliacao(pergunta, resposta, evidencia)
-        apredict_fn = getattr(self._engine, 'apredict', None)
-        if apredict_fn is not None and inspect.iscoroutinefunction(apredict_fn):
-            resultado = await apredict_fn(contexto, questions)
-        else:
+        origem = "gemini"
+        try:
             resultado = self._engine.predict(contexto, questions)
-        return self._extrair_veredito(resultado)
+            origem = resultado.get("_origem", "gemini")
+        except Exception as exc:
+            if self._fallback_engine is not None:
+                log.warning(
+                    f"[judge] Falha no motor principal do Juiz ({exc}). "
+                    "Ativando fallback de contingência..."
+                )
+                resultado = self._fallback_engine.predict(contexto, questions)
+                origem = resultado.get("_origem", "fallback")
+            else:
+                raise
+        choice, noul = self._extrair_veredito(resultado)
+        return choice, noul, origem
+
+    async def _avaliar_async(self, pergunta: str, resposta: str, evidencia: str) -> tuple[str, float, str]:
+        contexto, questions = self._construir_payload_avaliacao(pergunta, resposta, evidencia)
+        origem = "gemini"
+        try:
+            apredict_fn = getattr(self._engine, 'apredict', None)
+            if apredict_fn is not None and inspect.iscoroutinefunction(apredict_fn):
+                resultado = await apredict_fn(contexto, questions)
+            else:
+                resultado = self._engine.predict(contexto, questions)
+            origem = resultado.get("_origem", "gemini")
+        except Exception as exc:
+            if self._fallback_engine is not None:
+                log.warning(
+                    f"[judge] Falha no motor principal do Juiz ({exc}). "
+                    "Ativando fallback de contingência..."
+                )
+                apredict_fb = getattr(self._fallback_engine, 'apredict', None)
+                if apredict_fb is not None and inspect.iscoroutinefunction(apredict_fb):
+                    resultado = await apredict_fb(contexto, questions)
+                else:
+                    resultado = self._fallback_engine.predict(contexto, questions)
+                origem = resultado.get("_origem", "fallback")
+            else:
+                raise
+        choice, noul = self._extrair_veredito(resultado)
+        return choice, noul, origem
 
     def _formatar_saida(
         self,
@@ -257,18 +485,20 @@ class JudgeAgent(BaseAgent):
         resposta: str,
         ultima_ai_msg: Any,
         rotulo_erro: Optional[str] = None,
+        origem: str = "gemini",
     ) -> dict:
+        sufixo_origem = f" ({origem})" if origem not in ("gemini", "laya") else ""
         if rotulo_erro:
             aprovado = False
             rotulo = rotulo_erro
         else:
             aprovado = choice == 'apoiada' and noul >= self.limiar_noul
             if aprovado:
-                rotulo = f'apoiada noul={noul:.2f}'
+                rotulo = f'apoiada noul={noul:.2f}{sufixo_origem}'
             elif choice == 'apoiada':
-                rotulo = f'apoiada:abaixo_do_limiar noul={noul:.2f}'
+                rotulo = f'apoiada:abaixo_do_limiar noul={noul:.2f}{sufixo_origem}'
             else:
-                rotulo = f'{choice} noul={noul:.2f}'
+                rotulo = f'{choice} noul={noul:.2f}{sufixo_origem}'
 
         tag_agente = f'{self.nome_agente}:{rotulo}'
         log.info(f'[judge] veredito={tag_agente}')
@@ -305,20 +535,21 @@ class JudgeAgent(BaseAgent):
             }
 
         rotulo_erro: Optional[str] = None
+        origem = "gemini"
         try:
-            choice, noul = self._avaliar(pergunta, resposta, evidencia)
-        except LayaMissingKeyError:
-            log.warning('[judge] LAYA_API_KEY ausente. Aplicando fail-safe (sem_chave).')
+            choice, noul, origem = self._avaliar(pergunta, resposta, evidencia)
+        except (GeminiMissingKeyError, LayaMissingKeyError):
+            log.warning('[judge] Chave de API ausente. Aplicando fail-safe (sem_chave).')
             choice, noul, rotulo_erro = 'sem_chave', 0.0, 'sem_chave'
         except httpx.HTTPStatusError as exc:
             code = exc.response.status_code
-            log.error(f'[judge] Erro HTTP {code} ao consultar Laya Studio API. Aplicando fail-safe.')
+            log.error(f'[judge] Erro HTTP {code} ao consultar motor do Juiz. Aplicando fail-safe.')
             choice, noul, rotulo_erro = 'erro_http', 0.0, f'erro_http_{code}'
         except Exception as exc:
-            log.error(f'[judge] Falha na inferência do Laya Studio API: {exc}. Aplicando fail-safe.')
+            log.error(f'[judge] Falha na inferência do Juiz: {exc}. Aplicando fail-safe.')
             choice, noul, rotulo_erro = 'erro', 0.0, 'erro'
 
-        return self._formatar_saida(choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro)
+        return self._formatar_saida(choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro, origem=origem)
 
     async def arun(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
         pergunta, resposta, evidencia, ultima_ai_msg = self._coletar_dados_turno(state)
@@ -329,17 +560,18 @@ class JudgeAgent(BaseAgent):
             }
 
         rotulo_erro: Optional[str] = None
+        origem = "gemini"
         try:
-            choice, noul = await self._avaliar_async(pergunta, resposta, evidencia)
-        except LayaMissingKeyError:
-            log.warning('[judge] LAYA_API_KEY ausente. Aplicando fail-safe (sem_chave).')
+            choice, noul, origem = await self._avaliar_async(pergunta, resposta, evidencia)
+        except (GeminiMissingKeyError, LayaMissingKeyError):
+            log.warning('[judge] Chave de API ausente. Aplicando fail-safe (sem_chave).')
             choice, noul, rotulo_erro = 'sem_chave', 0.0, 'sem_chave'
         except httpx.HTTPStatusError as exc:
             code = exc.response.status_code
-            log.error(f'[judge] Erro HTTP {code} ao consultar Laya Studio API. Aplicando fail-safe.')
+            log.error(f'[judge] Erro HTTP {code} ao consultar motor do Juiz. Aplicando fail-safe.')
             choice, noul, rotulo_erro = 'erro_http', 0.0, f'erro_http_{code}'
         except Exception as exc:
-            log.error(f'[judge] Falha na inferência do Laya Studio API: {exc}. Aplicando fail-safe.')
+            log.error(f'[judge] Falha na inferência do Juiz: {exc}. Aplicando fail-safe.')
             choice, noul, rotulo_erro = 'erro', 0.0, 'erro'
 
-        return self._formatar_saida(choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro)
+        return self._formatar_saida(choice, noul, resposta, ultima_ai_msg, rotulo_erro=rotulo_erro, origem=origem)

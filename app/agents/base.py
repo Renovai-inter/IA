@@ -22,7 +22,10 @@ class BaseAgent(ABC):
         return list(state['messages'])[-self.janela_mensagens:]
 
     def _obter_texto_mensagem(self, msg) -> str:
-        content = msg.content
+        if isinstance(msg, dict):
+            content = msg.get("content", "")
+        else:
+            content = getattr(msg, "content", "")
         if isinstance(content, str):
             return content
         return "".join(

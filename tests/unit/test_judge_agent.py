@@ -341,3 +341,109 @@ def test_grafo_executa_juiz_no_portao_terminal():
     assert resultado["passou_juiz"] is False
     assert resultado["messages"][-1].content == FRASE_SEGURA
     assert resultado["frase_original"] == "Temos 99.999 kg de papelão e 88.888 kg de vidro."
+
+
+def test_gemini_decision_engine_parseia_resposta_valida():
+    from app.agents.judge_agent import GeminiDecisionEngine
+
+    texto_json = '{"choice": "apoiada", "noul": 0.95}'
+    usage = {"input_tokens": 120, "output_tokens": 15}
+    res = GeminiDecisionEngine._parsear_resposta(texto_json, usage_metadata=usage, model_name="gemini-3.5-flash-lite")
+
+    assert res["model"] == "gemini-3.5-flash-lite"
+    assert res["_origem"] == "gemini"
+    assert res["answers"]["veredito"]["choice"] == "apoiada"
+    assert res["answers"]["fidelidade"]["noul"] == 0.95
+    assert res["usage"]["input_tokens"] == 120
+    assert res["usage"]["output_tokens"] == 15
+
+
+def test_gemini_decision_engine_sem_chave_dispara_failsafe(monkeypatch: pytest.MonkeyPatch):
+    from app.agents.judge_agent import GeminiMissingKeyError
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    agent = JudgeAgent(gemini_api_key="")
+
+    state: GraphState = {
+        "messages": [
+            HumanMessage(content="quanto papelão temos?"),
+            AIMessage(content="Temos 3.450 kg."),
+        ],
+    }
+    resultado = agent.run(state, config={})
+    assert resultado["passou_juiz"] is False
+    assert resultado["veredito_juiz"] == "sem_chave"
+    assert resultado["agentes_chamados"] == ["judge:sem_chave"]
+    assert resultado["messages"][0]["content"] == FRASE_SEGURA
+
+
+def test_gemini_decision_engine_mockado_aprova_e_rejeita(monkeypatch: pytest.MonkeyPatch):
+    from app.agents.judge_agent import GeminiDecisionEngine
+
+    class _MockChat:
+        def __init__(self, content):
+            self.content = content
+            self.usage_metadata = {"input_tokens": 80, "output_tokens": 12}
+
+        def invoke(self, prompt):
+            return self
+
+    # Caso 1: Apoiada
+    engine_aprovada = GeminiDecisionEngine(api_key="teste_key")
+    monkeypatch.setattr(engine_aprovada, "_obter_llm", lambda model_name=None: _MockChat('{"choice": "apoiada", "noul": 0.95}'))
+    agent_aprovado = JudgeAgent(engine=engine_aprovada)
+
+    res_ok = agent_aprovado.run({
+        "messages": [
+            HumanMessage(content="qual o estoque?"),
+            AIMessage(content="O estoque é 500 kg."),
+        ],
+    })
+    assert res_ok["passou_juiz"] is True
+    assert res_ok["veredito_juiz"] == "apoiada"
+    assert "messages" not in res_ok
+
+    # Caso 2: Alucinação
+    engine_rejeitada = GeminiDecisionEngine(api_key="teste_key")
+    monkeypatch.setattr(engine_rejeitada, "_obter_llm", lambda model_name=None: _MockChat('{"choice": "sem_apoio", "noul": 0.10}'))
+    agent_rejeitado = JudgeAgent(engine=engine_rejeitada)
+
+    res_aluc = agent_rejeitado.run({
+        "messages": [
+            HumanMessage(content="qual o estoque?"),
+            AIMessage(content="O estoque é 999999 kg."),
+        ],
+    })
+    assert res_aluc["passou_juiz"] is False
+    assert res_aluc["veredito_juiz"] == "sem_apoio"
+    assert res_aluc["messages"][0]["content"] == FRASE_SEGURA
+
+
+def test_gemini_decision_engine_fallback_em_erro_transiente(monkeypatch: pytest.MonkeyPatch):
+    from app.agents.judge_agent import GeminiDecisionEngine
+
+    chamadas_modelos = []
+
+    class _MockLLM:
+        def __init__(self, model_name):
+            self.model_name = model_name
+
+        def invoke(self, prompt):
+            chamadas_modelos.append(self.model_name)
+            if self.model_name == "gemini-3.5-flash-lite":
+                raise RuntimeError("504 DEADLINE_EXCEEDED: Deadline expired")
+            # Contingência funciona
+            return SimpleNamespace(
+                content='{"choice": "apoiada", "noul": 0.92}',
+                usage_metadata={"input_tokens": 50, "output_tokens": 10},
+            )
+
+    engine = GeminiDecisionEngine(api_key="teste_key", model="gemini-3.5-flash-lite")
+    monkeypatch.setattr(engine, "_obter_llm", lambda model_name=None: _MockLLM(model_name or engine.model))
+
+    res = engine.predict({"pergunta": "teste", "resposta": "ok", "evidencia": "ok"}, {})
+    assert "gemini-3.5-flash-lite" in chamadas_modelos
+    assert "gemini-2.5-flash" in chamadas_modelos
+    assert res["answers"]["veredito"]["choice"] == "apoiada"
+    assert res["model"] == "gemini-2.5-flash"
+
