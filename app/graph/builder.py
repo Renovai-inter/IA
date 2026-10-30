@@ -25,7 +25,7 @@ class GraphBuilder:
     - As rotas de Cooperativa (`estoque`, `coleta`, `financeiro`, `logistica`) são despachadas
       via protocolo Google A2A para `/a2a/cooperativa`.
     - A rota de Empresa (`pedidos`) é despachada via protocolo Google A2A para `/a2a/empresa`.
-    - O nó terminal `judge` atua como guardião de fidelidade factual via modelo de decisão (Laya).
+    - O nó terminal `judge` atua como guardião de fidelidade factual via modelo discriminativo System One (Gemini).
     """
 
     def __init__(

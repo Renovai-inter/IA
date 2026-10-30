@@ -1,5 +1,5 @@
 """
-Testes unitários do módulo de Observabilidade, Telemetria e SLIs/SLOs do Renovai.
+Testes unitários do módulo de Observabilidade, Telemetria, SLIs/SLOs e FinOps (ROI) do Renovai.
 """
 
 from __future__ import annotations
@@ -44,7 +44,6 @@ async def test_contextvars_isolamento_assincrono():
         assert obs.turno_atual() == t_id
         assert obs.sessao_atual() == sess_id
         await asyncio.sleep(0.01)
-        # O contexto deve ser preservado após o sleep
         assert obs.turno_atual() == t_id
         assert obs.sessao_atual() == sess_id
         obs.fechar_turno(t_id, session_id=sess_id, rota="rag_faq", status="ok")
@@ -64,9 +63,12 @@ def test_calculo_custo_usd():
     obs = Observabilidade()
 
     # Gemini 2.5 flash: $0.30/M in, $2.50/M out
-    # 1.000 in, 1.000 out => 1000 * 0.30 / 1e6 + 1000 * 2.50 / 1e6 = 0.0003 + 0.0025 = 0.0028
     custo = obs.custo_usd("gemini-2.5-flash", 1_000, 1_000)
     assert pytest.approx(custo, rel=1e-5) == 0.0028
+
+    # Laya multilingual: $0.042/M in, $0.00/M out
+    custo_laya = obs.custo_usd("laya-multilingual", 10_000, 100)
+    assert pytest.approx(custo_laya, rel=1e-5) == 0.00042
 
     # Modelo local Ollama => $0.00
     custo_local = obs.custo_usd("ollama/llama3", 5_000, 5_000)
@@ -77,7 +79,6 @@ def test_slis_e_slos_e_bloqueios():
     obs = Observabilidade()
 
     # 10 turnos: 8 ok, 1 bloqueado (guardrail), 1 erro
-    # Guardrail bloqueado NÃO deve contar como erro!
     for i in range(8):
         tid = obs.abrir_turno("s")
         obs.fechar_turno(tid, "s", rota="estoque", status="ok")
@@ -92,11 +93,50 @@ def test_slis_e_slos_e_bloqueios():
     resumo = painel["resumo"]
 
     assert resumo["turnos"] == 10
+    assert resumo["turnos_resolvidos"] == 8
     assert resumo["bloqueios"] == 1
-    # 1 erro em 10 turnos = 10%
     assert resumo["taxa_erro"] == 0.10
-    # Como taxa de erro > 5%, SLO estourou
     assert resumo["slo_ok"] is False
+
+
+def test_metricas_sre_roi_cenarios_100_e_1000_usuarios_e_latencia_interagentes():
+    obs = Observabilidade()
+
+    tid1 = obs.abrir_turno("sess-roi-1")
+    obs.registrar_span("router", "grafo", 120)
+    obs.registrar_span("material_estoque_agent", "grafo", 450)
+    obs.registrar_span("orchestrator", "grafo", 210)
+    obs.registrar_span("judge", "grafo", 85)
+    obs.fechar_turno(tid1, "sess-roi-1", rota="estoque", status="ok")
+
+    tid2 = obs.abrir_turno("sess-roi-2")
+    obs.registrar_span("router", "grafo", 110)
+    obs.registrar_span("financeiro_agent", "grafo", 500)
+    obs.registrar_span("orchestrator", "grafo", 200)
+    obs.registrar_span("judge", "grafo", 90)
+    obs.fechar_turno(tid2, "sess-roi-2", rota="bloqueio_juiz", status="recusado_juiz")
+
+    painel = obs.montar_painel()
+    sre_roi = painel["sre_roi"]
+    cenarios = sre_roi["cenarios_usuarios_semanais"]
+
+    assert painel["resumo"]["recusas_juiz"] == 1
+    assert sre_roi["indice_erros"]["recusas_juiz_alucinacao"] == 1
+    assert sre_roi["indice_erros"]["resolvidos_com_sucesso"] == 1
+    assert sre_roi["custo_por_resolucao_usd"] > 0
+    assert sre_roi["roi"]["roi_percentual"] > 0
+    assert sre_roi["roi"]["multiplicador_retorno_custo"] > 1
+
+    c100 = cenarios["cenario_100_usuarios"]
+    c1000 = cenarios["cenario_1000_usuarios"]
+    assert c100["usuarios_semanais"] == 100
+    assert c1000["usuarios_semanais"] == 1000
+    assert pytest.approx(c1000["custo_semanal_usd"], rel=1e-3) == c100["custo_semanal_usd"] * 10
+
+    agentes_medidos = {item["agente"]: item for item in painel["latencia_interagentes"]}
+    assert "router" in agentes_medidos
+    assert agentes_medidos["router"]["execucoes"] == 2
+    assert "judge" in agentes_medidos
 
 
 def test_slo_ok_quando_dentro_dos_limites():
@@ -117,14 +157,12 @@ def test_slo_ok_quando_dentro_dos_limites():
 def test_ring_buffer_turnos_e_logs():
     obs = Observabilidade()
 
-    # Inserir 55 turnos (limite é 50)
     for i in range(55):
         tid = obs.abrir_turno(f"s-{i}")
         obs.fechar_turno(tid, f"s-{i}", rota="estoque", status="ok")
 
     assert len(obs.listar_turnos()) == 50
 
-    # Inserir 110 logs (limite é 100)
     for i in range(110):
         obs.info(f"Mensagem {i}", modulo="teste")
 
@@ -137,7 +175,6 @@ def test_coletor_chamadas_callback():
     obs = Observabilidade()
     tid = obs.abrir_turno(session_id="sess-cb")
 
-    # Início de modelo
     run_id = "run-123"
     obs.coletor.on_chat_model_start(
         serialized={"kwargs": {"model_name": "gemini-2.5-flash"}},
@@ -146,7 +183,6 @@ def test_coletor_chamadas_callback():
         metadata={"langgraph_node": "material_estoque_agent"},
     )
 
-    # Fim de modelo
     msg = AIMessage(
         content="Olá",
         usage_metadata={"input_tokens": 100, "output_tokens": 50, "total_tokens": 150},
@@ -185,6 +221,8 @@ def test_rota_monitor_endpoint():
 
     assert "slo" in data
     assert "resumo" in data
+    assert "sre_roi" in data
+    assert "latencia_interagentes" in data
     assert "serie_latencia" in data
     assert "serie_custo" in data
     assert "por_modelo" in data

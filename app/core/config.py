@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     LANGSMITH_PROJECT: str = 'renovai-ia'
 
     SESSAO_TTL_MIN: int = 120
+    RATE_LIMIT_MAX_REQUESTS: int = 15
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
 
     def model_post_init(self, __context: Any) -> None:
         import os
@@ -93,6 +95,7 @@ class Settings(BaseSettings):
         'guardrail_saida':        ('GROQ',   'LOW'),
         'coleta_agent':           ('GEMINI', 'HIGH'),
         'financeiro_agent':       ('GEMINI', 'HIGH'),
+        'judge':                  ('GEMINI', 'HIGH'),
     }
     GUARDRAIL_ROTAS_REVISAO: Tuple[str, ...] = ('financeiro',)
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {

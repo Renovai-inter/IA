@@ -1,12 +1,12 @@
 """
-Módulo de Observabilidade Centralizado do Renovai IA.
+Módulo de Observabilidade, SRE e FinOps (ROI) Centralizado do Renovai IA.
 
 Responsabilidades:
-1. Métricas de Serviço e SRE (SLIs: latência p95, taxa de erro; SLOs: 8s, 5%).
-2. Métricas de Modelos de IA (tokens entrada/saída, estimativa de custo em USD, fallbacks).
-3. Logging Estruturado e Debugs unificados com propagação contextual assíncrona (via contextvars).
-4. Coletor de Callbacks para modelos LangChain / LangGraph.
-5. Rastreamento granular de spans de latência (Neo4j, A2A, MongoDB, PostgreSQL, LLMs, Redis).
+1. Métricas de Serviço e SRE (SLIs: latência média, latência p95, índice de erros, bloqueios e recusas do juiz; SLOs: 8s, 5%).
+2. Latência Interagentes vs. Tempo Total de Resposta (rastreamento individual por agente/nó do grafo e subgrafos A2A).
+3. Métricas de Modelos de IA e FinOps (tokens entrada/saída, custo em USD, custo por resolução, projeção para 100 e 1.000 usuários semanais e cálculo de ROI).
+4. Logging Estruturado e Debugs unificados com propagação contextual assíncrona (via contextvars).
+5. Coletor de Callbacks para modelos LangChain / LangGraph.
 """
 
 from __future__ import annotations
@@ -41,9 +41,22 @@ PRECO_POR_MILHAO: dict[str, tuple[float, float]] = {
     "openai/gpt-oss-120b": (0.15, 0.60),
     "openai/gpt-oss-20b": (0.10, 0.40),
     "gemini-embedding-2-preview": (0.05, 0.00),
+    "laya-multilingual": (0.042, 0.00),
+    "multilingual": (0.042, 0.00),
 }
 
-_NOS_ESPECIALISTA = {"material_estoque_agent", "faq_agent", "estoque", "rag_faq"}
+_NOS_ESPECIALISTA = {
+    "material_estoque_agent",
+    "coleta_agent",
+    "financeiro_agent",
+    "recomendacao_agent",
+    "faq_agent",
+    "estoque",
+    "coleta",
+    "financeiro",
+    "pedidos",
+    "rag_faq",
+}
 _PROVEDORES_ESPECIALISTA_ESPERADOS = ("gemini",)
 
 LIMITE_TURNOS = 50
@@ -51,6 +64,19 @@ LIMITE_LOGS = 100
 LIMITE_SPANS = 500
 LIMITE_P95_MS = 8_000
 LIMITE_TAXA_ERRO = 0.05
+
+# Premissas FinOps / SRE para estimativa de escala (100 e 1.000 usuários semanais) e ROI:
+# - Cada usuário ativo realiza em média 3 sessões/semana com 5 perguntas/turnos por sessão = 15 turnos/semana.
+# - Cada resolução automatizada substitui ~6 minutos de consulta manual em planilhas/ERP/PNRS
+#   a um custo operacional humano estimado em US$ 7,00/hora (~R$ 35,00/hora) => US$ 0,70 por resolução manual.
+TURNOS_POR_USUARIO_SEMANA = 15
+SEMANAS_POR_MES = 4.33
+CUSTO_REFERENCIA_TURNO_USD = 0.00185
+TEMPO_MANUAL_MINUTOS_POR_RESOLUCAO = 6.0
+CUSTO_HORA_HUMANA_USD = 7.00
+VALOR_MANUAL_POR_RESOLUCAO_USD = round(
+    (TEMPO_MANUAL_MINUTOS_POR_RESOLUCAO / 60.0) * CUSTO_HORA_HUMANA_USD, 4
+)
 
 _turno_cv: contextvars.ContextVar[str | None] = contextvars.ContextVar("turno_id", default=None)
 _session_cv: contextvars.ContextVar[str | None] = contextvars.ContextVar("session_id", default=None)
@@ -185,7 +211,6 @@ def _tokens(message: Any) -> tuple[int, int]:
 def _eh_fallback(no: str, modelo: str) -> bool:
     if no not in _NOS_ESPECIALISTA:
         return False
-    # Especialistas do Renovai (material_estoque e faq) esperam primariamente Gemini
     return not any(prov in modelo.lower() for prov in _PROVEDORES_ESPECIALISTA_ESPERADOS)
 
 
@@ -198,7 +223,7 @@ def _percentil_95(valores: list[int]) -> int:
     return ordenados[min(max(indice, 0), len(ordenados) - 1)]
 
 
-def _media(valores: list[float]) -> float:
+def _media(valores: list[float] | list[int]) -> float:
     if not valores:
         return 0.0
     return sum(valores) / len(valores)
@@ -312,7 +337,7 @@ class ColetorChamadas(BaseCallbackHandler):
 
 
 class Observabilidade:
-    """Núcleo integrado de Observabilidade, Telemetria, Spans e SLIs/SLOs do Renovai."""
+    """Núcleo integrado de Observabilidade, Telemetria, Spans, SLIs/SLOs e FinOps (ROI) do Renovai."""
 
     def __init__(self) -> None:
         global _instancia_observabilidade
@@ -448,7 +473,9 @@ class Observabilidade:
         if precos is None:
             if "ollama" in modelo.lower() or "local" in modelo.lower():
                 return 0.0
-            if "gemini" in modelo.lower():
+            if "laya" in modelo.lower():
+                precos = PRECO_POR_MILHAO["laya-multilingual"]
+            elif "gemini" in modelo.lower():
                 precos = PRECO_POR_MILHAO["gemini-3.8-flash"]
             elif "qwen" in modelo.lower():
                 precos = PRECO_POR_MILHAO["qwen/qwen3.6-27b"]
@@ -484,6 +511,32 @@ class Observabilidade:
                 self.acoplar_modelo(llm_inst)
         self.info("Callbacks de observabilidade vinculados aos provedores LLM.", modulo="observabilidade")
 
+    def registrar_chamada_externa(
+        self,
+        modelo: str,
+        no: str,
+        tokens_entrada: int,
+        tokens_saida: int,
+        latencia_ms: int = 0,
+    ) -> None:
+        """Registra chamadas a modelos externos não-LangChain (ex.: Laya Studio System One API)."""
+        turno_id = self.turno_atual()
+        if not turno_id:
+            return
+        custo = self.custo_usd(modelo, tokens_entrada, tokens_saida)
+        registro = {
+            "turno_id": turno_id,
+            "modelo": modelo,
+            "no": no,
+            "tokens_entrada": int(tokens_entrada),
+            "tokens_saida": int(tokens_saida),
+            "custo_usd": custo,
+            "latencia_ms": int(latencia_ms),
+            "fallback": False,
+        }
+        with self._lock:
+            self._chamadas.append(registro)
+
     # --------------------------------------------------------------------------
     # CICLO DE VIDA DO TURNO
     # --------------------------------------------------------------------------
@@ -517,12 +570,17 @@ class Observabilidade:
             tokens_total = sum(c["tokens_entrada"] + c["tokens_saida"] for c in do_turno_chamadas)
             custo_usd_total = sum(c["custo_usd"] for c in do_turno_chamadas)
 
-            # Extrair spans deste turno para decomposição da latência
+            # Extrair spans deste turno para decomposição da latência e latência interagentes
             do_turno_spans = [s for s in self._spans if s["turno_id"] == turno_id]
             decomposicao: dict[str, int] = {}
+            latencia_agentes: dict[str, int] = {}
             for s in do_turno_spans:
                 cat = s.get("categoria", "outros")
-                decomposicao[cat] = decomposicao.get(cat, 0) + int(s.get("duracao_ms", 0))
+                dur_s = int(s.get("duracao_ms", 0))
+                decomposicao[cat] = decomposicao.get(cat, 0) + dur_s
+                if cat in ("grafo", "a2a_server"):
+                    nome_no = str(s.get("nome") or "agente")
+                    latencia_agentes[nome_no] = latencia_agentes.get(nome_no, 0) + dur_s
 
             registro_turno = {
                 "id": turno_id,
@@ -534,6 +592,7 @@ class Observabilidade:
                 "tokens_total": tokens_total,
                 "custo_usd": custo_usd_total,
                 "decomposicao": decomposicao,
+                "latencia_agentes": latencia_agentes,
                 "spans": do_turno_spans,
             }
             self._turnos.append(registro_turno)
@@ -567,23 +626,105 @@ class Observabilidade:
                 "no_ar_segundos": int(time.time() - self._inicio_processo),
             }
 
+    @staticmethod
+    def _projetar_cenario_semanal(
+        usuarios_semanais: int,
+        custo_unitario_turno_usd: float,
+        taxa_resolucao_efetiva: float,
+    ) -> dict[str, Any]:
+        turnos_semanais = usuarios_semanais * TURNOS_POR_USUARIO_SEMANA
+        turnos_mensais = round(turnos_semanais * SEMANAS_POR_MES)
+
+        custo_semanal_usd = round(turnos_semanais * custo_unitario_turno_usd, 4)
+        custo_mensal_usd = round(turnos_mensais * custo_unitario_turno_usd, 4)
+        custo_anual_usd = round(custo_semanal_usd * 52, 2)
+
+        resolucoes_semanais = max(1, round(turnos_semanais * taxa_resolucao_efetiva))
+        retorno_bruto_semanal_usd = round(resolucoes_semanais * VALOR_MANUAL_POR_RESOLUCAO_USD, 2)
+        economia_liquida_semanal_usd = round(retorno_bruto_semanal_usd - custo_semanal_usd, 2)
+        horas_economizadas_semana = round(
+            (resolucoes_semanais * TEMPO_MANUAL_MINUTOS_POR_RESOLUCAO) / 60.0, 1
+        )
+
+        custo_seguro = max(custo_semanal_usd, 1e-6)
+        roi_pct = round(((retorno_bruto_semanal_usd - custo_semanal_usd) / custo_seguro) * 100, 1)
+        multiplicador = round(retorno_bruto_semanal_usd / custo_seguro, 1)
+
+        return {
+            "usuarios_semanais": usuarios_semanais,
+            "turnos_por_usuario_semana": TURNOS_POR_USUARIO_SEMANA,
+            "turnos_semanais": turnos_semanais,
+            "turnos_mensais": turnos_mensais,
+            "custo_semanal_usd": custo_semanal_usd,
+            "custo_mensal_usd": custo_mensal_usd,
+            "custo_anual_usd": custo_anual_usd,
+            "resolucoes_estimadas_semana": resolucoes_semanais,
+            "horas_economizadas_semana": horas_economizadas_semana,
+            "retorno_bruto_semanal_usd": retorno_bruto_semanal_usd,
+            "economia_liquida_semanal_usd": economia_liquida_semanal_usd,
+            "roi_percentual": roi_pct,
+            "multiplicador_retorno_custo": multiplicador,
+        }
+
     # --------------------------------------------------------------------------
-    # PAINEL CONSOLIDADO (SLIs, SLOs e SÉRIES TEMPORAIS)
+    # PAINEL CONSOLIDADO (SLIs, SLOs, LATÊNCIA INTERAGENTES, CUSTO E ROI)
     # --------------------------------------------------------------------------
     def montar_painel(self) -> dict[str, Any]:
         turnos = self.listar_turnos()
         chamadas = self.listar_chamadas()
         estado = self.situacao()
 
+        total_turnos = len(turnos)
         latencias = [t["latencia_ms"] for t in turnos]
         erros = sum(1 for t in turnos if t["status"] == "erro")
         bloqueios = sum(1 for t in turnos if t["status"] == "bloqueado")
-        taxa_erro = (erros / len(turnos)) if turnos else 0.0
+        recusas_juiz = sum(1 for t in turnos if t["status"] == "recusado_juiz")
+        resolvidos = sum(1 for t in turnos if t["status"] == "ok")
+
+        taxa_erro = (erros / total_turnos) if total_turnos else 0.0
+        taxa_bloqueio = (bloqueios / total_turnos) if total_turnos else 0.0
+        taxa_recusa_juiz = (recusas_juiz / total_turnos) if total_turnos else 0.0
+        taxa_resolucao = (resolvidos / total_turnos) if total_turnos else 0.0
         p95 = _percentil_95(latencias)
+        latencia_media_total_ms = round(_media(latencias))
 
         tokens_entrada = sum(c["tokens_entrada"] for c in chamadas)
         tokens_saida = sum(c["tokens_saida"] for c in chamadas)
         custo = sum(c["custo_usd"] for c in chamadas)
+
+        # Custo unitário médio por turno e Custo por Resolução (CPR)
+        tem_custo_observado = total_turnos > 0 and custo > 0
+        fonte_custo = "observado_em_execucao" if tem_custo_observado else "baseline_arquitetural"
+        custo_medio_turno_usd = (custo / total_turnos) if tem_custo_observado else CUSTO_REFERENCIA_TURNO_USD
+
+        if resolvidos > 0 and custo > 0:
+            custo_por_resolucao_usd = custo / resolvidos
+        elif tem_custo_observado:
+            custo_por_resolucao_usd = custo_medio_turno_usd
+        else:
+            custo_por_resolucao_usd = CUSTO_REFERENCIA_TURNO_USD
+
+        taxa_resolucao_efetiva = taxa_resolucao if total_turnos > 0 and resolvidos > 0 else 0.90
+
+        # Cálculo de ROI (Custo vs. Retorno Operacional)
+        custo_cpr_seguro = max(custo_por_resolucao_usd, 1e-6)
+        economia_liquida_por_resolucao_usd = round(
+            VALOR_MANUAL_POR_RESOLUCAO_USD - custo_por_resolucao_usd, 6
+        )
+        roi_percentual = round(
+            ((VALOR_MANUAL_POR_RESOLUCAO_USD - custo_por_resolucao_usd) / custo_cpr_seguro) * 100, 1
+        )
+        multiplicador_retorno_custo = round(VALOR_MANUAL_POR_RESOLUCAO_USD / custo_cpr_seguro, 1)
+
+        retorno_acumulado_sessao_usd = round(resolvidos * VALOR_MANUAL_POR_RESOLUCAO_USD, 4)
+        economia_liquida_sessao_usd = round(retorno_acumulado_sessao_usd - custo, 4)
+
+        cenario_100 = self._projetar_cenario_semanal(
+            100, custo_medio_turno_usd, taxa_resolucao_efetiva
+        )
+        cenario_1000 = self._projetar_cenario_semanal(
+            1000, custo_medio_turno_usd, taxa_resolucao_efetiva
+        )
 
         por_modelo_bruto = _agrupar(chamadas, "modelo")
         mais_usado = "—"
@@ -622,13 +763,18 @@ class Observabilidade:
 
         # Decomposição consolidada por categoria (Neo4j, A2A, MongoDB, Postgres, LLM, etc.)
         total_por_cat: dict[str, int] = {}
+        spans_agentes_por_nome: dict[str, list[int]] = {}
         for t in turnos:
-            for cat, ms in (t.get("decomposicao") or {}).items():
-                total_por_cat[cat] = total_por_cat.get(cat, 0) + ms
+            for cat, ms_val in (t.get("decomposicao") or {}).items():
+                total_por_cat[cat] = total_por_cat.get(cat, 0) + ms_val
+            for s in t.get("spans") or []:
+                if s.get("categoria") in ("grafo", "a2a_server"):
+                    nome_ag = str(s.get("nome") or "agente")
+                    spans_agentes_por_nome.setdefault(nome_ag, []).append(int(s.get("duracao_ms", 0)))
 
         decomposicao_latencia = []
         tempo_total_categorias = sum(total_por_cat.values()) or 1
-        count_turnos = len(turnos) or 1
+        count_turnos = total_turnos or 1
         for cat, total_ms in total_por_cat.items():
             media_ms = round(total_ms / count_turnos)
             pct = round((total_ms / tempo_total_categorias) * 100, 1)
@@ -639,6 +785,22 @@ class Observabilidade:
                 "percentual": pct,
             })
         decomposicao_latencia.sort(key=lambda x: x["total_ms"], reverse=True)
+
+        # Latência interagentes detalhada (nós do grafo e subgrafos A2A vs. tempo total de resposta)
+        latencia_interagentes = []
+        tempo_total_agentes = sum(sum(v) for v in spans_agentes_por_nome.values()) or 1
+        for nome_ag, amostras in spans_agentes_por_nome.items():
+            soma_ag = sum(amostras)
+            latencia_interagentes.append({
+                "agente": nome_ag,
+                "execucoes": len(amostras),
+                "latencia_media_ms": round(_media(amostras)),
+                "latencia_p95_ms": _percentil_95(amostras),
+                "latencia_max_ms": max(amostras) if amostras else 0,
+                "total_ms": soma_ag,
+                "participacao_pct": round((soma_ag / tempo_total_agentes) * 100, 1),
+            })
+        latencia_interagentes.sort(key=lambda x: x["total_ms"], reverse=True)
 
         custo_acumulado = 0.0
         serie_custo = []
@@ -657,21 +819,65 @@ class Observabilidade:
                 "taxa_erro_limite": LIMITE_TAXA_ERRO,
             },
             "resumo": {
-                "turnos": len(turnos),
+                "turnos": total_turnos,
+                "turnos_resolvidos": resolvidos,
                 "em_andamento": estado["em_andamento"],
                 "no_ar_segundos": estado["no_ar_segundos"],
                 "taxa_erro": round(taxa_erro, 4),
+                "taxa_bloqueio": round(taxa_bloqueio, 4),
+                "taxa_recusa_juiz": round(taxa_recusa_juiz, 4),
+                "taxa_resolucao": round(taxa_resolucao, 4),
                 "bloqueios": bloqueios,
-                "latencia_media_ms": round(_media(latencias)),
+                "recusas_juiz": recusas_juiz,
+                "latencia_media_ms": latencia_media_total_ms,
                 "latencia_p95_ms": p95,
                 "slo_ok": slo_ok,
                 "tokens_entrada": tokens_entrada,
                 "tokens_saida": tokens_saida,
                 "tokens_total": tokens_entrada + tokens_saida,
                 "custo_usd": round(custo, 6),
+                "custo_medio_turno_usd": round(custo_medio_turno_usd, 6),
+                "custo_por_resolucao_usd": round(custo_por_resolucao_usd, 6),
+                "roi_percentual": roi_percentual,
+                "multiplicador_retorno_custo": multiplicador_retorno_custo,
+                "custo_100_usuarios_semana_usd": cenario_100["custo_semanal_usd"],
+                "custo_1000_usuarios_semana_usd": cenario_1000["custo_semanal_usd"],
                 "modelo_mais_usado": mais_usado,
                 "fallbacks": sum(1 for c in chamadas if c["fallback"]),
             },
+            "sre_roi": {
+                "fonte_custo_estimado": fonte_custo,
+                "custo_medio_turno_usd": round(custo_medio_turno_usd, 6),
+                "custo_por_resolucao_usd": round(custo_por_resolucao_usd, 6),
+                "tempo_total_resposta_medio_ms": latencia_media_total_ms,
+                "tempo_total_resposta_p95_ms": p95,
+                "indice_erros": {
+                    "erros_tecnicos": erros,
+                    "bloqueios_guardrail": bloqueios,
+                    "recusas_juiz_alucinacao": recusas_juiz,
+                    "resolvidos_com_sucesso": resolvidos,
+                    "taxa_erro_tecnico": round(taxa_erro, 4),
+                    "taxa_bloqueio_guardrail": round(taxa_bloqueio, 4),
+                    "taxa_recusa_juiz": round(taxa_recusa_juiz, 4),
+                    "taxa_resolucao_sucesso": round(taxa_resolucao, 4),
+                },
+                "roi": {
+                    "tempo_manual_minutos_por_resolucao": TEMPO_MANUAL_MINUTOS_POR_RESOLUCAO,
+                    "custo_hora_humana_usd": CUSTO_HORA_HUMANA_USD,
+                    "valor_manual_por_resolucao_usd": VALOR_MANUAL_POR_RESOLUCAO_USD,
+                    "custo_ia_por_resolucao_usd": round(custo_por_resolucao_usd, 6),
+                    "economia_liquida_por_resolucao_usd": economia_liquida_por_resolucao_usd,
+                    "roi_percentual": roi_percentual,
+                    "multiplicador_retorno_custo": multiplicador_retorno_custo,
+                    "retorno_acumulado_sessao_usd": retorno_acumulado_sessao_usd,
+                    "economia_liquida_sessao_usd": economia_liquida_sessao_usd,
+                },
+                "cenarios_usuarios_semanais": {
+                    "cenario_100_usuarios": cenario_100,
+                    "cenario_1000_usuarios": cenario_1000,
+                },
+            },
+            "latencia_interagentes": latencia_interagentes,
             "decomposicao_latencia": decomposicao_latencia,
             "serie_latencia": [
                 {"hora": t["hora"], "latencia_ms": t["latencia_ms"]} for t in turnos
