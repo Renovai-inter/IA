@@ -26,12 +26,12 @@ from redis import Redis
 
 from app.repository.base import Repository
 
-log = logging.getLogger("renovai.redis")
-_FUSO = ZoneInfo("America/Sao_Paulo")
+log = logging.getLogger('renovai.redis')
+_FUSO = ZoneInfo('America/Sao_Paulo')
 
 
 def _agora_iso() -> str:
-    return datetime.now(_FUSO).strftime("%H:%M:%S")
+    return datetime.now(_FUSO).strftime('%H:%M:%S')
 
 
 @dataclass(frozen=True)
@@ -49,13 +49,13 @@ class RateLimitResult:
 class RedisRealtimeRepository(Repository[Any, Redis | None]):
     """Gerencia Rate Limiting (ZSET), Fila de Processamento (LIST/HASH) e Ranking em Tempo Real (ZSET) no Redis."""
 
-    KEY_PREFIX_RATELIMIT = "renovai:ratelimit"
-    KEY_RATELIMIT_BLOQUEIOS = "renovai:metrics:ratelimit_bloqueios"
-    KEY_FILA_ATIVOS = "renovai:fila:ativos"
-    KEY_FILA_HISTORICO = "renovai:fila:processamento"
-    KEY_RANKING_ENTIDADES = "renovai:ranking:entidades"
-    KEY_RANKING_ROTAS = "renovai:ranking:rotas"
-    KEY_RANKING_USUARIOS = "renovai:ranking:usuarios"
+    KEY_PREFIX_RATELIMIT = 'renovai:ratelimit'
+    KEY_RATELIMIT_BLOQUEIOS = 'renovai:metrics:ratelimit_bloqueios'
+    KEY_FILA_ATIVOS = 'renovai:fila:ativos'
+    KEY_FILA_HISTORICO = 'renovai:fila:processamento'
+    KEY_RANKING_ENTIDADES = 'renovai:ranking:entidades'
+    KEY_RANKING_ROTAS = 'renovai:ranking:rotas'
+    KEY_RANKING_USUARIOS = 'renovai:ranking:usuarios'
     MAX_HISTORICO_FILA = 50
 
     def __init__(
@@ -80,7 +80,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
 
     @property
     def backend_nome(self) -> str:
-        return "redis" if self._db is not None else "memoria_fallback"
+        return 'redis' if self._db is not None else 'memoria_fallback'
 
     # ==========================================================================
     # 1. RATE LIMITING — SLIDING WINDOW LOG (Redis ZSET)
@@ -92,7 +92,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
         window_seconds: int | None = None,
     ) -> RateLimitResult:
         """Verifica e registra uma requisição na janela deslizante do identificador informado."""
-        chave_id = (identificador or "anonimo").strip() or "anonimo"
+        chave_id = (identificador or 'anonimo').strip() or 'anonimo'
         limite = int(max_requests if max_requests is not None else self.max_requests)
         janela = int(window_seconds if window_seconds is not None else self.window_seconds)
         agora = time.time()
@@ -102,7 +102,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
             try:
                 return self._verificar_rate_limit_redis(chave_id, limite, janela, agora, inicio_janela)
             except Exception as exc:
-                log.warning(f"Falha no Redis durante verificar_rate_limit ({exc}). Usando fallback em memória.")
+                log.warning(f'Falha no Redis durante verificar_rate_limit ({exc}). Usando fallback em memória.')
 
         return self._verificar_rate_limit_memoria(chave_id, limite, janela, agora, inicio_janela)
 
@@ -115,10 +115,10 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
         inicio_janela: float,
     ) -> RateLimitResult:
         assert self._db is not None
-        redis_key = f"{self.KEY_PREFIX_RATELIMIT}:{chave_id}"
+        redis_key = f'{self.KEY_PREFIX_RATELIMIT}:{chave_id}'
 
         pipe = self._db.pipeline(transaction=True)
-        pipe.zremrangebyscore(redis_key, "-inf", inicio_janela)
+        pipe.zremrangebyscore(redis_key, '-inf', inicio_janela)
         pipe.zcard(redis_key)
         pipe.zrange(redis_key, 0, 0, withscores=True)
         _, qtd_atual, mais_antigo = pipe.execute()
@@ -138,10 +138,10 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
                 usado_na_janela=usado,
                 janela_segundos=janela,
                 retry_after_segundos=retry_after,
-                backend="redis",
+                backend='redis',
             )
 
-        membro = f"{agora:.6f}:{uuid.uuid4().hex[:8]}"
+        membro = f'{agora:.6f}:{uuid.uuid4().hex[:8]}'
         pipe_add = self._db.pipeline(transaction=True)
         pipe_add.zadd(redis_key, {membro: agora})
         pipe_add.expire(redis_key, janela + 10)
@@ -156,7 +156,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
             usado_na_janela=usado_apos,
             janela_segundos=janela,
             retry_after_segundos=0,
-            backend="redis",
+            backend='redis',
         )
 
     def _verificar_rate_limit_memoria(
@@ -183,7 +183,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
                     usado_na_janela=usado,
                     janela_segundos=janela,
                     retry_after_segundos=retry_after,
-                    backend="memoria_fallback",
+                    backend='memoria_fallback',
                 )
 
             historico.append(agora)
@@ -197,7 +197,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
                 usado_na_janela=usado_apos,
                 janela_segundos=janela,
                 retry_after_segundos=0,
-                backend="memoria_fallback",
+                backend='memoria_fallback',
             )
 
     # ==========================================================================
@@ -209,21 +209,21 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
         session_id: str,
         user_id: str | None = None,
         entidade_id: str | None = None,
-        tipo_fluxo: str = "COOPERATIVA",
-        pergunta: str = "",
+        tipo_fluxo: str = 'COOPERATIVA',
+        pergunta: str = '',
     ) -> dict[str, Any]:
         """Insere um turno na fila de processamento ativo do Redis e registra o evento de entrada."""
         item = {
-            "turno_id": turno_id[:8],
-            "session_id": session_id or "—",
-            "user_id": user_id or "anonimo",
-            "entidade_id": entidade_id or "—",
-            "tipo_fluxo": tipo_fluxo,
-            "pergunta_resumo": (pergunta or "")[:80],
-            "estado": "em_processamento",
-            "rota": "aguardando_roteador",
-            "latencia_ms": 0,
-            "atualizado_em": _agora_iso(),
+            'turno_id': turno_id[:8],
+            'session_id': session_id or '—',
+            'user_id': user_id or 'anonimo',
+            'entidade_id': entidade_id or '—',
+            'tipo_fluxo': tipo_fluxo,
+            'pergunta_resumo': (pergunta or '')[:80],
+            'estado': 'em_processamento',
+            'rota': 'aguardando_roteador',
+            'latencia_ms': 0,
+            'atualizado_em': _agora_iso(),
         }
         payload = json.dumps(item, ensure_ascii=False)
 
@@ -235,7 +235,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
                 pipe.execute()
                 return item
             except Exception as exc:
-                log.warning(f"Falha ao enfileirar turno no Redis ({exc}). Usando fallback em memória.")
+                log.warning(f'Falha ao enfileirar turno no Redis ({exc}). Usando fallback em memória.')
 
         with self._lock:
             self._mem_fila_ativos[turno_id] = item
@@ -250,19 +250,19 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
         latencia_ms: int,
         user_id: str | None = None,
         entidade_id: str | None = None,
-        tipo_fluxo: str = "COOPERATIVA",
+        tipo_fluxo: str = 'COOPERATIVA',
     ) -> dict[str, Any]:
         """Remove o turno da fila de ativos e empurra (`LPUSH` + `LTRIM`) para a fila de histórico em tempo real."""
         item_concluido = {
-            "turno_id": turno_id[:8],
-            "session_id": session_id or "—",
-            "user_id": user_id or "anonimo",
-            "entidade_id": entidade_id or "—",
-            "tipo_fluxo": tipo_fluxo,
-            "estado": status,
-            "rota": rota or "—",
-            "latencia_ms": int(latencia_ms),
-            "atualizado_em": _agora_iso(),
+            'turno_id': turno_id[:8],
+            'session_id': session_id or '—',
+            'user_id': user_id or 'anonimo',
+            'entidade_id': entidade_id or '—',
+            'tipo_fluxo': tipo_fluxo,
+            'estado': status,
+            'rota': rota or '—',
+            'latencia_ms': int(latencia_ms),
+            'atualizado_em': _agora_iso(),
         }
         payload = json.dumps(item_concluido, ensure_ascii=False)
 
@@ -276,7 +276,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
                 pipe.execute()
                 return item_concluido
             except Exception as exc:
-                log.warning(f"Falha ao finalizar turno na fila Redis ({exc}). Usando fallback em memória.")
+                log.warning(f'Falha ao finalizar turno na fila Redis ({exc}). Usando fallback em memória.')
 
         with self._lock:
             self._mem_fila_ativos.pop(turno_id, None)
@@ -291,17 +291,17 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
     def registrar_interacao_ranking(
         self,
         entidade_id: str | None = None,
-        tipo_fluxo: str = "COOPERATIVA",
+        tipo_fluxo: str = 'COOPERATIVA',
         rotas: list[str] | str | None = None,
         user_id: str | None = None,
     ) -> None:
         """Atualiza atomicamente os rankings em tempo real no Redis via `ZINCRBY`."""
-        chave_entidade = f"{tipo_fluxo}:{entidade_id}" if entidade_id else None
-        chave_usuario = (user_id or "").strip() or None
+        chave_entidade = f'{tipo_fluxo}:{entidade_id}' if entidade_id else None
+        chave_usuario = (user_id or '').strip() or None
 
         lista_rotas: list[str] = []
         if isinstance(rotas, str):
-            lista_rotas = [r.strip() for r in rotas.split(",") if r.strip() and r.strip() != "—"]
+            lista_rotas = [r.strip() for r in rotas.split(',') if r.strip() and r.strip() != '—']
         elif isinstance(rotas, list):
             lista_rotas = [str(r).strip() for r in rotas if str(r).strip()]
 
@@ -317,7 +317,7 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
                 pipe.execute()
                 return
             except Exception as exc:
-                log.warning(f"Falha ao atualizar ranking no Redis ({exc}). Usando fallback em memória.")
+                log.warning(f'Falha ao atualizar ranking no Redis ({exc}). Usando fallback em memória.')
 
         with self._lock:
             if chave_entidade:
@@ -338,9 +338,9 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
     def _formatar_zset(pares: list[tuple[str, float]]) -> list[dict[str, Any]]:
         return [
             {
-                "posicao": idx + 1,
-                "membro": str(membro),
-                "interacoes": int(score),
+                'posicao': idx + 1,
+                'membro': str(membro),
+                'interacoes': int(score),
             }
             for idx, (membro, score) in enumerate(pares)
         ]
@@ -380,26 +380,26 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
                         pass
 
                 return {
-                    "backend": "redis",
-                    "rate_limit": {
-                        "algoritmo": "Sliding Window Log (Redis ZSET)",
-                        "max_requests": self.max_requests,
-                        "window_seconds": self.window_seconds,
-                        "bloqueios_totais": int(bloqueios_raw or 0),
+                    'backend': 'redis',
+                    'rate_limit': {
+                        'algoritmo': 'Sliding Window Log (Redis ZSET)',
+                        'max_requests': self.max_requests,
+                        'window_seconds': self.window_seconds,
+                        'bloqueios_totais': int(bloqueios_raw or 0),
                     },
-                    "fila_processamento": {
-                        "tamanho_fila_ativa": len(ativos),
-                        "em_processamento_agora": ativos,
-                        "ultimos_processados": historico,
+                    'fila_processamento': {
+                        'tamanho_fila_ativa': len(ativos),
+                        'em_processamento_agora': ativos,
+                        'ultimos_processados': historico,
                     },
-                    "rankings_tempo_real": {
-                        "entidades_mais_ativas": self._formatar_zset(rank_entidades or []),
-                        "rotas_mais_demandadas": self._formatar_zset(rank_rotas or []),
-                        "usuarios_mais_ativos": self._formatar_zset(rank_usuarios or []),
+                    'rankings_tempo_real': {
+                        'entidades_mais_ativas': self._formatar_zset(rank_entidades or []),
+                        'rotas_mais_demandadas': self._formatar_zset(rank_rotas or []),
+                        'usuarios_mais_ativos': self._formatar_zset(rank_usuarios or []),
                     },
                 }
             except Exception as exc:
-                log.warning(f"Falha ao ler painel realtime do Redis ({exc}). Usando fallback em memória.")
+                log.warning(f'Falha ao ler painel realtime do Redis ({exc}). Usando fallback em memória.')
 
         with self._lock:
             ativos = list(self._mem_fila_ativos.values())
@@ -409,21 +409,21 @@ class RedisRealtimeRepository(Repository[Any, Redis | None]):
             usr_sorted = sorted(self._mem_ranking_usuarios.items(), key=lambda x: x[1], reverse=True)[:top_n]
 
             return {
-                "backend": "memoria_fallback",
-                "rate_limit": {
-                    "algoritmo": "Sliding Window Log (Fallback Memória)",
-                    "max_requests": self.max_requests,
-                    "window_seconds": self.window_seconds,
-                    "bloqueios_totais": self._mem_bloqueios,
+                'backend': 'memoria_fallback',
+                'rate_limit': {
+                    'algoritmo': 'Sliding Window Log (Fallback Memória)',
+                    'max_requests': self.max_requests,
+                    'window_seconds': self.window_seconds,
+                    'bloqueios_totais': self._mem_bloqueios,
                 },
-                "fila_processamento": {
-                    "tamanho_fila_ativa": len(ativos),
-                    "em_processamento_agora": ativos,
-                    "ultimos_processados": historico,
+                'fila_processamento': {
+                    'tamanho_fila_ativa': len(ativos),
+                    'em_processamento_agora': ativos,
+                    'ultimos_processados': historico,
                 },
-                "rankings_tempo_real": {
-                    "entidades_mais_ativas": self._formatar_zset(ent_sorted),
-                    "rotas_mais_demandadas": self._formatar_zset(rot_sorted),
-                    "usuarios_mais_ativos": self._formatar_zset(usr_sorted),
+                'rankings_tempo_real': {
+                    'entidades_mais_ativas': self._formatar_zset(ent_sorted),
+                    'rotas_mais_demandadas': self._formatar_zset(rot_sorted),
+                    'usuarios_mais_ativos': self._formatar_zset(usr_sorted),
                 },
             }
