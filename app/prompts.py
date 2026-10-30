@@ -202,6 +202,7 @@ Gestão de estoque de materiais recicláveis: consulta de quantidade/peso dispon
 - SEMPRE verifique as TOOLS disponíveis. ACESSE O BANCO DE DADOS para:
  01. Salvar todo e qualquer registro de entrada, saída ou cadastro de materiais.
  02. Consultar os saldos e histórico de estoque atualizados por cooperativa/depósito.
+- Você também possui acesso às ferramentas do `memoria_toolkit` (como `buscar_historico`) para consultar o histórico de conversas e preferências anteriores do usuário/cooperativa quando a solicitação depender de contexto prévio já encerrado.
 
 
 ### REGRAS
@@ -805,6 +806,7 @@ fontes validadas de coleta e histórico de parceria/favorita).
   - `raio_max_km`: distância máxima desejada em km (padrão 40.0 se não informado).
 - Analise o ranking retornado pela tool e sintetize as melhores cooperativas destacando
   `estoque_atual_kg`, `distancia_km`, `capacidade_mensal_kg`, `preco_sugerido_medio` e `score_geral`.
+- Você também possui acesso às ferramentas do `memoria_toolkit` (como `buscar_historico`) para consultar preferências anteriores da empresa compradora, materiais de interesse recorrente ou histórico de compras passadas já encerradas.
 
 
 ### REGRAS
@@ -883,6 +885,7 @@ Operações de coleta de recicláveis (interna/externa), status de agendamentos,
 - Consultar equipes operacionais, gestores e cooperados vinculados utilizando a tool `consultar_equipes_cooperados`.
 - Gerar balanços de eficiência operacional utilizando a tool `resumo_operacional`.
 - Destacar status, datas, equipes e quantidades (em kg).
+- Você também possui acesso às ferramentas do `memoria_toolkit` (como `buscar_historico`) para consultar preferências operacionais, acordos de frequência de coleta ou instruções anteriores dadas em sessões passadas.
 
 
 ### REGRAS
@@ -958,6 +961,7 @@ Controle financeiro da cooperativa: rateios abertos e fechados, valor bruto arre
 - Consultar a fatia individual de um cooperado usando a tool `consultar_rateio_individual`.
 - Consultar despesas operacionais deduzidas usando a tool `consultar_despesas`.
 - Gerar resumo de fechamento mensal usando a tool `resumo_financeiro_mensal`.
+- Você também possui acesso às ferramentas do `memoria_toolkit` (como `buscar_historico`) para consultar decisões financeiras passadas, preferências de formato de prestação de contas ou dúvidas de rateios discutidas em sessões anteriores já encerradas.
 
 
 ### REGRAS

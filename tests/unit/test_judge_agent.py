@@ -368,3 +368,28 @@ def test_gemini_decision_engine_fallback_em_erro_transiente(monkeypatch: pytest.
     assert res["answers"]["veredito"]["choice"] == "apoiada"
     assert res["model"] == "gemini-2.5-flash"
 
+
+def test_judge_agent_fast_path_aprova_saudacao_em_0ms():
+    """Valida que saudações e respostas curtas sem alegações factuais ativam o Fast-Path sem chamar o LLM."""
+    stub_engine = StubDecisionEngine(choice="sem_apoio", noul=0.10)
+    agent = JudgeAgent(engine=stub_engine, fast_path=True)
+
+    state: GraphState = {
+        "messages": [
+            HumanMessage(content="olá, bom dia"),
+            AIMessage(content="Olá! Como posso ajudar você hoje no Renovaí?"),
+        ],
+        "snapshots": {},
+        "especialista_outputs": {},
+        "agentes_chamados": ["router"],
+    }
+
+    resultado = agent.run(state, config={})
+    assert resultado["passou_juiz"] is True
+    assert resultado["veredito_juiz"] == "apoiada"
+    assert resultado["score_juiz"] == 1.0
+    assert "messages" not in resultado
+    # O motor discriminativo NÃO deve ser acionado (0 chamadas, 0ms de LLM)
+    assert len(stub_engine.chamadas) == 0
+    assert "fast_path" in resultado["motivo_juiz"]
+

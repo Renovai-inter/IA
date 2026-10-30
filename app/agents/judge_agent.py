@@ -48,6 +48,19 @@ REGRAS_AVALIACAO = (
 )
 
 
+_PADROES_SAUDACAO_OU_CORTESIA = re.compile(
+    r'\b(ol[áa]|bom dia|boa tarde|boa noite|como posso ajudar|em que posso ajudar|'
+    r'como posso te ajudar|estou [àa] disposi[çc][ãa]o|dispor|at[ée] logo|at[ée] mais|'
+    r'tchau|obrigad[oa]|por nada|de nada|por favor[, ]+(?:informe|especifique|poderia)|'
+    r'posso te ajudar com)\b',
+    re.IGNORECASE,
+)
+_PADROES_DADOS_FACTUAIS = re.compile(
+    r'(\d+[\.,]?\d*|\bR\$\b|\bUS\$\b|\bkg\b|\bton\b|\btoneladas?\b|\blitros?\b|\bkm\b|\bcep\b|\bcpf\b|\bcnpj\b|\blei\b|\bartigo\b)',
+    re.IGNORECASE,
+)
+
+
 class GeminiMissingKeyError(RuntimeError):
     """Exceção disparada quando GEMINI_API_KEY não está configurada."""
 
@@ -243,10 +256,12 @@ class JudgeAgent(BaseAgent):
         model: Optional[str] = None,
         timeout: float = 10.0,
         max_retries: int = 1,
+        fast_path: bool = True,
     ):
         super().__init__(llm, system_prompt, tools or [])
         self.limiar_noul = limiar_noul
         self.frase_segura = frase_segura
+        self.fast_path = fast_path
 
         if engine is not None:
             self._engine: DecisionEngine = engine
@@ -449,6 +464,29 @@ class JudgeAgent(BaseAgent):
             'frase_original': resposta,
         }
 
+    def _eh_fast_path(self, pergunta: str, resposta: str, state: GraphState) -> bool:
+        """Determina se a resposta do turno é uma saudação, esclarecimento ou resposta curta
+        sem nenhuma alegação factual que demande inferência no motor System One do Juiz."""
+        if not resposta:
+            return True
+
+        # Se houver números, moedas, pesos, distâncias ou citações de lei, NÃO é fast path
+        if _PADROES_DADOS_FACTUAIS.search(resposta):
+            return False
+
+        # Se a resposta contiver padrão de saudação/cortesia/ajuda e tiver tamanho razoável (< 300 chars)
+        if len(resposta) < 300 and _PADROES_SAUDACAO_OU_CORTESIA.search(resposta):
+            return True
+
+        # Se nenhum especialista foi chamado nem há snapshots (resposta direta do roteador) e sem fatos
+        tem_especialista = bool(state.get('especialista_outputs'))
+        tem_snapshot = bool(state.get('snapshots'))
+        tem_rag = bool(state.get('chunk_contexto'))
+        if not tem_especialista and not tem_snapshot and not tem_rag and len(resposta) < 250:
+            return True
+
+        return False
+
     def run(self, state: GraphState, config: RunnableConfig | None = None) -> dict:
         pergunta, resposta, evidencia, ultima_ai_msg = self._coletar_dados_turno(state)
         if not resposta:
@@ -456,6 +494,16 @@ class JudgeAgent(BaseAgent):
                 'agentes_chamados': [f'{self.nome_agente}:sem_resposta'],
                 'passou_juiz': True,
             }
+
+        if self.fast_path and self._eh_fast_path(pergunta, resposta, state):
+            log.info(f'[judge] Fast-Path ativado para resposta curta/saudação ({resposta[:50]!r}). Aprovada em 0ms.')
+            return self._formatar_saida(
+                choice='apoiada',
+                noul=1.0,
+                resposta=resposta,
+                ultima_ai_msg=ultima_ai_msg,
+                origem='fast_path',
+            )
 
         rotulo_erro: Optional[str] = None
         origem = 'gemini'
@@ -483,6 +531,16 @@ class JudgeAgent(BaseAgent):
                 'agentes_chamados': [f'{self.nome_agente}:sem_resposta'],
                 'passou_juiz': True,
             }
+
+        if self.fast_path and self._eh_fast_path(pergunta, resposta, state):
+            log.info(f'[judge] Fast-Path ativado para resposta curta/saudação ({resposta[:50]!r}). Aprovada em 0ms.')
+            return self._formatar_saida(
+                choice='apoiada',
+                noul=1.0,
+                resposta=resposta,
+                ultima_ai_msg=ultima_ai_msg,
+                origem='fast_path',
+            )
 
         rotulo_erro: Optional[str] = None
         origem = 'gemini'

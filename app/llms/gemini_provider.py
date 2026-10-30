@@ -47,7 +47,7 @@ class GeminiProvider(LLMProvider):
                     ChatGoogleGenerativeAI,
                     thinking_level='low',
                     max_retries=0,
-                    timeout=10,
+                    timeout=5.0,
                 ),
             ),
             'MEDIUM': ChatGoogleGenerativeAI(
@@ -58,7 +58,7 @@ class GeminiProvider(LLMProvider):
                 **kwargs_suportados(
                     ChatGoogleGenerativeAI,
                     max_retries=0,
-                    timeout=10,
+                    timeout=5.0,
                 ),
             ),
             'EMBEDDING': GoogleGenerativeAIEmbeddings(
