@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "renovai-mcp": {
+      "type": "stdio",
+      "command": "c:\\Users\\rafaeltakematsu-ieg\\RENOVAI\\IA\\.venv\\Scripts\\python.exe",
+      "args": [
+        "c:\\Users\\rafaeltakematsu-ieg\\RENOVAI\\IA\\app\\mcp_server.py"
+      ],
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  },
+  "inputs": []
+}

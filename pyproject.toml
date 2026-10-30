@@ -17,6 +17,7 @@ dependencies = [
     "langgraph>=1.2.11",
     "langgraph-checkpoint-redis>=0.5.2",
     "markdown>=3.11",
+    "mcp>=2.3.0",
     "neo4j>=6.4.1",
     "psycopg>=3.3.5",
     "psycopg-pool>=3.3.1",

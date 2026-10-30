@@ -15,6 +15,7 @@ import functools
 import inspect
 import json
 import logging
+import os
 from pathlib import Path
 import threading
 import time
@@ -328,8 +329,18 @@ class MCPServer:
         meta_dict = dict(meta or {})
 
         # Extrai metadados de contexto se passados junto aos argumentos da chamada MCP externa
-        coop_raw = args_limpos.pop('_cooperativa_id', None) or meta_dict.get('cooperativa_id')
-        emp_raw = args_limpos.pop('_empresa_id', None) or meta_dict.get('empresa_id')
+        coop_raw = (
+            args_limpos.pop('_cooperativa_id', None)
+            or args_limpos.pop('cooperativa_id', None)
+            or meta_dict.get('cooperativa_id')
+            or os.environ.get('DEFAULT_COOPERATIVA_ID')
+        )
+        emp_raw = (
+            args_limpos.pop('_empresa_id', None)
+            or args_limpos.pop('empresa_id', None)
+            or meta_dict.get('empresa_id')
+            or os.environ.get('DEFAULT_EMPRESA_ID')
+        )
         session_id = args_limpos.pop('_session_id', None) or meta_dict.get('session_id') or 'mcp_session'
         user_id = args_limpos.pop('_user_id', None) or meta_dict.get('user_id') or 'mcp_client'
 
@@ -338,6 +349,20 @@ class MCPServer:
 
         coop_uuid = _to_uuid(coop_raw or configurable.get('cooperativa_id'))
         emp_uuid = _to_uuid(emp_raw or configurable.get('empresa_id'))
+
+        if coop_uuid is None and emp_uuid is None:
+            try:
+                pg_repo = self.repositories.get('material_repository') or self.repositories.get('estoque_repository')
+                if pg_repo and hasattr(pg_repo, '_db') and pg_repo._db:
+                    with pg_repo._db.connection() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute('SELECT cooperativa_id FROM cooperativas LIMIT 1')
+                            row = cur.fetchone()
+                            if row:
+                                val = row.get('cooperativa_id') if isinstance(row, dict) else row[0]
+                                coop_uuid = _to_uuid(val)
+            except Exception:
+                pass
 
         if coop_uuid is not None:
             configurable['cooperativa_id'] = str(coop_uuid)

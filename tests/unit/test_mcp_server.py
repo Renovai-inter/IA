@@ -330,3 +330,35 @@ def test_mcp_endpoints_http():
         assert "protocolo" in data_mon
         assert "resumo" in data_mon
         assert "por_tool" in data_mon
+
+
+# ==============================================================================
+# 7. Servidor MCP Standalone (mcp_server.py — compatível com Cursor e Claude)
+# ==============================================================================
+@pytest.mark.asyncio
+async def test_mcp_standalone_stdio_server():
+    from app.mcp_server import mcp as stdio_mcp
+
+    tools = await stdio_mcp.list_tools()
+    assert len(tools) >= 10
+    nomes_tools = [t.name for t in tools]
+    assert "consultar_estoque" in nomes_tools
+    assert "consultar_coletas" in nomes_tools
+    assert "consultar_rateios" in nomes_tools
+    assert "recomendar_cooperativas" in nomes_tools
+    assert "faq_retriever" in nomes_tools
+
+    resources = await stdio_mcp.list_resources()
+    assert len(resources) >= 3
+    uris = [r.uri for r in resources]
+    assert "renovai://normas/pnrs" in uris
+    assert "renovai://telemetria/sre" in uris
+    assert "renovai://telemetria/redis" in uris
+
+    prompts = await stdio_mcp.list_prompts()
+    assert len(prompts) >= 3
+    nomes_prompts = [p.name for p in prompts]
+    assert "diagnostico_estoque_cooperativa" in nomes_prompts
+    assert "auditoria_rateio_financeiro" in nomes_prompts
+    assert "parecer_conformidade_pnrs" in nomes_prompts
+
