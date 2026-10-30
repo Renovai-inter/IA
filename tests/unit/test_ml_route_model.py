@@ -276,3 +276,58 @@ def test_logistica_agent_no_deterministico_sem_llm(tmp_path: Path):
     assert payload['indicadores']['salvo_no_neo4j'] is True
     assert '1º Mooca' in payload['resposta']
 
+
+def test_logistica_agent_enderecos_livres_aciona_modelo_supervisionado(tmp_path: Path):
+    import json
+    from app.agents.logistica_agent import LogisticaAgent
+
+    modelo = ModeloRotaSupervisionadoSP(
+        model_path=tmp_path / 'sp_route_free_addr.joblib',
+        dataset_path=DEFAULT_DATASET_PATH,
+    )
+    repo = MagicMock()
+    repo.buscar_dados_rota_cooperativa.return_value = None
+    repo.salvar_rota_otimizada.return_value = {'rota_id': 'rota-free-1', 'paradas_salvas': 2}
+
+    agente = LogisticaAgent(modelo_rotas=modelo, rota_repository=repo)
+
+    # Caso 1: 3 endereços livres sem frase padrão ("Saindo de...") e sem bairros do CSV
+    state_1 = {
+        'messages': [
+            {
+                'role': 'user',
+                'content': 'Preciso montar uma rota passando pela Av. Paulista, Rua Vergueiro e Largo da Batata',
+            }
+        ],
+        'perfil_ctx': SimpleNamespace(cooperativa_id='coop-1'),
+    }
+    saida_1 = agente.run(state_1)
+    payload_1 = json.loads(saida_1['especialista_outputs']['logistica'].conteudo)
+
+    assert 'esclarecer' not in payload_1
+    assert payload_1['indicadores']['qtd_paradas'] == 2
+    assert payload_1['indicadores']['distancia_total_km'] > 0
+    assert payload_1['indicadores']['tempo_total_estimado_min'] > 0
+
+    # Caso 2: 3 logradouros arbitrários com números de imóvel (fora do catálogo fixo)
+    state_2 = {
+        'messages': [
+            {
+                'role': 'user',
+                'content': (
+                    'Monte a rota passando pela Rua dos Três Irmãos, 200, '
+                    'Avenida Professor Alfonso Bovero, 500 e Rua Sergipe, 400'
+                ),
+            }
+        ],
+        'perfil_ctx': SimpleNamespace(cooperativa_id='coop-1'),
+    }
+    saida_2 = agente.run(state_2)
+    payload_2 = json.loads(saida_2['especialista_outputs']['logistica'].conteudo)
+
+    assert 'esclarecer' not in payload_2
+    assert payload_2['indicadores']['qtd_paradas'] == 2
+    assert payload_2['indicadores']['distancia_total_km'] > 0
+    assert payload_2['indicadores']['tempo_total_estimado_min'] > 0
+
+

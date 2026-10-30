@@ -8,6 +8,7 @@ from typing import Optional
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'data'
 BAIRROS_CSV_PATH = DATA_DIR / 'sp_bairros_zonas.csv'
+LOGRADOUROS_CSV_PATH = DATA_DIR / 'sp_logradouros_zonas.csv'
 
 
 @dataclass(frozen=True)
@@ -51,19 +52,49 @@ def _carregar_bairros_e_zonas(
     return zonas, bairros
 
 
+def _carregar_logradouros(
+    caminho_csv: Path = LOGRADOUROS_CSV_PATH,
+) -> dict[str, tuple[float, float, str, str]]:
+    logradouros: dict[str, tuple[float, float, str, str]] = {}
+    if not caminho_csv.exists():
+        return logradouros
+
+    with open(caminho_csv, mode='r', encoding='utf-8') as f:
+        leitor = csv.DictReader(f)
+        for linha in leitor:
+            chave = linha['logradouro'].strip().lower()
+            bairro = linha['bairro'].strip()
+            sigla_zona = linha['zona'].strip().upper()
+            lat = float(linha['latitude'])
+            lon = float(linha['longitude'])
+            logradouros[chave] = (lat, lon, sigla_zona, bairro)
+
+    return logradouros
+
+
 ZONAS_SP, BAIRROS_COORDS_SP = _carregar_bairros_e_zonas()
+LOGRADOUROS_COORDS_SP = _carregar_logradouros()
+
+_CEP_SP_RE = re.compile(r'\b(0[1-58]\d{3})-?(\d{3})\b')
 
 
 def _normalizar_texto(texto: str) -> str:
     sem_acento = unicodedata.normalize('NFKD', texto or '').encode('ascii', 'ignore').decode('ascii')
-    return sem_acento.lower().strip()
+    limpo = re.sub(r'\b(av|avenida)\.?\s+', 'av ', sem_acento.lower())
+    limpo = re.sub(r'\b(r|rua)\.?\s+', 'rua ', limpo)
+    limpo = re.sub(r'\b(pc|praca)\.?\s+', 'praca ', limpo)
+    limpo = re.sub(r'\b(al|alameda)\.?\s+', 'alameda ', limpo)
+    limpo = re.sub(r'\b(rod|rodovia)\.?\s+', 'rodovia ', limpo)
+    limpo = re.sub(r'\b(estr|estrada)\.?\s+', 'estrada ', limpo)
+    return re.sub(r'\s+', ' ', limpo).strip()
 
 
 def classificar_zona_por_cep(cep: Optional[str]) -> str:
     if not cep:
         return 'CENTRO'
-    digitos = re.sub(r'\D', '', cep)
-    if len(digitos) < 2:
+    m_cep = _CEP_SP_RE.search(str(cep))
+    digitos = (m_cep.group(1) + m_cep.group(2)) if m_cep else re.sub(r'\D', '', str(cep))
+    if len(digitos) < 5 or (not m_cep and len(digitos) != 8):
         return 'CENTRO'
     prefixo2 = int(digitos[:2])
     if prefixo2 == 1:
@@ -87,23 +118,50 @@ def inferir_coordenadas_sp(
     longitude: Optional[float] = None,
 ) -> tuple[float, float, str]:
     """Resolve latitude, longitude e macro-zona de São Paulo a partir de coordenadas explícitas,
-    catálogo de bairros em data/sp_bairros_zonas.csv ou faixa de CEP paulistano (01000-000 a 08999-999)."""
+    catálogo de logradouros (`LOGRADOUROS_COORDS_SP`), catálogo de bairros em `data/sp_bairros_zonas.csv`
+    ou faixa de CEP paulistano (`01000-000` a `08999-999`)."""
     texto_busca = _normalizar_texto(f'{bairro or ""} {endereco or ""}')
-    for nome_bairro, (lat_b, lon_b, zona_b) in BAIRROS_COORDS_SP.items():
-        if nome_bairro in texto_busca:
+
+    for chave_log, (lat_l, lon_l, zona_l, _) in sorted(
+        LOGRADOUROS_COORDS_SP.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        if re.search(rf'\b{re.escape(chave_log)}\b', texto_busca):
+            lat = float(latitude) if latitude is not None else lat_l
+            lon = float(longitude) if longitude is not None else lon_l
+            return lat, lon, zona_l
+
+    for nome_bairro, (lat_b, lon_b, zona_b) in sorted(
+        BAIRROS_COORDS_SP.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        if re.search(rf'\b{re.escape(nome_bairro)}\b', texto_busca):
             lat = float(latitude) if latitude is not None else lat_b
             lon = float(longitude) if longitude is not None else lon_b
             return lat, lon, zona_b
 
-    zona = classificar_zona_por_cep(cep or endereco)
-    info_zona = ZONAS_SP[zona]
+    m_cep_end = _CEP_SP_RE.search(endereco or '')
+    cep_candidato = cep if cep else (m_cep_end.group(0) if m_cep_end else None)
+
+    if cep_candidato:
+        zona = classificar_zona_por_cep(cep_candidato)
+        info_zona = ZONAS_SP[zona]
+    elif latitude is not None and longitude is not None:
+        zona = min(
+            ZONAS_SP.keys(),
+            key=lambda z: (ZONAS_SP[z].lat_ref - float(latitude)) ** 2 + (ZONAS_SP[z].lon_ref - float(longitude)) ** 2,
+        )
+        return float(latitude), float(longitude), zona
+    else:
+        nomes_zonas = ('CENTRO', 'NORTE', 'LESTE', 'SUL', 'OESTE')
+        seed_zona = sum((idx + 3) * ord(ch) for idx, ch in enumerate(texto_busca or 'sp'))
+        zona = nomes_zonas[seed_zona % len(nomes_zonas)]
+        info_zona = ZONAS_SP[zona]
 
     if latitude is not None and longitude is not None:
         return float(latitude), float(longitude), zona
 
-    seed = sum((idx + 1) * ord(ch) for idx, ch in enumerate(texto_busca or cep or 'sp'))
-    delta_lat = ((seed % 100) - 50) * 0.0006
-    delta_lon = (((seed // 7) % 100) - 50) * 0.0006
+    seed = sum((idx + 1) * ord(ch) for idx, ch in enumerate(texto_busca or cep_candidato or 'sp'))
+    delta_lat = ((seed % 100) - 50) * 0.0008
+    delta_lon = (((seed // 7) % 100) - 50) * 0.0008
     return round(info_zona.lat_ref + delta_lat, 6), round(info_zona.lon_ref + delta_lon, 6), zona
 
 

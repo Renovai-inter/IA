@@ -1,0 +1,119 @@
+logradouro,bairro,zona,latitude,longitude
+av paulista,Bela Vista,CENTRO,-23.5614,-46.6558
+rua augusta,Consolação,CENTRO,-23.5565,-46.6585
+rua da consolacao,Consolação,CENTRO,-23.5510,-46.6520
+alameda santos,Bela Vista,CENTRO,-23.5625,-46.6545
+alameda jau,Bela Vista,CENTRO,-23.5635,-46.6575
+alameda itu,Bela Vista,CENTRO,-23.5645,-46.6590
+alameda campinas,Bela Vista,CENTRO,-23.5650,-46.6530
+rua bela cintra,Consolação,CENTRO,-23.5580,-46.6615
+rua haddock lobo,Consolação,CENTRO,-23.5595,-46.6635
+rua frei caneca,Consolação,CENTRO,-23.5540,-46.6535
+rua maria antonia,Consolação,CENTRO,-23.5465,-46.6510
+praca da se,Sé,CENTRO,-23.5505,-46.6333
+praca da republica,República,CENTRO,-23.5435,-46.6425
+largo sao bento,Sé,CENTRO,-23.5445,-46.6340
+largo sao francisco,Sé,CENTRO,-23.5500,-46.6365
+largo do arouche,República,CENTRO,-23.5415,-46.6455
+rua 25 de marco,Sé,CENTRO,-23.5440,-46.6305
+rua vinte e cinco de marco,Sé,CENTRO,-23.5440,-46.6305
+av sao joao,República,CENTRO,-23.5415,-46.6410
+av ipiranga,República,CENTRO,-23.5430,-46.6400
+av sao luis,República,CENTRO,-23.5465,-46.6420
+av rio branco,Campos Elíseos,CENTRO,-23.5365,-46.6415
+av duque de caxias,Santa Cecília,CENTRO,-23.5350,-46.6445
+av angelica,Santa Cecília,CENTRO,-23.5425,-46.6575
+rua brigadeiro tobias,Luz,CENTRO,-23.5375,-46.6345
+av tiradentes,Bom Retiro,CENTRO,-23.5310,-46.6320
+rua jose paulino,Bom Retiro,CENTRO,-23.5285,-46.6380
+av do estado,Brás,CENTRO,-23.5530,-46.6210
+rua oriente,Brás,CENTRO,-23.5380,-46.6140
+rua miller,Brás,CENTRO,-23.5390,-46.6165
+av rangel pestana,Brás,CENTRO,-23.5485,-46.6225
+rua galvao bueno,Liberdade,CENTRO,-23.5585,-46.6350
+av liberdade,Liberdade,CENTRO,-23.5590,-46.6355
+av brigadeiro luis antonio,Bela Vista,CENTRO,-23.5680,-46.6490
+av nove de julho,Bela Vista,CENTRO,-23.5655,-46.6565
+av 9 de julho,Bela Vista,CENTRO,-23.5655,-46.6565
+rua vergueiro,Vila Mariana,SUL,-23.5785,-46.6360
+rua domingos de morais,Vila Mariana,SUL,-23.5930,-46.6368
+av 23 de maio,Vila Mariana,SUL,-23.5760,-46.6410
+av vinte e tres de maio,Vila Mariana,SUL,-23.5760,-46.6410
+av bernardino de campos,Vila Mariana,SUL,-23.5705,-46.6450
+av ibirapuera,Moema,SUL,-23.6035,-46.6620
+parque ibirapuera,Vila Mariana,SUL,-23.5874,-46.6576
+av republica do libano,Moema,SUL,-23.5940,-46.6635
+av indianopolis,Moema,SUL,-23.6085,-46.6535
+av moreira guimaraes,Moema,SUL,-23.6145,-46.6575
+av rubem berta,Vila Mariana,SUL,-23.5990,-46.6510
+av engenheiro luis carlos berrini,Itaim Bibi,SUL,-23.6050,-46.6940
+av berrini,Itaim Bibi,SUL,-23.6050,-46.6940
+rua joao cachoeira,Itaim Bibi,SUL,-23.5845,-46.6765
+rua clodomiro amazonas,Itaim Bibi,SUL,-23.5890,-46.6780
+av presidente juscelino kubitschek,Itaim Bibi,SUL,-23.5905,-46.6815
+av santo amaro,Santo Amaro,SUL,-23.6190,-46.6820
+av roque petroni junior,Santo Amaro,SUL,-23.6225,-46.6980
+av washington luis,Santo Amaro,SUL,-23.6410,-46.6780
+av interlagos,Santo Amaro,SUL,-23.6780,-46.6915
+largo treze,Santo Amaro,SUL,-23.6525,-46.7055
+largo 13,Santo Amaro,SUL,-23.6525,-46.7055
+av jabaquara,Saúde,SUL,-23.6240,-46.6385
+av cursino,Saúde,SUL,-23.6185,-46.6175
+av nazare,Ipiranga,SUL,-23.5910,-46.6080
+rua silva bueno,Ipiranga,SUL,-23.5935,-46.6040
+av giovanni gronchi,Campo Limpo,SUL,-23.6290,-46.7350
+estrada do campo limpo,Campo Limpo,SUL,-23.6485,-46.7580
+largo da batata,Pinheiros,OESTE,-23.5670,-46.6940
+rua dos pinheiros,Pinheiros,OESTE,-23.5645,-46.6850
+rua teodoro sampaio,Pinheiros,OESTE,-23.5610,-46.6820
+rua oscar freire,Pinheiros,OESTE,-23.5615,-46.6690
+rua cardeal arco verde,Pinheiros,OESTE,-23.5585,-46.6870
+rua cardeal arcoverde,Pinheiros,OESTE,-23.5585,-46.6870
+rua fradique coutinho,Vila Madalena,OESTE,-23.5570,-46.6895
+rua harmonia,Vila Madalena,OESTE,-23.5525,-46.6915
+rua aspicuelta,Vila Madalena,OESTE,-23.5540,-46.6910
+av brigadeiro faria lima,Pinheiros,OESTE,-23.5740,-46.6890
+faria lima,Pinheiros,OESTE,-23.5740,-46.6890
+av reboucas,Pinheiros,OESTE,-23.5640,-46.6740
+av brasil,Pinheiros,OESTE,-23.5710,-46.6695
+rua estados unidos,Pinheiros,OESTE,-23.5695,-46.6660
+av henrique schaumann,Pinheiros,OESTE,-23.5590,-46.6790
+av sumare,Perdizes,OESTE,-23.5395,-46.6780
+rua cardoso de almeida,Perdizes,OESTE,-23.5385,-46.6710
+av pompeia,Perdizes,OESTE,-23.5340,-46.6855
+av francisco matarazzo,Barra Funda,OESTE,-23.5280,-46.6720
+av marques de sao vicente,Barra Funda,OESTE,-23.5210,-46.6740
+rua guaipa,Lapa,OESTE,-23.5235,-46.7265
+rua clelia,Lapa,OESTE,-23.5245,-46.6925
+rua doze de outubro,Lapa,OESTE,-23.5215,-46.7035
+rua 12 de outubro,Lapa,OESTE,-23.5215,-46.7035
+av vital brasil,Butantã,OESTE,-23.5715,-46.7085
+av corifeu de azevedo marques,Butantã,OESTE,-23.5745,-46.7285
+rodovia raposo tavares,Butantã,OESTE,-23.5810,-46.7420
+av jaguare,Jaguaré,OESTE,-23.5450,-46.7420
+marginal pinheiros,Pinheiros,OESTE,-23.5820,-46.7010
+rua tuiuti,Tatuapé,LESTE,-23.5405,-46.5765
+rua da mooca,Mooca,LESTE,-23.5580,-46.5955
+av paes de barros,Mooca,LESTE,-23.5665,-46.5890
+av radial leste,Tatuapé,LESTE,-23.5400,-46.5650
+radial leste,Tatuapé,LESTE,-23.5400,-46.5650
+av celso garcia,Belenzinho,LESTE,-23.5390,-46.5850
+av salim farah maluf,Tatuapé,LESTE,-23.5520,-46.5775
+av regente feijo,Tatuapé,LESTE,-23.5610,-46.5645
+av conselheiro carrao,Penha,LESTE,-23.5515,-46.5465
+av amador bueno da veiga,Penha,LESTE,-23.5220,-46.5320
+av aricanduva,Itaquera,LESTE,-23.5630,-46.5080
+av jacu pessego,Itaquera,LESTE,-23.5450,-46.4480
+av sapopemba,Vila Prudente,LESTE,-23.5890,-46.5350
+av anhaia mello,Vila Prudente,LESTE,-23.5845,-46.5680
+av professor luiz ignacio anhaia mello,Vila Prudente,LESTE,-23.5845,-46.5680
+av mateo bei,São Mateus,LESTE,-23.6085,-46.4785
+av cruzeiro do sul,Santana,NORTE,-23.5110,-46.6245
+rua voluntarios da patria,Santana,NORTE,-23.5005,-46.6265
+av braz leme,Santana,NORTE,-23.5050,-46.6420
+av engenheiro caetano alvares,Casa Verde,NORTE,-23.4940,-46.6525
+av nova cantareira,Tucuruvi,NORTE,-23.4810,-46.6150
+av tucuruvi,Tucuruvi,NORTE,-23.4795,-46.6050
+av guilherme cotching,Vila Maria,NORTE,-23.5160,-46.5910
+av inajar de souza,Freguesia do Ó,NORTE,-23.4780,-46.6850
+marginal tiete,Vila Guilherme,NORTE,-23.5180,-46.6450

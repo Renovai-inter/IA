@@ -263,7 +263,10 @@ def build_container(
             'cls': OrchestratorAgent,
             'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
             'tools': [],
-            'llm_overrides': {'temperature': 0.1},
+            'llm_overrides': {
+                'temperature': 0.2,
+                'max_tokens': 1536,
+            },
         },
         'guardrail_saida': {
             'cls': GuardrailSaidaAgent,

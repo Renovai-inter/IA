@@ -84,6 +84,33 @@ async def test_orchestrator_agent_arun():
     assert resultado["messages"][-1]["content"] == "Aqui está o consolidado: temos 500kg de PET."
 
 
+def test_orchestrator_agent_montar_entrada_panorama_cruzado():
+    llm = _StubLLM("Síntese analítica concluída.")
+    agent = OrchestratorAgent(llm=llm, system_prompt="prompt analitico")
+
+    entrada = agent._montar_entrada(
+        {
+            "messages": [HumanMessage(content="qual o balanço entre triagem e rateio?")],
+            "especialista_outputs": {
+                "coleta": EspecialistaOutput(
+                    conteudo='{"dominio":"coleta","intencao":"resumo","resposta":"4000 kg triados","indicadores":{"peso_triado_kg":4000.0,"taxa_rejeito_percentual":15.0}}',
+                    fonte="coleta",
+                ),
+                "financeiro": EspecialistaOutput(
+                    conteudo='{"dominio":"financeiro","intencao":"consultar","resposta":"R$ 13.500,00 líquidos","indicadores":{"valor_liquido":13500.0,"despesas":6500.0}}',
+                    fonte="financeiro",
+                ),
+            },
+        }
+    )
+
+    assert "PANORAMA_CRUZADO_DOS_ESPECIALISTAS:" in entrada.content
+    assert "Total de especialistas estruturados acionados: 2 (coleta, financeiro)" in entrada.content
+    assert '"peso_triado_kg": 4000.0' in entrada.content
+    assert '"valor_liquido": 13500.0' in entrada.content
+    assert "Diretriz Multiagente:" in entrada.content
+
+
 @pytest.mark.asyncio
 async def test_material_estoque_agent_arun(monkeypatch: pytest.MonkeyPatch):
     import app.agents.material_estoque_agent as mat_module
