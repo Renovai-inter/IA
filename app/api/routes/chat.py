@@ -49,7 +49,7 @@ def _finalizar_telemetria_redis(
         entidade_id=entidade_id,
         tipo_fluxo=tipo_fluxo,
     )
-    rotas_ranking = rotas_acionadas if rotas_acionadas else ([rota] if rota and rota != "—" else [])
+    rotas_ranking = rotas_acionadas if rotas_acionadas else ([rota] if rota and rota != '—' else [])
     redis_realtime.registrar_interacao_ranking(
         entidade_id=entidade_id,
         tipo_fluxo=tipo_fluxo,
@@ -67,8 +67,8 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
 
     turno_id = obs.abrir_turno(session_id=body.session_id)
     t0_turno = time.perf_counter()
-    status = "erro"
-    rota = "—"
+    status = 'erro'
+    rota = '—'
     rotas_acionadas: list[str] = []
     enfileirado_no_redis = False
 
@@ -82,12 +82,12 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
                     identificador_rl,
                 )
             if not rl.permitido:
-                status = "bloqueado"
-                rota = "rate_limit"
+                status = 'bloqueado'
+                rota = 'rate_limit'
                 obs.warning(
                     f"Rate limit excedido para '{identificador_rl}' "
                     f"({rl.usado_na_janela}/{rl.limite} em {rl.janela_segundos}s).",
-                    modulo="redis",
+                    modulo='redis',
                 )
                 raise HTTPException(
                     status_code=429,
@@ -96,23 +96,11 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
                         f"{rl.janela_segundos}s). Aguarde {rl.retry_after_segundos}s."
                     ),
                     headers={
-                        "Retry-After": str(rl.retry_after_segundos),
-                        "X-RateLimit-Limit": str(rl.limite),
-                        "X-RateLimit-Remaining": "0",
+                        'Retry-After': str(rl.retry_after_segundos),
+                        'X-RateLimit-Limit': str(rl.limite),
+                        'X-RateLimit-Remaining': '0',
                     },
                 )
-
-            with medir_span('redis_fila_enqueue', categoria='redis'):
-                await asyncio.to_thread(
-                    redis_realtime.enfileirar_turno,
-                    turno_id=turno_id,
-                    session_id=body.session_id,
-                    user_id=body.user_id,
-                    entidade_id=body.entidade_id,
-                    tipo_fluxo=body.tipo_fluxo,
-                    pergunta=body.pergunta,
-                )
-            enfileirado_no_redis = True
 
         pergunta, mapa_pii = anonimizar(body.pergunta)
 
@@ -121,10 +109,27 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
             empresa_id=body.empresa_id,
         )
 
-        await asyncio.to_thread(
-            mongo_memory.preparar_turno,
-            pergunta, perfil_ctx, body.session_id, body.user_id,
-        )
+        tarefas_prep = [
+            asyncio.to_thread(
+                mongo_memory.preparar_turno,
+                pergunta, perfil_ctx, body.session_id, body.user_id,
+            )
+        ]
+        if redis_realtime is not None:
+            def _enfileirar_sync():
+                with medir_span('redis_fila_enqueue', categoria='redis'):
+                    redis_realtime.enfileirar_turno(
+                        turno_id=turno_id,
+                        session_id=body.session_id,
+                        user_id=body.user_id,
+                        entidade_id=body.entidade_id,
+                        tipo_fluxo=body.tipo_fluxo,
+                        pergunta=body.pergunta,
+                    )
+            tarefas_prep.append(asyncio.to_thread(_enfileirar_sync))
+            enfileirado_no_redis = True
+
+        await asyncio.gather(*tarefas_prep)
 
         config = {'configurable': {
             'thread_id':      body.session_id,
@@ -153,17 +158,17 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
         passou_guardrail = resultado.get('passou_guardrail', True)
         passou_juiz = resultado.get('passou_juiz', True)
         if not passou_guardrail:
-            status = "bloqueado"
+            status = 'bloqueado'
             rota = "bloqueio_guardrail"
         elif not passou_juiz:
-            status = "recusado_juiz"
-            rota = "bloqueio_juiz"
+            status = 'recusado_juiz'
+            rota = 'bloqueio_juiz'
         else:
-            status = "ok"
+            status = 'ok'
             if rotas_acionadas:
-                rota = ", ".join(rotas_acionadas)
+                rota = ', '.join(rotas_acionadas)
             else:
-                rota = agentes_turno[-1] if agentes_turno else "fim"
+                rota = agentes_turno[-1] if agentes_turno else 'fim'
 
         resposta = _obter_texto_mensagem(resultado['messages'][-1])
         latencia_ms = int((time.perf_counter() - t0_turno) * 1000)
@@ -194,8 +199,8 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
     except HTTPException:
         raise
     except Exception as e:
-        status = "erro"
-        obs.error(f"Falha na execução do chat: {e}", modulo="chat", exc=e)
+        status = 'erro'
+        obs.error(f"Falha na execução do chat: {e}", modulo='chat', exc=e)
         raise
     finally:
         if redis_realtime is not None and enfileirado_no_redis:
