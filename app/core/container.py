@@ -1,5 +1,6 @@
 from app.a2a.client import A2AClient
 from app.a2a.server import A2ACooperativaServer, A2AEmpresaServer
+from app.mcp import MCPClient, MCPServer
 from app.core.config import Settings
 from app.core.observabilidade import Observabilidade
 from app.graph.registro import RegistroEspecialista
@@ -204,6 +205,25 @@ def build_container(
         'financeiro_toolkit':       financeiro_toolkit,
     }
 
+    mcp_server = MCPServer(
+        toolkits=_TOOLKITS_MAP,
+        repositories=_REPOSITORIES_MAP,
+        observabilidade=observabilidade,
+        redis_realtime=_REPOSITORIES_MAP['redis_realtime_repository'],
+        pnrs_path=getattr(settings, 'PNRS_PATH', None),
+    )
+    mcp_client = MCPClient(
+        server_url=(getattr(settings, 'MCP_SERVER_URL', '') or '').strip() or None,
+        server=mcp_server,
+    )
+
+    tools_memoria_mcp = mcp_client.get_toolkit_tools('memoria_toolkit', memoria_toolkit.get_tools())
+    tools_faq_mcp = mcp_client.get_toolkit_tools('faq_toolkit', faq_toolkit.get_tools())
+    tools_estoque_mcp = mcp_client.get_toolkit_tools('material_estoque_toolkit', material_estoque_toolkit.get_tools())
+    tools_recomendacao_mcp = mcp_client.get_toolkit_tools('recomendacao_toolkit', recomendacao_toolkit.get_tools())
+    tools_coleta_mcp = mcp_client.get_toolkit_tools('coleta_toolkit', coleta_toolkit.get_tools())
+    tools_financeiro_mcp = mcp_client.get_toolkit_tools('financeiro_toolkit', financeiro_toolkit.get_tools())
+
     modelo_rotas = ModeloRotaSupervisionadoSP()
 
     _AGENT_REGISTRY: dict[str, dict] = {
@@ -221,20 +241,20 @@ def build_container(
             'route': 'rag_faq',
             'cls': FaqAgent,
             'prompt': FAQ_PROMPT_COMPLETO,
-            'tools': faq_toolkit.get_tools(),
+            'tools': tools_faq_mcp,
             'llm_overrides': {'temperature': 0.1},
         },
         'material_estoque_agent': {
             'route': 'estoque',
             'cls': MaterialEstoqueAgent,
             'prompt': MATERIAL_ESTOQUE_PROMPT_COMPLETO,
-            'tools': memoria_toolkit.get_tools() + material_estoque_toolkit.get_tools()
+            'tools': tools_memoria_mcp + tools_estoque_mcp
         },
         'recomendacao_agent': {
             'route': 'pedidos',
             'cls': RecomendacaoAgent,
             'prompt': RECOMENDACAO_PROMPT_COMPLETO,
-            'tools': memoria_toolkit.get_tools() + recomendacao_toolkit.get_tools()
+            'tools': tools_memoria_mcp + tools_recomendacao_mcp
         },
         'logistica_agent': {
             'route': 'logistica',
@@ -251,13 +271,13 @@ def build_container(
             'route': 'coleta',
             'cls': ColetaAgent,
             'prompt': COLETA_PROMPT_COMPLETO,
-            'tools': memoria_toolkit.get_tools() + coleta_toolkit.get_tools()
+            'tools': tools_memoria_mcp + tools_coleta_mcp
         },
         'financeiro_agent': {
             'route': 'financeiro',
             'cls': FinanceiroAgent,
             'prompt': FINANCEIRO_PROMPT_COMPLETO,
-            'tools': memoria_toolkit.get_tools() + financeiro_toolkit.get_tools()
+            'tools': tools_memoria_mcp + tools_financeiro_mcp
         },
         'orchestrator_agent': {
             'cls': OrchestratorAgent,
@@ -353,6 +373,8 @@ def build_container(
         a2a_cooperativa_server=a2a_cooperativa_server,
         a2a_empresa_server=a2a_empresa_server,
         a2a_client=a2a_client,
+        mcp_server=mcp_server,
+        mcp_client=mcp_client,
         judge_agent=agents['judge'],
     )
 
@@ -372,6 +394,8 @@ class Container:
         a2a_cooperativa_server: A2ACooperativaServer | None = None,
         a2a_empresa_server: A2AEmpresaServer | None = None,
         a2a_client: A2AClient | None = None,
+        mcp_server: MCPServer | None = None,
+        mcp_client: MCPClient | None = None,
         judge_agent: BaseAgent | None = None,
     ):
         self.graph = graph
@@ -390,6 +414,12 @@ class Container:
             cooperativa_server=self.a2a_cooperativa_server,
             empresa_server=self.a2a_empresa_server,
         )
+        self.mcp_server = mcp_server or MCPServer(
+            toolkits=self.toolkits,
+            repositories=self.repositories,
+            observabilidade=self.observabilidade,
+        )
+        self.mcp_client = mcp_client or MCPClient(server=self.mcp_server)
         self.judge_agent = judge_agent or self.agentes.get('judge')
         self.redis_realtime: RedisRealtimeRepository = (
             self.repositories.get('redis_realtime_repository') or RedisRealtimeRepository()
