@@ -69,6 +69,28 @@ class A2AClient:
         self.empresa_server = empresa_server
         self.timeout = timeout
         self._cards_cache: Dict[str, AgentCard] = {}
+        self._async_client: Optional[httpx.AsyncClient] = None
+        self._sync_client: Optional[httpx.Client] = None
+
+    def _obter_async_client(self) -> httpx.AsyncClient:
+        if self._async_client is None or self._async_client.is_closed:
+            self._async_client = httpx.AsyncClient(timeout=self.timeout)
+        return self._async_client
+
+    def _obter_sync_client(self) -> httpx.Client:
+        if self._sync_client is None or self._sync_client.is_closed:
+            self._sync_client = httpx.Client(timeout=self.timeout)
+        return self._sync_client
+
+    async def aclose(self) -> None:
+        if self._async_client is not None and not self._async_client.is_closed:
+            await self._async_client.aclose()
+        if self._sync_client is not None and not self._sync_client.is_closed:
+            self._sync_client.close()
+
+    def close(self) -> None:
+        if self._sync_client is not None and not self._sync_client.is_closed:
+            self._sync_client.close()
 
     def discover_agent_card(self, servico: ServicoA2A = 'cooperativa') -> AgentCard:
         """Descobre o Agent Card do microsserviço (`cooperativa` ou `empresa`) via `/.well-known/agent.json`."""
@@ -78,12 +100,12 @@ class A2AClient:
         url_base = self.cooperativa_url if servico == 'cooperativa' else self.empresa_url
         if url_base:
             url = f'{url_base}/.well-known/agent.json'
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(url)
-                resp.raise_for_status()
-                card = AgentCard.model_validate(resp.json())
-                self._cards_cache[servico] = card
-                return card
+            client = self._obter_sync_client()
+            resp = client.get(url)
+            resp.raise_for_status()
+            card = AgentCard.model_validate(resp.json())
+            self._cards_cache[servico] = card
+            return card
 
         card = (
             get_cooperativa_agent_card()
@@ -190,10 +212,10 @@ class A2AClient:
                 for part in payload_http['params']['message']['parts']:
                     if part.get('type') == 'data' and 'callbacks' in part.get('data', {}):
                         part['data'].pop('callbacks', None)
-                with httpx.Client(timeout=self.timeout) as client:
-                    resp = client.post(url_remota, json=payload_http)
-                    resp.raise_for_status()
-                    return JSONRPCResponse.model_validate(resp.json())
+                client = self._obter_sync_client()
+                resp = client.post(url_remota, json=payload_http)
+                resp.raise_for_status()
+                return JSONRPCResponse.model_validate(resp.json())
 
             servidor_local = (
                 self.cooperativa_server if servico_alvo == 'cooperativa' else self.empresa_server
@@ -233,10 +255,10 @@ class A2AClient:
                 for part in payload_http['params']['message']['parts']:
                     if part.get('type') == 'data' and 'callbacks' in part.get('data', {}):
                         part['data'].pop('callbacks', None)
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    resp = await client.post(url_remota, json=payload_http)
-                    resp.raise_for_status()
-                    return JSONRPCResponse.model_validate(resp.json())
+                client = self._obter_async_client()
+                resp = await client.post(url_remota, json=payload_http)
+                resp.raise_for_status()
+                return JSONRPCResponse.model_validate(resp.json())
 
             servidor_local = (
                 self.cooperativa_server if servico_alvo == 'cooperativa' else self.empresa_server

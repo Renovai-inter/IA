@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Request
@@ -63,15 +64,17 @@ class A2ASubgraphServer:
     ):
         self.repositories = repositories or {}
         self._tasks: Dict[str, Task] = {}
+        self._lock = threading.Lock()
         self._runners_por_skill: Dict[str, tuple[RegistroEspecialista, Any, Any]] = {}
         for registro in (specialists or []):
             self.registrar_especialista(registro)
 
     def _registrar_task(self, task: Task) -> None:
-        self._tasks[task.id] = task
-        while len(self._tasks) > self._MAX_TASKS_EM_MEMORIA:
-            oldest_key = next(iter(self._tasks))
-            self._tasks.pop(oldest_key, None)
+        with self._lock:
+            self._tasks[task.id] = task
+            while len(self._tasks) > self._MAX_TASKS_EM_MEMORIA:
+                oldest_key = next(iter(self._tasks))
+                self._tasks.pop(oldest_key, None)
 
     def registrar_especialista(self, registro: RegistroEspecialista) -> None:
         agent_repos = {
@@ -257,7 +260,8 @@ class A2ASubgraphServer:
     def _processar_get_ou_cancel(self, rpc_req: JSONRPCRequest) -> JSONRPCResponse:
         if rpc_req.method == 'tasks/get':
             query = TaskQueryParams.model_validate(rpc_req.params)
-            task = self._tasks.get(query.id)
+            with self._lock:
+                task = self._tasks.get(query.id)
             if task is None:
                 return JSONRPCResponse(
                     id=rpc_req.id,
@@ -267,7 +271,8 @@ class A2ASubgraphServer:
 
         if rpc_req.method == 'tasks/cancel':
             query = TaskQueryParams.model_validate(rpc_req.params)
-            task = self._tasks.get(query.id)
+            with self._lock:
+                task = self._tasks.get(query.id)
             if task is None:
                 return JSONRPCResponse(
                     id=rpc_req.id,
