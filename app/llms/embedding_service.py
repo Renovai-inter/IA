@@ -29,13 +29,17 @@ class EmbeddingService(LLMService):
         self._hf_token = (api_key or os.getenv('HF_TOKEN') or '').strip() or None
         self._gemini_api_key = (gemini_api_key or os.getenv('GEMINI_API_KEY') or '').strip() or None
         self._api_url = f'{HF_INFERENCE_URL}/{model}/pipeline/feature-extraction'
-        self._use_api = bool(self._hf_token)
         self._gemini_embeddings: Any = None
+        # Prioriza o Google text-embedding-004 (alta velocidade, estável e gratuito)
+        self._use_gemini = bool(self._gemini_api_key)
+        self._use_hf = bool(self._hf_token) and not self._use_gemini
 
-        if self._use_api:
+        if self._use_gemini:
+            log.info('[embedding_service] Usando Google text-embedding-004 como motor primário de embeddings (dim=768).')
+        elif self._use_hf:
             log.info(f'[embedding_service] Usando Hugging Face Inference API ({model}).')
         else:
-            log.info('[embedding_service] HF_TOKEN ausente. Usando fallback de API remota (Gemini Embeddings) sem alocar RAM local.')
+            log.info('[embedding_service] Nenhuma chave remota detectada inicialmente.')
 
         # perguntas repetidas (FAQ) não precisam de nova chamada de inferência
         self._embed_cached = lru_cache(maxsize=128)(self._embed_query)
@@ -48,8 +52,9 @@ class EmbeddingService(LLMService):
                 )
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
+            # models/text-embedding-004 é o modelo oficial, estável e gratuito do Google (dimensão nativa 768)
             self._gemini_embeddings = GoogleGenerativeAIEmbeddings(
-                model='gemini-embedding-2-preview',
+                model='models/text-embedding-004',
                 google_api_key=self._gemini_api_key,
             )
         return self._gemini_embeddings
@@ -60,16 +65,35 @@ class EmbeddingService(LLMService):
         return self._dim
 
     def _embed_query(self, texto: str) -> tuple[float, ...]:
-        if self._use_api:
-            vetor = self._chamar_hf_api(texto)
-            if vetor and isinstance(vetor[0], list):
-                vetor = vetor[0]
-            return tuple(float(x) for x in vetor)
+        if self._use_gemini:
+            try:
+                gemini_emb = self._obter_gemini_embeddings()
+                vetor = gemini_emb.embed_query(texto, output_dimensionality=self._dim)
+                return tuple(float(x) for x in vetor)
+            except Exception as exc:
+                log.warning(
+                    f"[embedding_service] Falha no Google text-embedding-004 ({exc}). "
+                    "Tentando alternativa Hugging Face se disponível."
+                )
+                self._use_gemini = False
+
+        if self._use_hf:
+            try:
+                vetor = self._chamar_hf_api(texto)
+                if vetor and isinstance(vetor[0], list):
+                    vetor = vetor[0]
+                return tuple(float(x) for x in vetor)
+            except Exception as exc:
+                log.warning(
+                    f"[embedding_service] Falha na Inference API do Hugging Face ({exc})."
+                )
+                self._use_hf = False
 
         if self._llm is not None:
             vetor = next(self._llm.embed([texto]))
             return tuple(float(x) for x in vetor)
 
+        # Última tentativa via Gemini
         gemini_emb = self._obter_gemini_embeddings()
         vetor = gemini_emb.embed_query(texto, output_dimensionality=self._dim)
         return tuple(float(x) for x in vetor)
@@ -132,11 +156,28 @@ class EmbeddingService(LLMService):
     def gerar_embeddings_batch(self, textos: list[str]) -> list[list[float]]:
         if not textos:
             return []
-        if self._use_api:
-            res = self._chamar_hf_api(textos)
-            if res and isinstance(res[0], (int, float)):
-                return [res]  # type: ignore
-            return res  # type: ignore
+        if self._use_gemini:
+            try:
+                gemini_emb = self._obter_gemini_embeddings()
+                vetores = gemini_emb.embed_documents(textos, output_dimensionality=self._dim)
+                return [[float(x) for x in vetor] for vetor in vetores]
+            except Exception as exc:
+                log.warning(
+                    f"[embedding_service] Falha no batch do Google text-embedding-004 ({exc})."
+                )
+                self._use_gemini = False
+
+        if self._use_hf:
+            try:
+                res = self._chamar_hf_api(textos)
+                if res and isinstance(res[0], (int, float)):
+                    return [res]  # type: ignore
+                return res  # type: ignore
+            except Exception as exc:
+                log.warning(
+                    f"[embedding_service] Falha no batch do Hugging Face ({exc})."
+                )
+                self._use_hf = False
 
         if self._llm is not None:
             gerador = self._llm.embed(textos)
