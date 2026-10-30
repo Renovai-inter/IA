@@ -1,5 +1,3 @@
-import inspect
-
 from app.tools.base import Toolkit
 from app.repository.postgresql.estoque_repository import EstoqueRepository, EstoqueSnapshot
 from app.repository.postgresql.material_repository import MaterialRepository, MaterialSnapshot
@@ -19,7 +17,7 @@ from langchain_core.tools import StructuredTool
 class ConsultarEstoqueArgs(BaseModel):
     material_ids: Optional[List[UUID]] = Field(
         default=None,
-        description="IDs em materiais (FK). Pode conter um ou mais materiais."
+        description='IDs em materiais (FK). Pode conter um ou mais materiais.'
     )
     material_nomes: Optional[List[str]] = Field(
         default=None,
@@ -27,7 +25,7 @@ class ConsultarEstoqueArgs(BaseModel):
     )
     disponivel: Optional[bool] = Field(
         default=None,
-        description="Filtra por disponibilidade do material no snapshot (true = apenas disponíveis). Ausente = não filtra por disponibilidade."
+        description='Filtra por disponibilidade do material no snapshot (true = apenas disponíveis). Ausente = não filtra por disponibilidade.'
     )
     quantidade_min_kg: Optional[float] = Field(
         default=None,
@@ -35,20 +33,20 @@ class ConsultarEstoqueArgs(BaseModel):
     )
     quantidade_max_kg: Optional[float] = Field(
         default=None,
-        description="Quantidade máxima em estoque (kg) para incluir o material no resultado."
+        description='Quantidade máxima em estoque (kg) para incluir o material no resultado.'
     )
-    preco_min: Optional[float] = Field(default=None, description="Preço sugerido mínimo do material.")
-    preco_max: Optional[float] = Field(default=None, description="Preço sugerido máximo do material.")
+    preco_min: Optional[float] = Field(default=None, description='Preço sugerido mínimo do material.')
+    preco_max: Optional[float] = Field(default=None, description='Preço sugerido máximo do material.')
     incluir_sem_estoque: bool = Field(
         default=False,
-        description="Se true, inclui materiais com quantidade em estoque igual a zero no resultado (por padrão, ficam de fora)."
+        description='Se true, inclui materiais com quantidade em estoque igual a zero no resultado (por padrão, ficam de fora).'
     )
 
 
 class GeneralizarEstoqueArgs(BaseModel):
     material_ids: Optional[List[UUID]] = Field(
         default=None,
-        description="IDs em materiais (FK), pra restringir a materiais específicos antes de agrupar pela categoria-pai."
+        description='IDs em materiais (FK), pra restringir a materiais específicos antes de agrupar pela categoria-pai.'
     )
     material_nomes: Optional[List[str]] = Field(
         default=None,
@@ -59,22 +57,22 @@ class GeneralizarEstoqueArgs(BaseModel):
         description=(
             "FK em categorias_materiais. Aceita tanto o id de uma categoria-pai (ex: 'Plástico') "
             "quanto de uma categoria-filha (ex: 'PET') — nos dois casos, o resultado é agrupado "
-            "pela categoria-pai correspondente. Ausente = agrupa todos os materiais disponíveis."
+            'pela categoria-pai correspondente. Ausente = agrupa todos os materiais disponíveis.'
         )
     )
-    disponivel: Optional[bool] = Field(default=None, description="Filtra por disponibilidade (true = apenas disponíveis).")
-    quantidade_min_kg: Optional[float] = Field(default=None, description="Quantidade mínima em estoque (kg).")
-    quantidade_max_kg: Optional[float] = Field(default=None, description="Quantidade máxima em estoque (kg).")
-    preco_min: Optional[float] = Field(default=None, description="Preço sugerido mínimo do material.")
-    preco_max: Optional[float] = Field(default=None, description="Preço sugerido máximo do material.")
-    incluir_sem_estoque: bool = Field(default=False, description="Se true, inclui materiais com estoque zerado.")
+    disponivel: Optional[bool] = Field(default=None, description='Filtra por disponibilidade (true = apenas disponíveis).')
+    quantidade_min_kg: Optional[float] = Field(default=None, description='Quantidade mínima em estoque (kg).')
+    quantidade_max_kg: Optional[float] = Field(default=None, description='Quantidade máxima em estoque (kg).')
+    preco_min: Optional[float] = Field(default=None, description='Preço sugerido mínimo do material.')
+    preco_max: Optional[float] = Field(default=None, description='Preço sugerido máximo do material.')
+    incluir_sem_estoque: bool = Field(default=False, description='Se true, inclui materiais com estoque zerado.')
 
 class BuscarEstoqueHistoricoArgs(BaseModel):
-    data_inicio: Optional[datetime] = Field(None, description="Data de início do intervalo (ISO 8601)")
-    data_fim: Optional[datetime] = Field(None, description="Data de fim do intervalo (ISO 8601)")
+    data_inicio: Optional[datetime] = Field(None, description='Data de início do intervalo (ISO 8601)')
+    data_fim: Optional[datetime] = Field(None, description='Data de fim do intervalo (ISO 8601)')
     material_ids: Optional[List[UUID]] = Field(
         default=None,
-        description="IDs em materiais (FK). Pode conter um ou mais materiais."
+        description='IDs em materiais (FK). Pode conter um ou mais materiais.'
     )
     material_nomes: Optional[List[str]] = Field(
         default=None,
@@ -83,35 +81,35 @@ class BuscarEstoqueHistoricoArgs(BaseModel):
     tipo_movimentacao: Optional[str] = Field(
         default=None,
         description=(
-            "Tipo de movimentação (entrada ou saída) de um material no estoque."
+            'Tipo de movimentação (entrada ou saída) de um material no estoque.'
             "'ENTRADA' = movimentação originada de uma triagem, quantidade_kg > 0"
             "'SAIDA' = movimentação originada de um pedido, quantidade < 0"
-            "None = trazer TODAS as movimentações, entradas e saídas."
+            'None = trazer TODAS as movimentações, entradas e saídas.'
         )
     )
-    disponivel: Optional[bool] = Field(default=None, description="Filtra por disponibilidade (true = apenas disponíveis).")
-    quantidade_min_kg: Optional[float] = Field(default=None, description="Quantidade mínima em estoque (kg).")
-    quantidade_max_kg: Optional[float] = Field(default=None, description="Quantidade máxima em estoque (kg).")
-    preco_min: Optional[float] = Field(default=None, description="Preço sugerido mínimo do material.")
-    preco_max: Optional[float] = Field(default=None, description="Preço sugerido máximo do material.")
+    disponivel: Optional[bool] = Field(default=None, description='Filtra por disponibilidade (true = apenas disponíveis).')
+    quantidade_min_kg: Optional[float] = Field(default=None, description='Quantidade mínima em estoque (kg).')
+    quantidade_max_kg: Optional[float] = Field(default=None, description='Quantidade máxima em estoque (kg).')
+    preco_min: Optional[float] = Field(default=None, description='Preço sugerido mínimo do material.')
+    preco_max: Optional[float] = Field(default=None, description='Preço sugerido máximo do material.')
 
 
 class ConsultarEstoqueGranularArgs(BaseModel):
     data_referencia: datetime = Field(
         ...,
-        description="Timestamp ISO 8601; se ausente, usa NOW() no banco."
+        description='Timestamp ISO 8601; se ausente, usa NOW() no banco.'
     )
     granularidade: str = Field(
         ...,
         description=(
-            "Nível da granularidade temporal, determinístico para o atributo data_referência"
-            "granularidade= DIA | SEMANA | MES | TRIMESTRE | ANO"
-            "por padrão, usa DIA"
+            'Nível da granularidade temporal, determinístico para o atributo data_referência'
+            'granularidade= DIA | SEMANA | MES | TRIMESTRE | ANO'
+            'por padrão, usa DIA'
         )
     )
     material_ids: Optional[List[UUID]] = Field(
         default=None,
-        description="IDs em materiais (FK). Pode conter um ou mais materiais."
+        description='IDs em materiais (FK). Pode conter um ou mais materiais.'
     )
     material_nomes: Optional[List[str]] = Field(
         default=None,
@@ -120,17 +118,17 @@ class ConsultarEstoqueGranularArgs(BaseModel):
     tipo_movimentacao: Optional[str] = Field(
         default=None,
         description=(
-            "Tipo de movimentação (entrada ou saída) de um material no estoque."
+            'Tipo de movimentação (entrada ou saída) de um material no estoque.'
             "'ENTRADA' = movimentação originada de uma triagem, quantidade_kg > 0"
             "'SAIDA' = movimentação originada de um pedido, quantidade < 0"
-            "None = trazer TODAS as movimentações, entradas e saídas."
+            'None = trazer TODAS as movimentações, entradas e saídas.'
         )
     )
-    disponivel: Optional[bool] = Field(default=None, description="Filtra por disponibilidade (true = apenas disponíveis).")
-    quantidade_min_kg: Optional[float] = Field(default=None, description="Quantidade mínima em estoque (kg).")
-    quantidade_max_kg: Optional[float] = Field(default=None, description="Quantidade máxima em estoque (kg).")
-    preco_min: Optional[float] = Field(default=None, description="Preço sugerido mínimo do material.")
-    preco_max: Optional[float] = Field(default=None, description="Preço sugerido máximo do material.")
+    disponivel: Optional[bool] = Field(default=None, description='Filtra por disponibilidade (true = apenas disponíveis).')
+    quantidade_min_kg: Optional[float] = Field(default=None, description='Quantidade mínima em estoque (kg).')
+    quantidade_max_kg: Optional[float] = Field(default=None, description='Quantidade máxima em estoque (kg).')
+    preco_min: Optional[float] = Field(default=None, description='Preço sugerido mínimo do material.')
+    preco_max: Optional[float] = Field(default=None, description='Preço sugerido máximo do material.')
 
 
 class MaterialEstoqueToolkit(Toolkit):
@@ -145,16 +143,16 @@ class MaterialEstoqueToolkit(Toolkit):
 
     def _normalizar(self, texto: str) -> str:
         """Remove acentos, underline/hífen e baixa a caixa, pra comparação tolerante."""
-        sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
-        return sem_acento.lower().replace("_", " ").replace("-", " ").strip()
+        sem_acento = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('ascii')
+        return sem_acento.lower().replace('_', ' ').replace('-', ' ').strip()
 
     def _corresponde_nome(self, termo: str, nome_cat: str) -> bool:
         """Verifica se termo de busca bate com nome da categoria com tolerância a plurais/substrings."""
         if termo in nome_cat or nome_cat in termo:
             return True
-        if termo.endswith("s") and termo[:-1] in nome_cat:
+        if termo.endswith('s') and termo[:-1] in nome_cat:
             return True
-        if nome_cat.endswith("s") and nome_cat[:-1] in termo:
+        if nome_cat.endswith('s') and nome_cat[:-1] in termo:
             return True
         return False
 
@@ -189,8 +187,8 @@ class MaterialEstoqueToolkit(Toolkit):
         (ex: repository desatualizado/skew de deploy) — não é proteção contra dado errado,
         porque não tem como esse helper saber se um None é 'raiz de verdade' ou 'join quebrado'.
         """
-        categoria_pai_id = getattr(estoque_item, "categoria_pai_id", None)
-        nome_categoria_pai = getattr(estoque_item, "nome_categoria_pai", None)
+        categoria_pai_id = getattr(estoque_item, 'categoria_pai_id', None)
+        nome_categoria_pai = getattr(estoque_item, 'nome_categoria_pai', None)
 
         cat_pai_id = categoria_pai_id if categoria_pai_id is not None else estoque_item.categoria_id
         nome_cat_pai = nome_categoria_pai if nome_categoria_pai is not None else estoque_item.nome_categoria
@@ -209,7 +207,7 @@ class MaterialEstoqueToolkit(Toolkit):
 
         data_referencia = (data_referencia or datetime.now()).replace(hour=0, minute=0, second=0, microsecond=0)
 
-        granularidade = (granularidade or "DIA").strip().upper()
+        granularidade = (granularidade or 'DIA').strip().upper()
         match granularidade:
             case 'DIA':
                 data_inicio = data_referencia
@@ -232,7 +230,7 @@ class MaterialEstoqueToolkit(Toolkit):
                 data_fim = data_inicio.replace(year=data_inicio.year + 1)
 
             case _:
-                raise ValueError(f"Granularidade inválida: {granularidade}")
+                raise ValueError(f'Granularidade inválida: {granularidade}')
 
         return data_inicio, data_fim
 
@@ -586,7 +584,7 @@ class MaterialEstoqueToolkit(Toolkit):
         Diferente da busca histórica aberta, esta função é otimizada para truncar o período
         a partir de uma data de referência e uma granularidade definida (ex: resumos diários,
         semanais, mensais ou anuais). É ideal para atender a perguntas rotineiras de relatórios
-        periódicos ("qual foi o movimento de ontem?", "resumo da última semana", etc.).
+        periódicos ('qual foi o movimento de ontem?', 'resumo da última semana', etc.).
 
         Args:
             config (RunnableConfig): Configuração do LangChain/LangGraph contendo os

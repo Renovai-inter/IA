@@ -142,15 +142,15 @@ def extrair_features_trecho(
     peso_estimado_kg: float = 200.0,
 ) -> list[float]:
     """Monta o vetor numérico de features para o estimador supervisionado scikit-learn:
-      0: distancia_haversine_km
-      1: distancia_viaria_estimada_km
-      2: codigo_zona_origem
-      3: codigo_zona_destino
-      4: mudanca_de_zona
-      5: fator_retencao_combinado
-      6: fator_horario_sp
-      7: hora_saida
-      8: peso_estimado_kg
+        0: distancia_haversine_km
+        1: distancia_viaria_estimada_km
+        2: codigo_zona_origem
+        3: codigo_zona_destino
+        4: mudanca_de_zona
+        5: fator_retencao_combinado
+        6: fator_horario_sp
+        7: hora_saida
+        8: peso_estimado_kg
     """
     z_orig = ZONAS_SP.get(zona_origem, ZONAS_SP['CENTRO'])
     z_dest = ZONAS_SP.get(zona_destino, ZONAS_SP['CENTRO'])

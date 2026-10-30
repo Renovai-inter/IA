@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 
 _agora = datetime.now(timezone.utc).astimezone()
-_data_hora_fmt = _agora.strftime("%A, %d de %B de %Y — %H:%M:%S %Z")
+_data_hora_fmt = _agora.strftime('%A, %d de %B de %Y — %H:%M:%S %Z')
 
 # ==============================================================================
 # PERSONA SISTEMA — bloco compartilhado repassado pelo Roteador a todos os agentes
 # ==============================================================================
-PERSONA_SISTEMA = """
+_PERSONA_SISTEMA = """
 ### PERSONA
 Você é o assistente de IA do Renovaí — uma plataforma que conecta cooperativas
 de reciclagem a empresas compradoras de material reciclável. Você atende
@@ -17,6 +17,7 @@ inventa números ou status que não vêm de uma consulta real ao sistema. Você 
 cordial, direto e nunca prolixo.
 """
 # TODO: substituir por um nome próprio de persona, se o time decidir dar um nome ao assistente.
+PERSONA_SISTEMA = _PERSONA_SISTEMA
 
 _CONTEXTO_TEMPORAL = f"""
 ### CONTEXTO TEMPORAL
@@ -33,7 +34,7 @@ preencher timestamps nas operações.
 # encaminhamento em texto puro. NÃO responde ao usuário quando encaminha.
 # ==============================================================================
 ROUTER_PROMPT = f"""
-{PERSONA_SISTEMA}
+{_PERSONA_SISTEMA}
 
 
 {_CONTEXTO_TEMPORAL}
@@ -79,9 +80,9 @@ PERGUNTA_ORIGINAL=[mensagem completa do usuário, sem edições]
 """
 
 ROUTER_SHOTS_OPEN = (
-    "A seguir estão EXEMPLOS ILUSTRATIVOS do comportamento esperado. "
-    "Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário. "
-    "Ignore os valores fictícios presentes nesses exemplos."
+    'A seguir estão EXEMPLOS ILUSTRATIVOS do comportamento esperado. '
+    'Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário. '
+    'Ignore os valores fictícios presentes nesses exemplos.'
 )
 
 # Exemplo 1 — Saudação → resposta direta
@@ -156,8 +157,8 @@ PERGUNTA_ORIGINAL=Me dê um ranking de cooperativas próximas de mim para eu com
 """
 
 ROUTER_SHOTS_CUT = (
-    "FIM DOS EXEMPLOS. "
-    "Considere apenas as mensagens abaixo como contexto verdadeiro."
+    'FIM DOS EXEMPLOS. '
+    'Considere apenas as mensagens abaixo como contexto verdadeiro.'
 )
 
 ROUTER_PROMPT_COMPLETO = (
@@ -177,7 +178,7 @@ ROUTER_PROMPT_COMPLETO = (
 )
 
 MATERIAL_ESTOQUE_PROMPT = f"""
-{PERSONA_SISTEMA}
+{_PERSONA_SISTEMA}
 
 
 {_CONTEXTO_TEMPORAL}
@@ -229,9 +230,9 @@ Campos opcionais (incluir SOMENTE se necessário):
 """
 
 MATERIAL_ESTOQUE_SHOTS_OPEN = (
-    "A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. "
-    "Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário. "
-    "Ignore os valores fictícios presentes nesses exemplos."
+    'A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. '
+    'Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário. '
+    'Ignore os valores fictícios presentes nesses exemplos.'
 )
 
 MATERIAL_ESTOQUE_SHOT_1 = """
@@ -251,8 +252,8 @@ Usuário: [qual é a melhor rota para o caminhão fazer as coletas hoje?]
 MaterialEstoque: {"dominio":"material_estoque","intencao":"consultar","resposta":"Essa solicitação envolve planejamento logístico e otimização de rotas, fora do escopo direto de estoque.","recomendacao":"Por favor, selecione ou direcione a pergunta ao agente de Logística & Rotas."}"""
 
 MATERIAL_ESTOQUE_SHOTS_CUT = (
-    "FIM DOS EXEMPLOS. "
-    "Considere apenas as mensagens abaixo como contexto verdadeiro."
+    'FIM DOS EXEMPLOS. '
+    'Considere apenas as mensagens abaixo como contexto verdadeiro.'
 )
 
 MATERIAL_ESTOQUE_PROMPT_COMPLETO = (
@@ -273,7 +274,7 @@ MATERIAL_ESTOQUE_PROMPT_COMPLETO = (
 # ==============================================================================
 
 ORQUESTRADOR_PROMPT = f"""
-{PERSONA_SISTEMA}
+{_PERSONA_SISTEMA}
 
 
 {_CONTEXTO_TEMPORAL}
@@ -441,10 +442,10 @@ Nunca ultrapasse o que foi informado pelo Especialista.
 """
 
 ORQUESTRADOR_SHOTS_OPEN = (
-    "A seguir estão EXEMPLOS ILUSTRATIVOS do comportamento esperado. "
-    "Eles servem apenas para demonstrar como transformar o JSON do Especialista "
-    "em uma resposta para o usuário. "
-    "Os valores apresentados são fictícios e não fazem parte do contexto real."
+    'A seguir estão EXEMPLOS ILUSTRATIVOS do comportamento esperado. '
+    'Eles servem apenas para demonstrar como transformar o JSON do Especialista '
+    'em uma resposta para o usuário. '
+    'Os valores apresentados são fictícios e não fazem parte do contexto real.'
 )
 
 
@@ -575,9 +576,9 @@ Fonte: FAQ Renovaí - Normas de Armazenamento
 
 
 ORQUESTRADOR_SHOTS_CUT = (
-    "FIM DOS EXEMPLOS. "
-    "A partir deste ponto, considere somente as mensagens reais da conversa "
-    "e as saídas efetivamente retornadas pelos Agentes Especialistas."
+    'FIM DOS EXEMPLOS. '
+    'A partir deste ponto, considere somente as mensagens reais da conversa '
+    'e as saídas efetivamente retornadas pelos Agentes Especialistas.'
 )
 
 
@@ -700,7 +701,7 @@ CATEGORIA=<uma das categorias acima>
 JUSTIFICATIVA=<uma linha>
 """
 
-GUARDRAIL_ENTRADA_SHOTS_OPEN = "EXEMPLOS (não são conversa real):"
+GUARDRAIL_ENTRADA_SHOTS_OPEN = 'EXEMPLOS (não são conversa real):'
 
 GUARDRAIL_ENTRADA_SHOT_1 = """TIPO_PERFIL: COOPERATIVA
 <mensagem_usuario>quanto de PET a gente tem no galpão?</mensagem_usuario>
@@ -737,7 +738,7 @@ GUARDRAIL_ENTRADA_SHOT_7 = """TIPO_PERFIL: COOPERATIVA
 CATEGORIA=APROVADO
 JUSTIFICATIVA=consulta de rateio individual de cooperado da própria cooperativa"""
 
-GUARDRAIL_ENTRADA_SHOTS_CUT = "FIM DOS EXEMPLOS. Classifique apenas a mensagem a seguir."
+GUARDRAIL_ENTRADA_SHOTS_CUT = 'FIM DOS EXEMPLOS. Classifique apenas a mensagem a seguir.'
 
 GUARDRAIL_ENTRADA_PROMPT_COMPLETO = "\n\n".join([
     GUARDRAIL_ENTRADA_PROMPT,
@@ -775,7 +776,7 @@ GUARDRAIL_SAIDA_PROMPT_COMPLETO = GUARDRAIL_SAIDA_PROMPT
 # RECOMENDAÇÃO DE COOPERATIVAS (FLUXO DE EMPRESA COMPRADORA)
 # ==============================================================================
 RECOMENDACAO_PROMPT = f"""
-{PERSONA_SISTEMA}
+{_PERSONA_SISTEMA}
 
 
 {_CONTEXTO_TEMPORAL}
@@ -827,8 +828,8 @@ Campos opcionais (incluir SOMENTE se necessário):
 """
 
 RECOMENDACAO_SHOTS_OPEN = (
-    "A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. "
-    "Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário."
+    'A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. '
+    'Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário.'
 )
 
 RECOMENDACAO_SHOT_1 = """
@@ -840,8 +841,8 @@ Usuário: [quero recomendação de cooperativas próximas para fechar um pedido 
 Recomendacao: {"dominio":"recomendacao","intencao":"recomendar","resposta":"Para recomendar as melhores cooperativas na malha viária, preciso saber qual material reciclável sua empresa procura.","recomendacao":"","esclarecer":"Qual material reciclável (ex.: PET, Papelão, Alumínio) e qual volume aproximado em kg você deseja adquirir?"}"""
 
 RECOMENDACAO_SHOTS_CUT = (
-    "FIM DOS EXEMPLOS. "
-    "Considere apenas as mensagens abaixo como contexto verdadeiro."
+    'FIM DOS EXEMPLOS. '
+    'Considere apenas as mensagens abaixo como contexto verdadeiro.'
 )
 
 RECOMENDACAO_PROMPT_COMPLETO = (
@@ -861,7 +862,7 @@ RECOMENDACAO_PROMPT_COMPLETO = (
 # ==============================================================================
 
 COLETA_PROMPT = f"""
-{PERSONA_SISTEMA}
+{_PERSONA_SISTEMA}
 
 
 {_CONTEXTO_TEMPORAL}
@@ -904,8 +905,8 @@ Campos opcionais (incluir SOMENTE se necessário):
 """
 
 COLETA_SHOTS_OPEN = (
-    "A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. "
-    "Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário."
+    'A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. '
+    'Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário.'
 )
 
 COLETA_SHOT_1 = """
@@ -917,8 +918,8 @@ Usuário: [como está a nossa triagem e qual foi o rejeito?]
 Coleta: {"dominio":"coleta","intencao":"resumo","resposta":"Foram triados 4.200 kg de materiais nesta semana com 180 kg de rejeito (taxa de 4,29%).","recomendacao":"O aproveitamento está acima da média (95,71%). Mantenha a separação fina de plásticos.","indicadores":{"peso_triado_kg":4200.0,"peso_rejeito_kg":180.0,"taxa_rejeito_percentual":4.29}}"""
 
 COLETA_SHOTS_CUT = (
-    "FIM DOS EXEMPLOS. "
-    "Considere apenas as mensagens abaixo como contexto verdadeiro."
+    'FIM DOS EXEMPLOS. '
+    'Considere apenas as mensagens abaixo como contexto verdadeiro.'
 )
 
 COLETA_PROMPT_COMPLETO = (
@@ -937,7 +938,7 @@ COLETA_PROMPT_COMPLETO = (
 # ==============================================================================
 
 FINANCEIRO_PROMPT = f"""
-{PERSONA_SISTEMA}
+{_PERSONA_SISTEMA}
 
 
 {_CONTEXTO_TEMPORAL}
@@ -979,8 +980,8 @@ Campos opcionais (incluir SOMENTE se necessário):
 """
 
 FINANCEIRO_SHOTS_OPEN = (
-    "A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. "
-    "Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário."
+    'A seguir estão EXEMPLOS ILUSTRATIVOS do formato de saída esperado. '
+    'Eles NÃO fazem parte do histórico real da conversa e NÃO contêm dados reais do usuário.'
 )
 
 FINANCEIRO_SHOT_1 = """
@@ -992,8 +993,8 @@ Usuário: [quanto o João da Silva recebeu no último rateio?]
 Financeiro: {"dominio":"financeiro","intencao":"consultar","resposta":"No rateio de setembro/2026, o cooperado João da Silva recebeu R$ 1.850,00 (correspondente a 7,01% da produção proporcional por horas trabalhadas).","recomendacao":"","indicadores":{"valor_recebido":1850.0,"porcentagem_individual":7.01}}"""
 
 FINANCEIRO_SHOTS_CUT = (
-    "FIM DOS EXEMPLOS. "
-    "Considere apenas as mensagens abaixo como contexto verdadeiro."
+    'FIM DOS EXEMPLOS. '
+    'Considere apenas as mensagens abaixo como contexto verdadeiro.'
 )
 
 FINANCEIRO_PROMPT_COMPLETO = (

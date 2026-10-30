@@ -57,18 +57,18 @@ class ConsultarRateiosArgs(BaseModel):
     )
     gestor_nome: Optional[str] = Field(
         default=None,
-        description="Nome (ou parte do nome) do gestor responsável pelo fechamento do rateio."
+        description='Nome (ou parte do nome) do gestor responsável pelo fechamento do rateio.'
     )
 
 
 class ConsultarRateioIndividualArgs(BaseModel):
     cooperado_id: Optional[UUID] = Field(
         default=None,
-        description="UUID do cooperado/funcionário para consulta do valor individual."
+        description='UUID do cooperado/funcionário para consulta do valor individual.'
     )
     nome_cooperado: Optional[str] = Field(
         default=None,
-        description="Nome ou parte do nome do cooperado para consulta de valor individual."
+        description='Nome ou parte do nome do cooperado para consulta de valor individual.'
     )
     mes_referencia: Optional[str] = Field(
         default=None,
@@ -91,7 +91,7 @@ class ConsultarDespesasArgs(BaseModel):
     )
     apenas_ativas: bool = Field(
         default=False,
-        description="Se true, filtra apenas despesas marcadas como ativas no cadastro."
+        description='Se true, filtra apenas despesas marcadas como ativas no cadastro.'
     )
 
 
@@ -146,7 +146,7 @@ class FinanceiroToolkit(Toolkit):
         if filtro.strip().startswith(iso_raw) or f == iso_ym or filtro.strip() == br_ym:
             return True
 
-        # Verifica nomes de mês em português (ex: "setembro/2026", "setembro 2026", "setembro")
+        # Verifica nomes de mês em português (ex: 'setembro/2026', 'setembro 2026', 'setembro')
         partes = f.replace('/', ' ').split()
         mes_num = None
         ano_num = None
@@ -429,7 +429,7 @@ class FinanceiroToolkit(Toolkit):
         if not rateios and not despesas:
             return {
                 'status': 'ok',
-                'message': f'Nenhum registro financeiro encontrado para o período {mes_referencia or "solicitado"}.',
+                'message': f'Nenhum registro financeiro encontrado para o período {mes_referencia or 'solicitado'}.',
             }
 
         mes_ref_date = rateios[0].mes_referencia if rateios else despesas[0].mes_referencia
