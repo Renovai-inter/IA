@@ -10,9 +10,31 @@ Classes:
 """
 from app.llms.base import LLMProvider
 
+import logging
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 from app.llms.tuning import kwargs_suportados
+
+# Suprime notificação de Automatic Function Calling (AFC) do SDK google-genai.
+# No LangGraph/LangChain, o loop ReAct e a execução das tools são geridos
+# pelo próprio grafo da aplicação, dispensando o AFC proprietário da SDK.
+try:
+    from google.genai.models import AsyncModels, Models
+    AsyncModels._logged_afc_warning = True
+    Models._logged_afc_warning = True
+except (ImportError, AttributeError):
+    pass
+
+
+class _SilenciarAFCFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return 'automatic function calling' not in msg and 'AFC' not in msg
+
+
+logging.getLogger('google_genai.models').addFilter(_SilenciarAFCFilter())
+logging.getLogger('google_genai').addFilter(_SilenciarAFCFilter())
+
 
 class GeminiProvider(LLMProvider):
     def __init__(self, api_key):
@@ -24,7 +46,7 @@ class GeminiProvider(LLMProvider):
                 **kwargs_suportados(
                     ChatGoogleGenerativeAI,
                     thinking_level='low',
-                    max_retries=1,
+                    max_retries=0,
                     timeout=10,
                 ),
             ),
@@ -35,12 +57,12 @@ class GeminiProvider(LLMProvider):
                 api_key=self.api_key,
                 **kwargs_suportados(
                     ChatGoogleGenerativeAI,
-                    max_retries=1,
+                    max_retries=0,
                     timeout=10,
                 ),
             ),
             'EMBEDDING': GoogleGenerativeAIEmbeddings(
-                model="gemini-embedding-2-preview",
+                model='gemini-embedding-2-preview',
                 google_api_key=self.api_key,
             )
         }

@@ -18,16 +18,12 @@ import logging
 import os
 import re
 from typing import Any, Optional
-import warnings
 
 import httpx
 from langchain_core.runnables import RunnableConfig
 
 from app.agents.base import BaseAgent
 from app.graph.state import GraphState
-
-# Silencia aviso de automatic function calling gerado internamente pelo SDK google-genai
-warnings.filterwarnings('ignore', message='.*automatic function calling.*')
 
 log = logging.getLogger('renovai.judge')
 
@@ -181,7 +177,7 @@ class GeminiDecisionEngine(DecisionEngine):
             resp = llm.invoke(prompt)
         except Exception as exc:
             err_str = str(exc)
-            if any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline')):
+            if any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline', '429', 'RESOURCE_EXHAUSTED', 'ResourceExhausted', 'Quota', 'Too Many Requests', 'rate limit')):
                 fallback_mod = FALLBACK_GEMINI_JUDGE_MODEL
                 if current_model != fallback_mod:
                     log.warning(
@@ -209,7 +205,7 @@ class GeminiDecisionEngine(DecisionEngine):
             resp = await llm.ainvoke(prompt)
         except Exception as exc:
             err_str = str(exc)
-            if any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline')):
+            if any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline', '429', 'RESOURCE_EXHAUSTED', 'ResourceExhausted', 'Quota', 'Too Many Requests', 'rate limit')):
                 fallback_mod = FALLBACK_GEMINI_JUDGE_MODEL
                 if current_model != fallback_mod:
                     log.warning(

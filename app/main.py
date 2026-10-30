@@ -1,10 +1,27 @@
 from pathlib import Path
 from contextlib import asynccontextmanager
+import logging
 from fastapi import FastAPI, Request
 from fastapi.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+# Suprime notificação espúria de Automatic Function Calling (AFC) do SDK google-genai
+try:
+    from google.genai.models import AsyncModels, Models
+    AsyncModels._logged_afc_warning = True
+    Models._logged_afc_warning = True
+except (ImportError, AttributeError):
+    pass
+
+class _SilenciarAFCFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return 'automatic function calling' not in msg and 'AFC' not in msg
+
+logging.getLogger('google_genai.models').addFilter(_SilenciarAFCFilter())
+logging.getLogger('google_genai').addFilter(_SilenciarAFCFilter())
 
 from app.a2a.server import router as a2a_router
 from app.core.container import build_container

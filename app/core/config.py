@@ -78,13 +78,13 @@ class Settings(BaseSettings):
         'router_agent':           ('GROQ',   'LOW'),
         'faq_agent':              ('GEMINI', 'MEDIUM'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
-        'recomendacao_agent':     ('GEMINI', 'HIGH'),
+        'recomendacao_agent':     ('GROQ',   'HIGH'),
         'orchestrator_agent':     ('GROQ',   'MEDIUM'),
         'resumo_agent':           ('GROQ',   'LOW'),
         'guardrail_entrada':      ('GROQ',   'LOW'),
         'guardrail_saida':        ('GROQ',   'LOW'),
         'coleta_agent':           ('GEMINI', 'HIGH'),
-        'financeiro_agent':       ('GEMINI', 'HIGH'),
+        'financeiro_agent':       ('GEMINI', 'MEDIUM'),
         'judge':                  ('GEMINI', 'HIGH'),
     }
     GUARDRAIL_ROTAS_REVISAO: Tuple[str, ...] = ('financeiro',)
