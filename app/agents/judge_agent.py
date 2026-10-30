@@ -7,8 +7,13 @@ thinking de baixa latência para validar a resposta final contra as evidências 
 
 Não redige texto livre, não reinjeta ciclos lentos de reflexão e finaliza a decisão em frações de segundo.
 Se a resposta for fiel (`choice == 'apoiada'` e `noul >= limiar`), o texto original segue intacto.
-Se a resposta for infundada, extrapolar a evidência, ou ocorrer falha/ausência de chave, ela é
-substituída de forma determinística pela frase segura pré-definida (`FRASE_SEGURA`).
+Se a resposta for infundada ou extrapolar a evidência, ela é substituída de forma determinística
+pela frase segura pré-definida (`FRASE_SEGURA`).
+
+Se o próprio Juiz não conseguir avaliar (chave ausente, erro HTTP, cota, timeout), a resposta segue
+com o rótulo `judge:indisponivel:<motivo>`: ela já passou pelos guardrails, e trocar toda resposta
+pela frase segura deixaria o chat inteiro sem uso enquanto o motor do Juiz estiver fora (foi o que
+aconteceu com o 402 do Laya). Com `JUIZ_BLOQUEAR_SEM_VEREDITO=true` volta o bloqueio também nesse caso.
 """
 from __future__ import annotations
 
@@ -35,6 +40,10 @@ FRASE_SEGURA = (
     'ou nas normas vigentes para confirmar essas informações com exatidão.'
 )
 LIMIAR_NOUL_PADRAO = 0.70
+
+
+def _bloquear_sem_veredito_env() -> bool:
+    return (os.getenv('JUIZ_BLOQUEAR_SEM_VEREDITO') or '').strip().lower() in ('1', 'true', 'sim', 'yes')
 
 REGRAS_AVALIACAO = (
     'A pergunta do usuário é evidência do que ele solicitou, declarou ou informou ter feito. '
@@ -258,11 +267,16 @@ class JudgeAgent(BaseAgent):
         timeout: float = 10.0,
         max_retries: int = 1,
         fast_path: bool = True,
+        bloquear_sem_veredito: Optional[bool] = None,
     ):
         super().__init__(llm, system_prompt, tools or [])
         self.limiar_noul = limiar_noul
         self.frase_segura = frase_segura
         self.fast_path = fast_path
+        # sem veredito (Juiz fora do ar): bloqueia a resposta (True) ou deixa seguir rotulada (False)
+        self.bloquear_sem_veredito = (
+            _bloquear_sem_veredito_env() if bloquear_sem_veredito is None else bloquear_sem_veredito
+        )
 
         if engine is not None:
             self._engine: DecisionEngine = engine
@@ -427,6 +441,16 @@ class JudgeAgent(BaseAgent):
         origem: str = 'gemini',
     ) -> dict:
         sufixo_origem = f' ({origem})' if origem != 'gemini' else ''
+        if rotulo_erro and not self.bloquear_sem_veredito:
+            tag_agente = f'{self.nome_agente}:indisponivel:{rotulo_erro}'
+            log.warning(f'[judge] Sem veredito ({rotulo_erro}): resposta liberada sem verificação.')
+            return {
+                'agentes_chamados': [tag_agente],
+                'passou_juiz': True,
+                'veredito_juiz': 'indisponivel',
+                'score_juiz': None,
+                'motivo_juiz': rotulo_erro,
+            }
         if rotulo_erro:
             aprovado = False
             rotulo = rotulo_erro
