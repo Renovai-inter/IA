@@ -44,17 +44,16 @@ class EmbeddingService(LLMService):
         # perguntas repetidas (FAQ) não precisam de nova chamada de inferência
         self._embed_cached = lru_cache(maxsize=128)(self._embed_query)
 
-    def _obter_gemini_embeddings(self) -> Any:
-        if self._gemini_embeddings is None:
+    def _obter_gemini_embeddings(self, model_name: str = 'text-embedding-004') -> Any:
+        if self._gemini_embeddings is None or getattr(self._gemini_embeddings, 'model', None) != model_name:
             if not self._gemini_api_key:
                 raise RuntimeError(
                     '[embedding_service] Nem HF_TOKEN nem GEMINI_API_KEY estão configurados para gerar embeddings via API.'
                 )
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-            # models/text-embedding-004 é o modelo oficial, estável e gratuito do Google (dimensão nativa 768)
             self._gemini_embeddings = GoogleGenerativeAIEmbeddings(
-                model='models/text-embedding-004',
+                model=model_name,
                 google_api_key=self._gemini_api_key,
             )
         return self._gemini_embeddings
@@ -67,15 +66,23 @@ class EmbeddingService(LLMService):
     def _embed_query(self, texto: str) -> tuple[float, ...]:
         if self._use_gemini:
             try:
-                gemini_emb = self._obter_gemini_embeddings()
+                gemini_emb = self._obter_gemini_embeddings('text-embedding-004')
                 vetor = gemini_emb.embed_query(texto, output_dimensionality=self._dim)
                 return tuple(float(x) for x in vetor)
             except Exception as exc:
                 log.warning(
-                    f"[embedding_service] Falha no Google text-embedding-004 ({exc}). "
-                    "Tentando alternativa Hugging Face se disponível."
+                    f"[embedding_service] Falha com text-embedding-004 ({exc}). Tentando gemini-embedding-2-preview..."
                 )
-                self._use_gemini = False
+                try:
+                    gemini_emb = self._obter_gemini_embeddings('gemini-embedding-2-preview')
+                    vetor = gemini_emb.embed_query(texto, output_dimensionality=self._dim)
+                    return tuple(float(x) for x in vetor)
+                except Exception as exc2:
+                    log.warning(
+                        f"[embedding_service] Falha em gemini-embedding-2-preview ({exc2}). "
+                        "Tentando alternativa Hugging Face se disponível."
+                    )
+                    self._use_gemini = False
 
         if self._use_hf:
             try:
@@ -158,14 +165,22 @@ class EmbeddingService(LLMService):
             return []
         if self._use_gemini:
             try:
-                gemini_emb = self._obter_gemini_embeddings()
+                gemini_emb = self._obter_gemini_embeddings('text-embedding-004')
                 vetores = gemini_emb.embed_documents(textos, output_dimensionality=self._dim)
                 return [[float(x) for x in vetor] for vetor in vetores]
             except Exception as exc:
                 log.warning(
-                    f"[embedding_service] Falha no batch do Google text-embedding-004 ({exc})."
+                    f"[embedding_service] Falha no batch com text-embedding-004 ({exc}). Tentando gemini-embedding-2-preview..."
                 )
-                self._use_gemini = False
+                try:
+                    gemini_emb = self._obter_gemini_embeddings('gemini-embedding-2-preview')
+                    vetores = gemini_emb.embed_documents(textos, output_dimensionality=self._dim)
+                    return [[float(x) for x in vetor] for vetor in vetores]
+                except Exception as exc2:
+                    log.warning(
+                        f"[embedding_service] Falha no batch de gemini-embedding-2-preview ({exc2})."
+                    )
+                    self._use_gemini = False
 
         if self._use_hf:
             try:
