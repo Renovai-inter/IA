@@ -61,6 +61,7 @@ from app.repository.postgresql.despesa_repository import DespesaRepository
 from app.repository.qdrant.db import QdrantConnectionFactory
 from app.repository.qdrant.resumo_repository import ResumoRepository
 from app.repository.qdrant.faq_chunks_repository import FaqChunksRepository
+from app.repository.redis import RedisConnectionFactory, RedisRealtimeRepository
 from app.rag.retriever import FaqRetriever
 from app.tools.memory_tools import MemoriaToolkit
 from app.tools.faq_chunks_tools import FaqToolkit
@@ -97,12 +98,14 @@ def build_container(
         user=settings.NEO4J_USER,
         password=settings.NEO4J_PASSWORD,
     )
+    redis_factory = RedisConnectionFactory(dsn=getattr(settings, 'REDIS_URL', ''))
 
     _FACTORIES_MAP = {
         'pg_factory':     (pg_factory,     pg_factory.connect()),
         'mongo_factory':  (mongo_factory,  mongo_factory.connect()),
         'qdrant_factory': (qdrant_factory, qdrant_factory.connect()),
         'neo4j_factory':  (neo4j_factory,  neo4j_factory.connect()),
+        'redis_factory':  (redis_factory,  redis_factory.connect()),
     }
 
     _REPOSITORIES_MAP = {
@@ -146,6 +149,12 @@ def build_container(
         'rota_repository':          RotaRepository(
             db=_FACTORIES_MAP.get('neo4j_factory')[1],
             database=getattr(settings, 'NEO4J_DATABASE', 'neo4j'),
+        ),
+
+        'redis_realtime_repository': RedisRealtimeRepository(
+            db=_FACTORIES_MAP.get('redis_factory')[1],
+            max_requests=getattr(settings, 'RATE_LIMIT_MAX_REQUESTS', 15),
+            window_seconds=getattr(settings, 'RATE_LIMIT_WINDOW_SECONDS', 60),
         ),
     }
 
@@ -382,3 +391,6 @@ class Container:
             empresa_server=self.a2a_empresa_server,
         )
         self.judge_agent = judge_agent or self.agentes.get('judge')
+        self.redis_realtime: RedisRealtimeRepository = (
+            self.repositories.get('redis_realtime_repository') or RedisRealtimeRepository()
+        )
