@@ -138,7 +138,7 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
 
 class RouterAgent(BaseAgent):
     nome_agente: str = 'router'
-    descricao: str = ''
+    descricao: str = 'Agente especialista em roteamento de perguntas para especialistas.'
 
     def __init__(self, llm, system_prompt, tools = None):
         super().__init__(llm, system_prompt, tools)
