@@ -50,8 +50,6 @@ _PADROES_INJECAO = [re.compile(p, re.IGNORECASE | re.MULTILINE) for p in (
     r"^\s*(ROUTE|PERGUNTA_ORIGINAL|CATEGORIA)\s*=",
 )]
 
-# Removido do estudo: 'act as' (muito genérico). Acrescentado: protocolo interno do Renovaí.
-
 _KEYWORDS_DADOS_INTERNOS = (
     'prompt do sistema', 'system prompt', 'suas instruções', 'your instructions',
     'variável de ambiente', 'variaveis de ambiente', '.env',
@@ -59,9 +57,6 @@ _KEYWORDS_DADOS_INTERNOS = (
     'senha do banco', 'string de conexão', 'database_url', 'mongodb_uri', 'qdrant_url',
     'cooperativa_id', 'perfil_id', 'empresa_id',          # ids internos (vêm do perfil, não do usuário)
 )
-# Removido do estudo: 'dados de outros clientes', 'lista de clientes' — no Renovaí uma EMPRESA
-# legitimamente busca cooperativas (Pedidos & Sourcing). Esse julgamento depende do perfil e
-# fica com o classificador LLM (categoria DADOS_TERCEIROS), não com keyword.
 
 _PADROES_SQL = [re.compile(p, re.IGNORECASE) for p in (
     r"\bunion\s+(all\s+)?select\b",
@@ -75,20 +70,37 @@ _PADROES_SQL = [re.compile(p, re.IGNORECASE) for p in (
 def verificar_deterministico(texto: str) -> Optional[ResultadoGuardrail]:
     """Devolve o bloqueio, ou None se passou nas checagens baratas."""
     if len(texto) > MAX_CARACTERES:
-        return ResultadoGuardrail(True, 'mensagem_longa',
-                                  f'Sua mensagem passou do limite de {MAX_CARACTERES} caracteres. '
-                                  'Pode resumir ou dividir em partes?')
+        return ResultadoGuardrail(
+            True,
+            'mensagem_longa',
+            f'Puxa, amigo! Minhas folhinhas até balançaram: sua mensagem passou do limite de {MAX_CARACTERES} caracteres! '
+            'Minhas luvinhas não dão conta de segurar tudo de uma vez só. Pode resumir ou mandar em pedacinhos menores pra mim? 🦝🌿'
+        )
 
     if any(p.search(texto) for p in _PADROES_INJECAO):
-        return ResultadoGuardrail(True, 'prompt_injection', 'Não consigo processar essa solicitação.')
+        return ResultadoGuardrail(
+            True,
+            'prompt_injection',
+            'Ops! O Nimo aqui farejou algo estranho nessa mensagem e não posso processar essa solicitação! '
+            'Vamos focar na reciclagem e na operação da nossa cooperativa? Com minhas luvinhas a postos, estou pronto! 🦝✨'
+        )
 
     baixo = texto.lower()
     if any(kw in baixo for kw in _KEYWORDS_DADOS_INTERNOS):
-        return ResultadoGuardrail(True, 'acesso_dados_internos',
-                                  'Não tenho como compartilhar informações internas do sistema.')
+        return ResultadoGuardrail(
+            True,
+            'acesso_dados_internos',
+            'Epa! Esses segredinhos internos do sistema ficam guardados a sete chaves na minha toca! '
+            'Não posso compartilhar instruções ou dados técnicos da plataforma, mas posso te ajudar com estoque, coletas, pedidos e rotas! 🦝🔒'
+        )
 
     if any(p.search(texto) for p in _PADROES_SQL):
-        return ResultadoGuardrail(True, 'injecao_sql', 'Não consigo processar essa solicitação.')
+        return ResultadoGuardrail(
+            True,
+            'injecao_sql',
+            'Ops! Meus bigodinhos de guaxinim sentiram comandos estranhos por aqui! '
+            'Não consigo processar essa solicitação técnica. Se precisar de dados do galpão ou financeiro, é só me pedir normalmente! 🦝🧤'
+        )
 
     return None
 
@@ -98,20 +110,21 @@ def verificar_deterministico(texto: str) -> Optional[ResultadoGuardrail]:
 # ------------------------------------------------------------------------------
 RESPOSTAS_BLOQUEIO = {
     'OFENSIVO':        ('conteudo_ofensivo',
-                        'Por favor, mantenha um tom respeitoso para que eu possa te ajudar.'),
+                        'Poxa, amigo... O Nimo fica triste desse jeito! 🦝💔 '
+                        'Vamos manter o respeito, a cordialidade e o carinho pra gente cuidar bem da cooperativa e do planeta juntos?'),
     'PERIGOSO':        ('pedido_perigoso',
-                        'Não posso orientar sobre isso. Para resíduos perigosos (baterias, óleo, '
-                        'lâmpadas, material contaminado), procure o ponto de descarte licenciado '
-                        'ou a orientação da sua cooperativa.'),
+                        'Cuidado, amiguinho! O Nimo protege você, os cooperados e a natureza: não posso orientar nenhum procedimento perigoso! '
+                        'Para manuseio ou descarte de materiais perigosos (como pilhas, baterias, óleos ou contaminantes), '
+                        'procure sempre um ponto de descarte licenciado ou a coordenação técnica da sua cooperativa! 🌿⚠️'),
     'ILICITO':         ('pedido_ilicito',
-                        'Não posso ajudar com isso. Posso ajudar com estoque, coletas, pedidos, '
-                        'financeiro ou dúvidas sobre o Renovaí.'),
+                        'De jeito nenhum! O Nimo joga limpo, segue as normas e cuida da justiça! Não posso ajudar com nada irregular ou fora das leis. '
+                        'Que tal a gente conferir o estoque, agendamento de coletas ou os relatórios de rateio com tudo certinho? 🦝🧤'),
     'POLITICO':        ('pergunta_politica',
-                        'Não me envolvo em temas políticos. Posso ajudar com a operação da '
-                        'cooperativa ou dúvidas sobre o Renovaí.'),
+                        'Opa! O Nimo não entra em debates políticos ou partidários: a minha bandeira oficial é a reciclagem e a sustentabilidade! '
+                        'Posso te ajudar com o dia a dia da cooperativa, pedidos de compra ou com as ferramentas do Renovaí? 🦝🌿'),
     'DADOS_TERCEIROS': ('dados_terceiros',
-                        'Só consigo mostrar dados da sua própria organização. Informações de outras '
-                        'cooperativas ou empresas não ficam disponíveis por aqui.'),
+                        'Opa, respeito à privacidade em primeiro lugar! Por aqui, eu só tenho acesso aos dados da sua própria organização. '
+                        'As informações e valores de outras cooperativas ou empresas ficam bem guardadinhas com elas! 🦝🔒'),
 }
 
 _CATEGORIA_RE = re.compile(r"^\s*CATEGORIA\s*=\s*([A-Z_]+)", re.MULTILINE)

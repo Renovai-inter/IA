@@ -18,7 +18,8 @@ from typing import Optional
 from app.guardrails.pii import MapaPII, redigir, resolver_tokens
 
 MENSAGEM_FALHA_FORMATACAO = (
-    'Não consegui montar a resposta agora. Pode repetir a pergunta, de outra forma se possível?'
+    'Pelas minhas folhinhas! Me enrolei todo com as minhas luvinhas e não consegui montar a sua resposta direitinho agora. 🦝🍂 '
+    'Pode repetir a pergunta, de outro jeitinho se possível?'
 )
 
 _PROTOCOLO_INTERNO = re.compile(
@@ -55,13 +56,14 @@ def higienizar(texto: str, mapa_pii: MapaPII) -> tuple[str, Optional[str]]:
 # Veredito do LLM (consumido pelo agente)
 # ------------------------------------------------------------------------------
 AVISO_PROMESSA_FINANCEIRA = (
-    "\n\n_Valores calculados a partir dos registros atuais do sistema. O valor final de "
-    'rateio/pagamento depende do fechamento do período e da confirmação da cooperativa._'
+    "\n\n_Lembrete carinhoso do Nimo: esses valores foram calculados com base nos registros atuais do sistema! "
+    'O valor final de rateio ou pagamento depende do fechamento oficial do período e da confirmação da sua cooperativa, combinado? 🦝🌿_'
 )
 
 MENSAGEM_ORIENTACAO_PERIGOSA = (
-    'Não consigo orientar esse procedimento por aqui. Para manuseio ou descarte de resíduos '
-    'perigosos, siga as normas da sua cooperativa e procure um ponto de descarte licenciado.'
+    'Alerta do Nimo! Não posso orientar esse procedimento por aqui para proteger você, sua equipe e o meio ambiente. '
+    'Para manuseio, transporte ou descarte de resíduos perigosos, siga rigorosamente as diretrizes da sua cooperativa '
+    'e procure sempre um ponto de descarte licenciado! 🦝⚠️'
 )
 
 _VEREDITO_RE = re.compile(r"^\s*VEREDITO\s*=\s*([A-Z_]+)", re.MULTILINE)

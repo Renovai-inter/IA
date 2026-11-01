@@ -24,6 +24,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.agents.base import BaseAgent
 from app.graph.state import GraphState
+from app.prompts.judge import REGRAS_AVALIACAO
 
 log = logging.getLogger('renovai.judge')
 
@@ -31,29 +32,18 @@ DEFAULT_GEMINI_JUDGE_MODEL = 'gemini-3.5-flash-lite'
 FALLBACK_GEMINI_JUDGE_MODEL = 'gemini-2.5-flash'
 
 FRASE_SEGURA = (
-    'Não localizei evidências suficientes nos registros operacionais da cooperativa '
-    'ou nas normas vigentes para confirmar essas informações com exatidão.'
+    'Opa, amiguinho! Pelas minhas folhinhas, o Nimo revirou todos os registros operacionais e as normas vigentes '
+    'com suas luvinhas, mas não localizou evidências suficientes para confirmar essas informações com exatidão! 🦝🌿 '
+    'Pode me fornecer mais detalhes ou conferir os registros para eu te ajudar direitinho?'
 )
 LIMIAR_NOUL_PADRAO = 0.70
 
-REGRAS_AVALIACAO = (
-    'A pergunta do usuário é evidência do que ele solicitou, declarou ou informou ter feito. '
-    'Somas, contagens, conclusões lógicas, correlações analíticas entre múltiplos especialistas, '
-    'cálculos de proporção/diferença, apontamento de divergências entre registros, sugestões de '
-    'próximo passo, ofertas de ajuda, saudações e confirmação de ausência de registros contam como apoiada. '
-    'Valores numéricos de estoque (kg), preços médios, custos, despesas, datas de coleta, '
-    'triagens, rotas de veículos, nomes de cooperativas e artigos da lei PNRS devem '
-    'estar estritamente fundamentados na evidência disponível. '
-    'Números inventados, moedas trocadas, opiniões tratadas como fato do sistema, '
-    'valores sem evidência ou afirmações factuais não suportadas contam como sem_apoio.'
-)
-
 
 _PADROES_SAUDACAO_OU_CORTESIA = re.compile(
-    r'\b(ol[áa]|bom dia|boa tarde|boa noite|como posso ajudar|em que posso ajudar|'
-    r'como posso te ajudar|estou [àa] disposi[çc][ãa]o|dispor|at[ée] logo|at[ée] mais|'
-    r'tchau|obrigad[oa]|por nada|de nada|por favor[, ]+(?:informe|especifique|poderia)|'
-    r'posso te ajudar com)\b',
+    r'\b(ol[áa]|oie?|bom dia|boa tarde|boa noite|nimo|guaxinim|folhinhas?|luvinhas?|'
+    r'como posso ajudar|em que posso ajudar|como posso te ajudar|estou [àa] disposi[çc][ãa]o|'
+    r'dispor|at[ée] logo|at[ée] mais|tchau|obrigad[oa]|por nada|de nada|'
+    r'por favor[, ]+(?:informe|especifique|poderia)|posso te ajudar com)\b',
     re.IGNORECASE,
 )
 _PADROES_DADOS_FACTUAIS = re.compile(

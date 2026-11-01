@@ -17,15 +17,15 @@ if TYPE_CHECKING:
 _SNAPSHOT_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix='snapshot')
 
 MENSAGEM_RESTRICAO_COOPERATIVA = (
-    'Essa consulta está disponível apenas para perfis de cooperativa. '
-    'Se você representa uma empresa, posso ajudar com recomendações de '
-    'cooperativas parceiras para compra de recicláveis ou dúvidas sobre o Renovaí.'
+    'Opa, amigo! Essa consulta é exclusiva para os perfis de cooperativa! 🦝🧤 '
+    'Se você representa uma empresa compradora, o Nimo pode te ajudar a encontrar as melhores cooperativas parceiras '
+    'para fornecimento de recicláveis ou tirar dúvidas sobre o funcionamento do Renovaí!'
 )
 
 MENSAGEM_RESTRICAO_EMPRESA = (
-    'Essa consulta de recomendação de fornecedores está disponível apenas para perfis de empresa compradora. '
-    'Se você representa uma cooperativa, posso ajudar com estoque, coletas, triagens, rateio financeiro, '
-    'logística de rotas ou dúvidas sobre o Renovaí.'
+    'Opa, amiguinho! A busca e recomendação de cooperativas parceiras é um recurso especial para perfis de empresa compradora! '
+    'Se você representa uma cooperativa, o Nimo tem tudo na ponta das luvinhas para te apoiar com estoque, coletas, triagens, '
+    'rateio financeiro, rotas ou regras da PNRS! 🦝🌿'
 )
 
 
