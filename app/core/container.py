@@ -58,6 +58,8 @@ from app.repository.postgresql.equipe_repository import EquipeRepository
 from app.repository.postgresql.rateio_repository import RateioRepository
 from app.repository.postgresql.rateio_funcionario_repository import RateioFuncionarioRepository
 from app.repository.postgresql.despesa_repository import DespesaRepository
+from app.repository.postgresql.venda_repository import VendaRepository
+from app.repository.postgresql.analitica_repository import AnaliticaRepository
 
 from app.repository.qdrant.db import QdrantConnectionFactory
 from app.repository.qdrant.resumo_repository import ResumoRepository
@@ -121,6 +123,8 @@ def build_container(
         'rateio_repository':               RateioRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'rateio_funcionario_repository':   RateioFuncionarioRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
         'despesa_repository':              DespesaRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
+        'venda_repository':                VendaRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
+        'analitica_repository':            AnaliticaRepository(db=_FACTORIES_MAP.get('pg_factory')[1]),
 
         'sessao_repository':       SessaoRepository(
             db=_FACTORIES_MAP.get('mongo_factory')[1],
@@ -190,9 +194,12 @@ def build_container(
 
     memoria_toolkit = MemoriaToolkit(_MEMORY_STORE_MAP)
     faq_toolkit = FaqToolkit(faq_retriever)
-    recomendacao_toolkit = RecomendacaoToolkit(_REPOSITORIES_MAP['recomendacao_repository'])
+    recomendacao_toolkit = RecomendacaoToolkit(
+        _REPOSITORIES_MAP['recomendacao_repository'],
+        repositories=_REPOSITORIES_MAP,
+    )
 
-    material_estoque_toolkit = MaterialEstoqueToolkit()
+    material_estoque_toolkit = MaterialEstoqueToolkit(_REPOSITORIES_MAP)
     coleta_toolkit = ColetaToolkit(_REPOSITORIES_MAP)
     financeiro_toolkit = FinanceiroToolkit(_REPOSITORIES_MAP)
 
