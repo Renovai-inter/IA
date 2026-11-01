@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="COOPERATIVA">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Renovai · Assistente Inteligente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <script>
+    /* Aplica o tema salvo antes da primeira pintura (evita "piscar" de cor). */
+    try {
+      var t = localStorage.getItem('renovai_dominio_tipo');
+      if (t === 'EMPRESA' || t === 'COOPERATIVA') document.documentElement.setAttribute('data-tema', t);
+    } catch (e) {}
+  </script>
+</head>
+<body>
+<div class="page">
+  <!-- Topbar -->
+  <header class="topbar">
+    <a href="index.html" class="brand" aria-label="Renovaí — página inicial">
+      <img class="brand-logo" id="brand-logo" src="./assets/logo_renovai_cooperativa.svg" alt="Renovaí">
+    </a>
+
+    <div class="topbar-right">
+      <div class="top-note">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">conectando...</span>
+      </div>
+
+      <!-- Seletor de Contexto de Domínio (Cooperativa = verde · Empresa = vinho) -->
+      <div class="domain-pill" role="group" aria-label="Contexto de domínio" title="Alternar contexto de domínio (Cooperativa ou Empresa)">
+        <button type="button" class="domain-btn is-active" id="btn-cooperativa" data-tipo="COOPERATIVA" aria-pressed="true">Cooperativa</button>
+        <button type="button" class="domain-btn" id="btn-empresa" data-tipo="EMPRESA" aria-pressed="false">Empresa</button>
+      </div>
+
+      <!-- Sessão Ativa & Botão Nova Sessão -->
+      <div class="session-meta" title="Sessão ativa">
+        <span class="session-label">sessão</span>
+        <code class="session-code" id="session-id">—</code>
+        <button type="button" class="btn-session" id="reset-session" title="Encerrar sessão anterior e iniciar nova conversa">nova sessão</button>
+      </div>
+
+      <!-- Link para o Console de Monitoramento / Observabilidade -->
+      <a href="monitor.html" class="topbar-link" title="Abrir painel de monitoramento SRE, ROI e telemetria">📊 Monitor SRE</a>
+    </div>
+  </header>
+
+  <!-- Elementos Decorativos de Folhagem Natural -->
+  <div class="foliage" aria-hidden="true">
+    <svg class="leaf l1" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#DDEBCF"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#FAFAF8" stroke-width="1.4"/></svg>
+    <svg class="leaf l2" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#519059"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#EAF2E6" stroke-width="1.4"/></svg>
+    <svg class="leaf l3" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#BBD8B5"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#FAFAF8" stroke-width="1.4"/></svg>
+    <svg class="leaf l4" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#DDEBCF"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#FAFAF8" stroke-width="1.4"/></svg>
+    <svg class="leaf l5" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#79B581"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#EAF2E6" stroke-width="1.4"/></svg>
+    <svg class="leaf l6" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#DDEBCF"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#FAFAF8" stroke-width="1.4"/></svg>
+    <svg class="leaf l7" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#519059"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#EAF2E6" stroke-width="1.4"/></svg>
+    <svg class="leaf l8" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#BBD8B5"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#FAFAF8" stroke-width="1.4"/></svg>
+    <svg class="leaf l9" viewBox="0 0 48 48"><path d="M5 39C5 18 19 5 42 4C39 27 25 40 5 39Z" fill="#DDEBCF"/><path d="M5 39Q23 21 42 4" fill="none" stroke="#FAFAF8" stroke-width="1.4"/></svg>
+  </div>
+
+  <!-- Conteúdo Principal -->
+  <main>
+    <section class="shell">
+      <div class="intro">
+        <h1>Vamos transformar o mundo,<br>uma conversa de cada vez.</h1>
+      </div>
+
+      <section class="chat-card" aria-label="Chat com o assistente Renovai">
+        <!-- Cabeçalho do Chat -->
+        <div class="chat-head">
+          <div class="head-left">
+            <img class="mini-logo" src="./assets/cabeca_nimo.png" alt="">
+            <div>
+              <div class="assistant-name">Nimo</div>
+              <div class="assistant-state" id="header-state">online e pronto</div>
+            </div>
+          </div>
+          <div class="head-right">
+            <span class="context-tag" id="domain-badge">Cooperativa: cooperativa-central-sp</span>
+          </div>
+        </div>
+
+        <!-- Linha do Tempo da Conversa -->
+        <div class="conversation">
+          <div class="messages-extra" id="messages" aria-live="polite">
+            <!-- Hero de Boas-Vindas -->
+            <div class="welcome" id="welcome-card">
+              <div class="mascot-wrap">
+                <div class="mascot-halo"></div>
+                <img class="mascot" src="./assets/nimo_feliz.png" alt="Nimo, o mascote do Renovaí, feliz">
+              </div>
+              <div class="welcome-copy">
+                <div class="hello">Inteligência para Sustentabilidade & Economia Circular</div>
+                <h2>Oi! Como posso ajudar você hoje? 🌿</h2>
+                <p id="welcome-text"></p>
+              </div>
+
+              <!-- Sugestões rápidas (preenchidas pelo app.js conforme o domínio ativo) -->
+              <div class="suggestions" id="suggestions"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Área de Composição e Envio -->
+        <div class="composer-area">
+          <form class="composer" id="chatForm">
+            <label for="messageInput" class="sr-only">Escreva sua mensagem</label>
+            <textarea
+              id="messageInput"
+              rows="1"
+              placeholder="Escreva sua mensagem para o Nimo..."
+            ></textarea>
+            <button class="send" id="sendButton" type="submit" aria-label="Enviar mensagem" disabled>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m22 2-7 20-4-9-9-4Z"/>
+                <path d="M22 2 11 13"/>
+              </svg>
+            </button>
+          </form>
+          <div class="hint">Pressione Enter para enviar · Shift + Enter para pular linha</div>
+          <div class="demo-note" id="statusHint">Conectado ao assistente inteligente Renovai.</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- Rodapé -->
+  <footer class="footer">RENOVAI&nbsp; · &nbsp;RECICLAR É TRANSFORMAR</footer>
+</div>
+
+<!-- Lógica Funcional conectada ao FastAPI -->
+<script src="./app.js"></script>
+</body>
+</html>

@@ -95,6 +95,10 @@ async def health(request: Request) -> dict:
 
 
 if _FRONTEND_DIR.exists():
+    @app.get('/', include_in_schema=False)
+    async def index_page():
+        return FileResponse(_FRONTEND_DIR / 'index.html')
+
     @app.get('/monitor.html', include_in_schema=False)
     async def monitor_page():
         return FileResponse(_FRONTEND_DIR / 'monitor.html')
