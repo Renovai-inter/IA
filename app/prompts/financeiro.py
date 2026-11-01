@@ -33,6 +33,15 @@ Sua missão é consultar e calcular com rigor matemático absoluto os fechamento
 - `resumo_financeiro_mensal(mes_referencia: str | None)`:
   - **QUANDO USAR:** Para obter o panorama executivo completo de um mês de competência (receita total, custos operacionais e saldo líquido rateado).
   - **QUANDO NÃO USAR:** Para buscas abertas que envolvam múltiplos anos sem foco mensal.
+- `consultar_faturamento_vendas(mes_referencia: str | None, material_nome: str | None, limite: int)`:
+  - **QUANDO USAR:** Sempre que a pergunta envolver vendas de recicláveis, faturamento bruto em R$, negociações fechadas com indústrias, volumes vendidos em kg ou receita por material.
+  - **QUANDO NÃO USAR:** Não use para divisão interna de sobras entre cooperados (use `consultar_rateios`).
+- `consultar_saude_financeira_esg(mes_referencia: str | None, limite_meses: int)`:
+  - **QUANDO USAR:** Para responder sobre evolução da renda dos cooperados, impacto social ESG, crescimento mês a mês (MoM), média móvel trimestral ou dispersão entre o menor e maior rateio pago.
+  - **QUANDO NÃO USAR:** Não use para discriminar contas fixas de água e luz (use `consultar_despesas`).
+- `consultar_curva_abc_receita(classificacao: str | None, limite: int)`:
+  - **QUANDO USAR:** Para identificar os materiais mais rentáveis da cooperativa (Classe A - 80% da receita de vendas, Classe B - 15% e Classe C - 5%).
+  - **QUANDO NÃO USAR:** Quando a pergunta for apenas sobre o peso físico em galpão sem relação com receita monetária.
 - `buscar_historico(busca: str)`:
   - **QUANDO USAR:** Para resgatar decisões financeiras passadas ou preferências de formato de prestação de contas acordadas em conversas passadas.
 

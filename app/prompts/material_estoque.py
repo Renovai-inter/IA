@@ -33,6 +33,12 @@ Sua responsabilidade é interpretar consultas sobre disponibilidade, pesagem em 
 - `consultar_estoque_granular(data_referencia: datetime, granularidade: str, material_ids: list[UUID] | None, material_nomes: list[str] | None, tipo_movimentacao: str | None, disponivel: bool | None, quantidade_min_kg: float | None, quantidade_max_kg: float | None, preco_min: float | None, preco_max: float | None)`:
   - **QUANDO USAR:** Para relatórios rotineiros truncados por períodos padronizados (`DIA`, `SEMANA`, `MES`, `TRIMESTRE`, `ANO`). Ex.: "movimentação de ontem", "entradas desta semana", "balanço do mês".
   - **QUANDO NÃO USAR:** Para intervalos customizados e arbitrários de datas.
+- `consultar_cobertura_giro_estoque(material_nome: str | None, status_capacidade: str | None, limite: int)`:
+  - **QUANDO USAR:** Para alertar sobre gargalos de espaço físico, materiais com alto volume acumulado (risco de superlotação no galpão) ou baixo volume e alta saída (risco de desabastecimento).
+  - **QUANDO NÃO USAR:** Não use quando o usuário quiser saber apenas o valor monetário de venda do lote.
+- `consultar_ranking_mercado_materiais(categoria_material: str | None, mes_referencia: str | None, limite: int)`:
+  - **QUANDO USAR:** Para verificar a participação relativa de mercado da cooperativa (market share %) na triagem de determinado resíduo e a variação MoM de volume.
+  - **QUANDO NÃO USAR:** Não use para movimentações pontuais de um único fardo ou lote.
 - `buscar_historico(busca: str)`:
   - **QUANDO USAR:** Apenas uma única vez se a solicitação depender explicitamente de preferências operacionais ou decisões acordadas em conversas passadas já encerradas.
   - **QUANDO NÃO USAR:** Nunca use para buscar dados atuais de estoque da cooperativa (use as tools de estoque).

@@ -15,6 +15,7 @@ from app.repository.postgresql.triagem_repository import TriagemRepository, Tria
 from app.repository.postgresql.funcionario_repository import FuncionarioRepository, FuncionarioSnapshot, Funcionario
 from app.repository.postgresql.equipe_repository import EquipeRepository, EquipeSnapshot, Equipe
 from app.repository.postgresql.material_repository import MaterialRepository, MaterialSnapshot
+from app.repository.postgresql.analitica_repository import AnaliticaRepository
 
 
 class ConsultarColetasArgs(BaseModel):
@@ -147,6 +148,26 @@ class ResumoOperacionalArgs(BaseModel):
     )
 
 
+
+class ConsultarDesempenhoEquipesTriagemArgs(BaseModel):
+    mes_referencia: Optional[str] = Field(
+        default=None,
+        description='Mês de competência da triagem (ex: \'2026-09\'). Opcional.'
+    )
+    equipe_nome: Optional[str] = Field(
+        default=None,
+        description='Nome ou trecho do nome de uma equipe específica para consultar benchmark.'
+    )
+    limite: int = Field(default=10, description='Quantidade máxima de equipes no ranking.')
+
+
+class ConsultarAnomaliasFluxoColetaArgs(BaseModel):
+    cooperado_nome: Optional[str] = Field(
+        default=None,
+        description='Nome ou parte do nome do cooperado para auditoria do fluxo individual de coletas.'
+    )
+    limite: int = Field(default=15, description='Número máximo de eventos retornados.')
+
 class ColetaToolkit(Toolkit):
     nome: str = 'coleta_toolkit'
     descricao: str = 'Ferramentas para consulta de coletas, triagens, equipes e cooperados de cooperativas.'
@@ -156,6 +177,7 @@ class ColetaToolkit(Toolkit):
         'funcionario_repository': FuncionarioRepository,
         'equipe_repository': EquipeRepository,
         'material_repository': MaterialRepository,
+        'analitica_repository': AnaliticaRepository,
     }
 
     def __init__(self, repositories=None):
@@ -666,6 +688,84 @@ class ColetaToolkit(Toolkit):
             'cooperados_ativos': cooperados_ativos,
         }
 
+    def _resolver_cooperativa_id(
+        self,
+        config: Optional[RunnableConfig],
+        snapshots: Optional[dict] = None,
+    ) -> Optional[UUID]:
+        cfg = ((config or {}).get('configurable') or {})
+        raw_id = cfg.get('cooperativa_id')
+        if raw_id:
+            try:
+                return UUID(str(raw_id))
+            except (ValueError, TypeError):
+                pass
+        if snapshots:
+            for s in snapshots.values():
+                if hasattr(s, 'cooperativa_id') and s.cooperativa_id:
+                    return s.cooperativa_id
+        return None
+
+    @Toolkit.timed(categoria='tool', nome='consultar_desempenho_equipes_triagem')
+    def consultar_desempenho_equipes_triagem(
+        self,
+        config: RunnableConfig,
+        mes_referencia: Optional[str] = None,
+        equipe_nome: Optional[str] = None,
+        limite: int = 10,
+    ) -> dict:
+        """Consulta o ranking de produtividade de triagem (DENSE_RANK), volume triado, rejeito e delta de benchmark."""
+        snapshots = ((config or {}).get('configurable') or {}).get('snapshots') or {}
+        coop_id = self._resolver_cooperativa_id(config, snapshots)
+        if not coop_id:
+            return {'status': 'error', 'message': 'Consulta exclusiva para cooperativas. cooperativa_id ausente.'}
+
+        repo = self.repositories.get('analitica_repository')
+        if not repo or not hasattr(repo, 'consultar_desempenho_equipes_triagem'):
+            return {'status': 'error', 'message': 'Repositorio analitico indisponivel.'}
+
+        ranking = repo.consultar_desempenho_equipes_triagem(
+            cooperativa_id=coop_id,
+            mes_referencia=mes_referencia,
+            equipe_nome=equipe_nome,
+            limite=limite,
+        )
+        return {
+            'status': 'ok',
+            'cooperativa_id': str(coop_id),
+            'total_equipes_avaliadas': len(ranking),
+            'ranking_equipes': ranking,
+        }
+
+    @Toolkit.timed(categoria='tool', nome='consultar_anomalias_fluxo_coleta')
+    def consultar_anomalias_fluxo_coleta(
+        self,
+        config: RunnableConfig,
+        cooperado_nome: Optional[str] = None,
+        limite: int = 15,
+    ) -> dict:
+        """Audita o fluxo operacional de coletas detectando variacoes atipicas de peso (LAG) e intervalo em horas (LEAD)."""
+        snapshots = ((config or {}).get('configurable') or {}).get('snapshots') or {}
+        coop_id = self._resolver_cooperativa_id(config, snapshots)
+        if not coop_id:
+            return {'status': 'error', 'message': 'Consulta exclusiva para cooperativas. cooperativa_id ausente.'}
+
+        repo = self.repositories.get('analitica_repository')
+        if not repo or not hasattr(repo, 'consultar_anomalias_fluxo_coleta'):
+            return {'status': 'error', 'message': 'Repositorio analitico indisponivel.'}
+
+        eventos = repo.consultar_anomalias_fluxo_coleta(
+            cooperativa_id=coop_id,
+            cooperado_nome=cooperado_nome,
+            limite=limite,
+        )
+        return {
+            'status': 'ok',
+            'cooperativa_id': str(coop_id),
+            'total_eventos_analisados': len(eventos),
+            'eventos': eventos,
+        }
+
     def get_tools(self) -> list[StructuredTool]:
         return [
             StructuredTool.from_function(
@@ -691,5 +791,17 @@ class ColetaToolkit(Toolkit):
                 name='resumo_operacional',
                 description=self.resumo_operacional.__doc__,
                 args_schema=ResumoOperacionalArgs,
+            ),
+            StructuredTool.from_function(
+                func=self.consultar_desempenho_equipes_triagem,
+                name='consultar_desempenho_equipes_triagem',
+                description=self.consultar_desempenho_equipes_triagem.__doc__,
+                args_schema=ConsultarDesempenhoEquipesTriagemArgs,
+            ),
+            StructuredTool.from_function(
+                func=self.consultar_anomalias_fluxo_coleta,
+                name='consultar_anomalias_fluxo_coleta',
+                description=self.consultar_anomalias_fluxo_coleta.__doc__,
+                args_schema=ConsultarAnomaliasFluxoColetaArgs,
             ),
         ]

@@ -33,6 +33,12 @@ Sua responsabilidade é interpretar consultas sobre agendamentos de coletas de r
 - `resumo_operacional(data_inicio, data_fim)`:
   - **QUANDO USAR:** Para obter balanços consolidados de eficiência operacional (total de coletas, peso total coletado, peso triado, peso de rejeito, taxa percentual de aproveitamento e rejeito).
   - **QUANDO NÃO USAR:** Para consultas pontuais sobre uma única coleta específica por ID.
+- `consultar_desempenho_equipes_triagem(mes_referencia: str | None, equipe_nome: str | None, limite: int)`:
+  - **QUANDO USAR:** Para responder sobre o ranking de produtividade de triagem (DENSE_RANK), aproveitamento da esteira, menor taxa de rejeito e delta de eficiência de cada equipe contra a média geral da cooperativa.
+  - **QUANDO NÃO USAR:** Não use para agendamento de frotas e veículos de coleta externa na rua.
+- `consultar_anomalias_fluxo_coleta(cooperado_nome: str | None, limite: int)`:
+  - **QUANDO USAR:** Para auditar variações atípicas de peso coletado contra o evento anterior (LAG), intervalos de ciclo e ociosidade em horas (LEAD) e produção acumulada do cooperado no mês corrente.
+  - **QUANDO NÃO USAR:** Não use para balanços consolidados gerais sem foco em desvios e anomalias de ciclo.
 - `buscar_historico(busca)`:
   - **QUANDO USAR:** Apenas quando a pergunta fizer referência explícita a conversas passadas já encerradas sobre frequências de coleta ou acordos com geradores.
 
