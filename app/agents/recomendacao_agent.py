@@ -8,7 +8,7 @@ from langchain.agents import create_agent
 
 class RecomendacaoAgent(BaseAgent):
     nome_agente: str = 'recomendacao'
-    descricao: str = ''
+    descricao: str = 'Agente especialista em recomendação de cooperativas.'
 
     def __init__(self, llm, system_prompt, tools = None):
         super().__init__(llm, system_prompt, tools)

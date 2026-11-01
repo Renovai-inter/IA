@@ -1,6 +1,7 @@
 from app.tools.base import Toolkit
 from app.repository.postgresql.estoque_repository import EstoqueRepository, EstoqueSnapshot
 from app.repository.postgresql.material_repository import MaterialRepository, MaterialSnapshot
+from app.repository.postgresql.analitica_repository import AnaliticaRepository
 
 from collections import defaultdict
 from pydantic import BaseModel, Field
@@ -131,13 +132,41 @@ class ConsultarEstoqueGranularArgs(BaseModel):
     preco_max: Optional[float] = Field(default=None, description='Preço sugerido máximo do material.')
 
 
+
+class ConsultarCoberturaGiroEstoqueArgs(BaseModel):
+    material_nome: Optional[str] = Field(
+        default=None,
+        description='Nome ou parte do nome do material a auditar cobertura física e giro.'
+    )
+    status_capacidade: Optional[str] = Field(
+        default=None,
+        description='Filtra por criticidade: \'Alto Volume\', \'Volume Moderado\' ou \'Baixo Volume\'.'
+    )
+    limite: int = Field(default=10, description='Quantidade máxima de materiais retornados.')
+
+
+class ConsultarRankingMercadoMateriaisArgs(BaseModel):
+    categoria_material: Optional[str] = Field(
+        default=None,
+        description='Nome da categoria de material (ex: \'Latinha\', \'PET\', \'Papelão\').'
+    )
+    mes_referencia: Optional[str] = Field(
+        default=None,
+        description='Mês de referência no formato YYYY-MM.'
+    )
+    limite: int = Field(default=10, description='Número máximo de registros retornados.')
+
 class MaterialEstoqueToolkit(Toolkit):
     nome = 'material_estoque_toolkit'
     descricao = 'Tools de consulta de estoque e materiais do Renovaí.'
     repositories = {
-        'estoque_repository':  EstoqueRepository,
+        'estoque_repository': EstoqueRepository,
         'material_repository': MaterialRepository,
+        'analitica_repository': AnaliticaRepository,
     }
+
+    def __init__(self, repositories=None):
+        self.repositories = repositories or self.__class__.repositories
 
     _MATERIAL_ALIASES: dict[str, str] = {}
 
@@ -664,6 +693,86 @@ class MaterialEstoqueToolkit(Toolkit):
             'itens': detalhes,
         }
 
+
+    def _resolver_cooperativa_id(
+        self,
+        config: Optional[RunnableConfig],
+        snapshots: Optional[dict] = None,
+    ) -> Optional[UUID]:
+        cfg = ((config or {}).get('configurable') or {})
+        raw_id = cfg.get('cooperativa_id')
+        if raw_id:
+            try:
+                return UUID(str(raw_id))
+            except (ValueError, TypeError):
+                pass
+        if snapshots:
+            for s in snapshots.values():
+                if hasattr(s, 'cooperativa_id') and s.cooperativa_id:
+                    return s.cooperativa_id
+        return None
+
+    @Toolkit.timed(categoria='tool', nome='consultar_cobertura_giro_estoque')
+    def consultar_cobertura_giro_estoque(
+        self,
+        config: RunnableConfig,
+        material_nome: Optional[str] = None,
+        status_capacidade: Optional[str] = None,
+        limite: int = 10,
+    ) -> dict:
+        """Consulta a analise de cobertura fisica e giro de estoque da cooperativa, identificando riscos de superlotacao."""
+        snapshots = ((config or {}).get('configurable') or {}).get('snapshots') or {}
+        coop_id = self._resolver_cooperativa_id(config, snapshots)
+        if not coop_id:
+            return {'status': 'error', 'message': 'Consulta exclusiva para cooperativas. cooperativa_id ausente.'}
+
+        repo = self.repositories.get('analitica_repository')
+        if not repo or not hasattr(repo, 'consultar_cobertura_giro_estoque'):
+            return {'status': 'error', 'message': 'Repositorio analitico indisponivel.'}
+
+        itens = repo.consultar_cobertura_giro_estoque(
+            cooperativa_id=coop_id,
+            material_nome=material_nome,
+            status_capacidade=status_capacidade,
+            limite=limite,
+        )
+        return {
+            'status': 'ok',
+            'cooperativa_id': str(coop_id),
+            'total_materiais': len(itens),
+            'cobertura_estoque': itens,
+        }
+
+    @Toolkit.timed(categoria='tool', nome='consultar_ranking_mercado_materiais')
+    def consultar_ranking_mercado_materiais(
+        self,
+        config: RunnableConfig,
+        categoria_material: Optional[str] = None,
+        mes_referencia: Optional[str] = None,
+        limite: int = 10,
+    ) -> dict:
+        """Consulta o market share relativo da cooperativa na triagem de reciclaveis e a taxa de crescimento MoM."""
+        snapshots = ((config or {}).get('configurable') or {}).get('snapshots') or {}
+        coop_id = self._resolver_cooperativa_id(config, snapshots)
+        if not coop_id:
+            return {'status': 'error', 'message': 'Consulta exclusiva para cooperativas. cooperativa_id ausente.'}
+
+        repo = self.repositories.get('analitica_repository')
+        if not repo or not hasattr(repo, 'consultar_ranking_mercado_materiais'):
+            return {'status': 'error', 'message': 'Repositorio analitico indisponivel.'}
+
+        ranking = repo.consultar_ranking_mercado_materiais(
+            cooperativa_id=coop_id,
+            categoria_material=categoria_material,
+            mes_referencia=mes_referencia,
+            limite=limite,
+        )
+        return {
+            'status': 'ok',
+            'cooperativa_id': str(coop_id),
+            'total_registros': len(ranking),
+            'ranking_mercado': ranking,
+        }
 
     def get_tools(self) -> list[StructuredTool]:
         return [

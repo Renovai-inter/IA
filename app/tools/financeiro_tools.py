@@ -24,6 +24,8 @@ from app.repository.postgresql.despesa_repository import (
     DespesaSnapshot,
     Despesa,
 )
+from app.repository.postgresql.venda_repository import VendaRepository
+from app.repository.postgresql.analitica_repository import AnaliticaRepository
 from app.repository.postgresql.funcionario_repository import (
     FuncionarioRepository,
     FuncionarioSnapshot,
@@ -102,6 +104,34 @@ class ResumoFinanceiroMensalArgs(BaseModel):
     )
 
 
+
+class ConsultarFaturamentoVendasArgs(BaseModel):
+    mes_referencia: Optional[str] = Field(
+        default=None,
+        description='Mês de competência das vendas de recicláveis (ex: \'2026-09\'). Opcional.'
+    )
+    material_nome: Optional[str] = Field(
+        default=None,
+        description='Nome ou parte do nome do material vendido (ex: \'PET\', \'Papelão\', \'Alumínio\').'
+    )
+    limite: int = Field(default=10, description='Número máximo de registros de vendas detalhados.')
+
+
+class ConsultarSaudeFinanceiraEsgArgs(BaseModel):
+    mes_referencia: Optional[str] = Field(
+        default=None,
+        description='Mês de referência para análise de renda per capita (ex: \'2026-09\').'
+    )
+    limite_meses: int = Field(default=6, description='Quantidade de meses históricos para análise de tendência.')
+
+
+class ConsultarCurvaAbcReceitaArgs(BaseModel):
+    classificacao: Optional[str] = Field(
+        default=None,
+        description='Filtra por classe de impacto: \'Classe A\', \'Classe B\' ou \'Classe C\'.'
+    )
+    limite: int = Field(default=10, description='Quantidade máxima de materiais retornados.')
+
 class FinanceiroToolkit(Toolkit):
     nome: str = 'financeiro_toolkit'
     descricao: str = 'Ferramentas para consulta de rateios entre cooperados, fechamentos mensais e despesas operacionais.'
@@ -110,6 +140,8 @@ class FinanceiroToolkit(Toolkit):
         'rateio_funcionario_repository': RateioFuncionarioRepository,
         'despesa_repository': DespesaRepository,
         'funcionario_repository': FuncionarioRepository,
+        'venda_repository': VendaRepository,
+        'analitica_repository': AnaliticaRepository,
     }
 
     def __init__(self, repositories=None):
@@ -472,6 +504,119 @@ class FinanceiroToolkit(Toolkit):
             'cooperados_ativos': cooperados_ativos,
         }
 
+    def _resolver_cooperativa_id(
+        self,
+        config: Optional[RunnableConfig],
+        snapshots: Optional[dict] = None,
+    ) -> Optional[UUID]:
+        cfg = ((config or {}).get('configurable') or {})
+        raw_id = cfg.get('cooperativa_id')
+        if raw_id:
+            try:
+                return UUID(str(raw_id))
+            except (ValueError, TypeError):
+                pass
+        if snapshots:
+            for s in snapshots.values():
+                if hasattr(s, 'cooperativa_id') and s.cooperativa_id:
+                    return s.cooperativa_id
+        return None
+
+    @Toolkit.timed(categoria='tool', nome='consultar_faturamento_vendas')
+    def consultar_faturamento_vendas(
+        self,
+        config: RunnableConfig,
+        mes_referencia: Optional[str] = None,
+        material_nome: Optional[str] = None,
+        limite: int = 10,
+    ) -> dict:
+        """Consulta receitas brutas, volumes vendidos em kg e faturamento de reciclaveis para empresas parceiras."""
+        snapshots = ((config or {}).get('configurable') or {}).get('snapshots') or {}
+        coop_id = self._resolver_cooperativa_id(config, snapshots)
+        if not coop_id:
+            return {'status': 'error', 'message': 'Consulta exclusiva para cooperativas. cooperativa_id ausente.'}
+
+        repo = self.repositories.get('venda_repository')
+        if not repo or not hasattr(repo, 'consultar_faturamento_vendas'):
+            return {'status': 'error', 'message': 'Repositorio de vendas indisponivel.'}
+
+        itens = repo.consultar_faturamento_vendas(
+            cooperativa_id=coop_id,
+            mes_referencia=mes_referencia,
+            material_nome=material_nome,
+            limite=limite,
+        )
+        faturamento_total = sum(item['faturamento_total_reais'] for item in itens)
+        volume_total = sum(item['volume_total_kg'] for item in itens)
+
+        return {
+            'status': 'ok',
+            'cooperativa_id': str(coop_id),
+            'mes_referencia': mes_referencia or 'consolidado',
+            'total_materiais_vendidos': len(itens),
+            'faturamento_geral_reais': round(faturamento_total, 2),
+            'volume_geral_kg': round(volume_total, 3),
+            'vendas': itens,
+        }
+
+    @Toolkit.timed(categoria='tool', nome='consultar_saude_financeira_esg')
+    def consultar_saude_financeira_esg(
+        self,
+        config: RunnableConfig,
+        mes_referencia: Optional[str] = None,
+        limite_meses: int = 6,
+    ) -> dict:
+        """Consulta indicadores socioeconomicos ESG: renda media per capita, crescimento MoM e media trimestral."""
+        snapshots = ((config or {}).get('configurable') or {}).get('snapshots') or {}
+        coop_id = self._resolver_cooperativa_id(config, snapshots)
+        if not coop_id:
+            return {'status': 'error', 'message': 'Consulta exclusiva para cooperativas. cooperativa_id ausente.'}
+
+        repo = self.repositories.get('analitica_repository')
+        if not repo or not hasattr(repo, 'consultar_saude_financeira_esg'):
+            return {'status': 'error', 'message': 'Repositorio analitico indisponivel.'}
+
+        historico = repo.consultar_saude_financeira_esg(
+            cooperativa_id=coop_id,
+            mes_referencia=mes_referencia,
+            limite_meses=limite_meses,
+        )
+        return {
+            'status': 'ok',
+            'cooperativa_id': str(coop_id),
+            'total_meses_apurados': len(historico),
+            'historico_esg': historico,
+        }
+
+    @Toolkit.timed(categoria='tool', nome='consultar_curva_abc_receita')
+    def consultar_curva_abc_receita(
+        self,
+        config: RunnableConfig,
+        classificacao: Optional[str] = None,
+        limite: int = 10,
+    ) -> dict:
+        """Consulta analise de Pareto e curva ABC de faturamento de materiais da cooperativa (Classes A, B e C)."""
+        snapshots = ((config or {}).get('configurable') or {}).get('snapshots') or {}
+        coop_id = self._resolver_cooperativa_id(config, snapshots)
+        if not coop_id:
+            return {'status': 'error', 'message': 'Consulta exclusiva para cooperativas. cooperativa_id ausente.'}
+
+        repo = self.repositories.get('venda_repository')
+        if not repo or not hasattr(repo, 'consultar_curva_abc'):
+            return {'status': 'error', 'message': 'Repositorio de vendas indisponivel.'}
+
+        curva = repo.consultar_curva_abc(
+            cooperativa_id=coop_id,
+            classificacao=classificacao,
+            limite=limite,
+        )
+        return {
+            'status': 'ok',
+            'cooperativa_id': str(coop_id),
+            'total_materiais': len(curva),
+            'curva_abc': curva,
+        }
+
     def get_tools(self) -> list[StructuredTool]:
         return [
             StructuredTool.from_function(
@@ -497,5 +642,23 @@ class FinanceiroToolkit(Toolkit):
                 name='resumo_financeiro_mensal',
                 description=self.resumo_financeiro_mensal.__doc__,
                 args_schema=ResumoFinanceiroMensalArgs,
+            ),
+            StructuredTool.from_function(
+                func=self.consultar_faturamento_vendas,
+                name='consultar_faturamento_vendas',
+                description=self.consultar_faturamento_vendas.__doc__,
+                args_schema=ConsultarFaturamentoVendasArgs,
+            ),
+            StructuredTool.from_function(
+                func=self.consultar_saude_financeira_esg,
+                name='consultar_saude_financeira_esg',
+                description=self.consultar_saude_financeira_esg.__doc__,
+                args_schema=ConsultarSaudeFinanceiraEsgArgs,
+            ),
+            StructuredTool.from_function(
+                func=self.consultar_curva_abc_receita,
+                name='consultar_curva_abc_receita',
+                description=self.consultar_curva_abc_receita.__doc__,
+                args_schema=ConsultarCurvaAbcReceitaArgs,
             ),
         ]

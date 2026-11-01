@@ -47,7 +47,7 @@ class GroqProvider(LLMProvider):
                 **kwargs_suportados(
                     ChatGroq,
                     reasoning_effort='low',
-                    max_tokens=1024,
+                    max_tokens=512,
                     timeout=4.5,
                     max_retries=0,
                 ),
@@ -60,6 +60,8 @@ class GroqProvider(LLMProvider):
         """
         base_llm = self._LLMs.get(tier)
 
+        if base_llm is None:
+            return None
         if overrides:
             return base_llm.model_copy(update=overrides)
         return base_llm

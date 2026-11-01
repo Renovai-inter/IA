@@ -160,3 +160,52 @@ def test_router_agent_extrai_rota_com_dois_pontos(monkeypatch: pytest.MonkeyPatc
 
     assert resultado["proximos_agentes"] == ["coleta"]
     assert resultado["messages"] == []
+
+
+
+def test_router_agent_extrai_rota_de_failed_generation_groq():
+    from app.agents.router_agent import _extrair_rotas_protocolo
+    texto = (
+        '{"name": "ROUTER", "arguments": ROUTE=rag_faq\n'
+        'PERGUNTA_ORIGINAL=Como separar resíduos plásticos corretamente para a reciclagem?}'
+    )
+    rotas = _extrair_rotas_protocolo(texto)
+    assert rotas == ["rag_faq"]
+
+
+@pytest.mark.asyncio
+async def test_router_agent_resiliente_a_groq_tool_use_failed_em_arun():
+    class FakeGroqException(Exception):
+        def __init__(self):
+            super().__init__("Error code: 400 - Tool choice is none, but model called a tool")
+            self.body = {
+                "error": {
+                    "code": "tool_use_failed",
+                    "failed_generation": (
+                        '{"name": "ROUTER", "arguments": ROUTE=rag_faq\n'
+                        'PERGUNTA_ORIGINAL=Como separar resíduos plásticos corretamente para a reciclagem?}'
+                    ),
+                }
+            }
+
+    class FakeLLM:
+        async def ainvoke(self, msgs, config=None):
+            raise FakeGroqException()
+
+        def invoke(self, msgs, config=None):
+            raise FakeGroqException()
+
+    agent = RouterAgent(llm=FakeLLM(), system_prompt="prompt teste", tools=[])
+    resultado_async = await agent.arun(
+        {"messages": [HumanMessage(content="Como separar plásticos?")]},
+        config={},
+    )
+    assert resultado_async["proximos_agentes"] == ["rag_faq"]
+    assert resultado_async["messages"] == []
+
+    resultado_sync = agent.run(
+        {"messages": [HumanMessage(content="Como separar plásticos?")]},
+        config={},
+    )
+    assert resultado_sync["proximos_agentes"] == ["rag_faq"]
+    assert resultado_sync["messages"] == []

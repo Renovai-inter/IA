@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title='Renovai IA',
     description='Sistema Multi-Agente com Arquitetura A2A (Cooperativas ou Empresas) e Observabilidade Integrada',
-    version='0.2.0',
+    version='1.0.0',
     lifespan=lifespan,
 )
 
@@ -95,6 +95,10 @@ async def health(request: Request) -> dict:
 
 
 if _FRONTEND_DIR.exists():
+    @app.get('/', include_in_schema=False)
+    async def index_page():
+        return FileResponse(_FRONTEND_DIR / 'index.html')
+
     @app.get('/monitor.html', include_in_schema=False)
     async def monitor_page():
         return FileResponse(_FRONTEND_DIR / 'monitor.html')

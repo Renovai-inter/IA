@@ -4,7 +4,9 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from uuid import UUID
 from app.repository.neo4j.recomendacao_repository import RecomendacaoRepository
+from app.repository.postgresql.analitica_repository import AnaliticaRepository
 from app.tools.base import Toolkit
 
 
@@ -27,15 +29,33 @@ class RecomendarCooperativasArgs(BaseModel):
     )
 
 
+
+class ConsultarPerfilCompradorRfvArgs(BaseModel):
+    empresa_id: Optional[str] = Field(
+        default=None,
+        description='Identificador UUID da empresa compradora. Se ausente, lido do contexto da sessão.'
+    )
+
+
+class ConsultarAvaliacoesCooperativaArgs(BaseModel):
+    cooperativa_nome: Optional[str] = Field(
+        default=None,
+        description='Nome ou trecho do nome da cooperativa para consultar feedbacks e avaliações.'
+    )
+    nota_minima: int = Field(default=1, description='Nota mínima (1 a 5) para filtrar avaliações.')
+    limite: int = Field(default=5, description='Quantidade máxima de avaliações qualitativas retornadas.')
+
 class RecomendacaoToolkit(Toolkit):
     nome = 'recomendacao_toolkit'
     descricao = 'Tools de recomendação multicritério de cooperativas no Neo4j.'
     repositories = {
         'recomendacao_repository': RecomendacaoRepository,
+        'analitica_repository': AnaliticaRepository,
     }
 
-    def __init__(self, repository: RecomendacaoRepository):
+    def __init__(self, repository: RecomendacaoRepository, repositories=None):
         self.repository = repository
+        self.repositories = repositories or self.__class__.repositories
 
     @Toolkit.timed(categoria='tool', nome='recomendar_cooperativas')
     def recomendar_cooperativas(
@@ -92,6 +112,78 @@ class RecomendacaoToolkit(Toolkit):
             'itens': itens,
         }
 
+    def _resolver_empresa_id(
+        self,
+        config: Optional[RunnableConfig],
+        empresa_id: Optional[str] = None,
+    ) -> Optional[UUID]:
+        if empresa_id:
+            try:
+                return UUID(str(empresa_id))
+            except (ValueError, TypeError):
+                pass
+        cfg = ((config or {}).get('configurable') or {})
+        raw_id = cfg.get('empresa_id')
+        if raw_id:
+            try:
+                return UUID(str(raw_id))
+            except (ValueError, TypeError):
+                pass
+        return None
+
+    @Toolkit.timed(categoria='tool', nome='consultar_perfil_comprador_rfv')
+    def consultar_perfil_comprador_rfv(
+        self,
+        config: Optional[RunnableConfig] = None,
+        empresa_id: Optional[str] = None,
+    ) -> dict:
+        """Consulta o historico de compras e segmentacao RFV da empresa compradora no Renovai."""
+        emp_uuid = self._resolver_empresa_id(config, empresa_id)
+        if not emp_uuid:
+            return {'status': 'error', 'message': 'Consulta exclusiva para empresas compradoras. empresa_id ausente.'}
+
+        repo = self.repositories.get('analitica_repository')
+        if not repo or not hasattr(repo, 'consultar_segmentacao_empresas_rfv'):
+            return {'status': 'error', 'message': 'Repositorio analitico indisponivel.'}
+
+        perfil = repo.consultar_segmentacao_empresas_rfv(empresa_id=emp_uuid)
+        if not perfil:
+            return {
+                'status': 'ok',
+                'empresa_id': str(emp_uuid),
+                'mensagem': 'Empresa compradora ainda nao possui pedidos historicos faturados na plataforma.',
+                'faixa_cliente': 'Novo Comprador',
+            }
+
+        return {
+            'status': 'ok',
+            'perfil_rfv': perfil,
+        }
+
+    @Toolkit.timed(categoria='tool', nome='consultar_avaliacoes_cooperativa')
+    def consultar_avaliacoes_cooperativa(
+        self,
+        config: Optional[RunnableConfig] = None,
+        cooperativa_nome: Optional[str] = None,
+        nota_minima: int = 1,
+        limite: int = 5,
+    ) -> dict:
+        """Consulta avaliacoes qualitativas e notas de compradores sobre a cooperativa parceira."""
+        repo = self.repositories.get('analitica_repository')
+        if not repo or not hasattr(repo, 'consultar_avaliacoes_cooperativa'):
+            return {'status': 'error', 'message': 'Repositorio analitico indisponivel.'}
+
+        avaliacoes = repo.consultar_avaliacoes_cooperativa(
+            cooperativa_nome=cooperativa_nome,
+            nota_minima=nota_minima,
+            limite=limite,
+        )
+        return {
+            'status': 'ok',
+            'total_avaliacoes': len(avaliacoes),
+            'avaliacoes': avaliacoes,
+        }
+
     def get_tools(self) -> list[StructuredTool]:
         return [
             StructuredTool.from_function(
@@ -99,5 +191,17 @@ class RecomendacaoToolkit(Toolkit):
                 name='recomendar_cooperativas',
                 description=self.recomendar_cooperativas.__doc__,
                 args_schema=RecomendarCooperativasArgs,
+            ),
+            StructuredTool.from_function(
+                func=self.consultar_perfil_comprador_rfv,
+                name='consultar_perfil_comprador_rfv',
+                description=self.consultar_perfil_comprador_rfv.__doc__,
+                args_schema=ConsultarPerfilCompradorRfvArgs,
+            ),
+            StructuredTool.from_function(
+                func=self.consultar_avaliacoes_cooperativa,
+                name='consultar_avaliacoes_cooperativa',
+                description=self.consultar_avaliacoes_cooperativa.__doc__,
+                args_schema=ConsultarAvaliacoesCooperativaArgs,
             ),
         ]

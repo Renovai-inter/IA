@@ -50,6 +50,19 @@ class GeminiProvider(LLMProvider):
                     timeout=10,
                 ),
             ),
+            # LOW = contingência das tarefas curtas (guardrail/router/resumo) quando o Groq
+            # estoura TPM/RPM. Mesmo modelo do HIGH, mas com timeout menor: a resposta é curta
+            # e o chamador já está esperando por um fallback.
+            'LOW': ChatGoogleGenerativeAI(
+                model='gemini-3.5-flash-lite',
+                api_key=self.api_key,
+                **kwargs_suportados(
+                    ChatGoogleGenerativeAI,
+                    thinking_level='low',
+                    max_retries=0,
+                    timeout=10,
+                ),
+            ),
             'MEDIUM': ChatGoogleGenerativeAI(
                 model='gemini-3.5-flash',
                 temperature=0.7,
@@ -73,6 +86,8 @@ class GeminiProvider(LLMProvider):
         """
         base_llm = self._LLMs.get(tier)
 
+        if base_llm is None:
+            return None
         if overrides:
             return base_llm.model_copy(update=overrides)
         return base_llm
