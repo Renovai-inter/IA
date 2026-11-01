@@ -7,7 +7,7 @@ from app.graph.state import EspecialistaOutput, GraphState
 
 class FaqAgent(BaseAgent):
     nome_agente: str = 'faq'
-    descricao: str = ''
+    descricao: str = 'Agente especialista em FAQ.'
     
     def __init__(self, llm, system_prompt, tools = None):
         super().__init__(llm, system_prompt, tools)
