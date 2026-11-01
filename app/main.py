@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title='Renovai IA',
     description='Sistema Multi-Agente com Arquitetura A2A (Cooperativas ou Empresas) e Observabilidade Integrada',
-    version='0.2.0',
+    version='1.0.0',
     lifespan=lifespan,
 )
 
