@@ -85,7 +85,7 @@ class Settings(BaseSettings):
         'guardrail_entrada':      ('GROQ',   'LOW'),
         'guardrail_saida':        ('GROQ',   'LOW'),
         'coleta_agent':           ('GEMINI', 'HIGH'),
-        'financeiro_agent':       ('GROQ',   'HIGH'),
+        'financeiro_agent':       ('GEMINI', 'HIGH'),
         'judge':                  ('GEMINI', 'HIGH'),
     }
     GUARDRAIL_ROTAS_REVISAO: Tuple[str, ...] = ('financeiro',)

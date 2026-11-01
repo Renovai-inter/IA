@@ -149,6 +149,31 @@ class RouterAgent(BaseAgent):
             tools=self.tools,
         )
 
+    # O roteador só decide a rota: precisa da pergunta atual e de um pouco de contexto
+    # para follow-ups ("e o de papel?"). As respostas anteriores dos especialistas (JSON
+    # longo) inflavam a entrada (~2,5 mil tokens/chamada) e estouravam o TPM do Groq.
+    janela_mensagens: int = 4
+    _MAX_CHARS_CONTEXTO: int = 400
+
+    def _mensagens_recentes(self, state: GraphState) -> list:
+        recentes = super()._mensagens_recentes(state)
+        if len(recentes) <= 1:
+            return recentes
+        *anteriores, ultima = recentes
+        return [*(self._truncar_mensagem(m) for m in anteriores), ultima]
+
+    def _truncar_mensagem(self, msg):
+        texto = self._obter_texto_mensagem(msg)
+        if len(texto) <= self._MAX_CHARS_CONTEXTO:
+            return msg
+        cortado = texto[:self._MAX_CHARS_CONTEXTO] + '…'
+        if isinstance(msg, dict):
+            return {**msg, 'content': cortado}
+        try:
+            return msg.model_copy(update={'content': cortado})
+        except Exception:
+            return msg
+
     def _montar_mensagens_llm(self, state: GraphState) -> list:
         from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
         mensagens: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]

@@ -35,13 +35,13 @@ _FUSO = ZoneInfo('America/Sao_Paulo')
 # USD por 1 milhão de tokens: (entrada, saída).
 PRECO_POR_MILHAO: dict[str, tuple[float, float]] = {
     'gemini-3.8-flash': (0.30, 2.50),
-    'gemini-3.5-flash-lite': (0.15, 0.60),
+    'gemini-3.5-flash-lite': (0.30, 2.50),
     'gemini-3.5-flash': (0.30, 2.50),
     'gemini-2.5-flash': (0.30, 2.50),
-    'qwen/qwen3.8-27b': (0.20, 0.60),
+    'qwen/qwen3.8-27b': (0.80, 4.00),
     'qwen/qwen3.6-27b': (0.20, 0.60),
     'openai/gpt-oss-120b': (0.15, 0.60),
-    'openai/gpt-oss-20b': (0.10, 0.40),
+    'openai/gpt-oss-20b': (0.075, 0.30),
     'gemini-embedding-2-preview': (0.05, 0.00),
 }
 
@@ -602,7 +602,7 @@ class Observabilidade:
     # --------------------------------------------------------------------------
     def listar_turnos(self) -> list[dict[str, Any]]:
         with self._lock:
-            return [{chave: valor for chave, valor in turno.items() if chave != 'id'} for turno in self._turnos]
+            return [dict(turno) for turno in self._turnos]
 
     def listar_chamadas(self) -> list[dict[str, Any]]:
         with self._lock:
