@@ -22,9 +22,9 @@ const KEY_EMP_ID  = 'renovai_empresa_id';
 const KEY_USER_ID = 'renovai_user_id';
 
 // Defaults
-const DEFAULT_COOP_ID = 'cooperativa-central-sp';
-const DEFAULT_EMP_ID  = 'empresa-sustentavel-sp';
-const DEFAULT_USER_ID = 'usuario_renovai';
+const DEFAULT_COOP_ID = 'f6dfa8d0-00f8-4a24-85c6-cca4e0980260';
+const DEFAULT_EMP_ID  = '6b1543b3-f9ed-4eea-b3da-8030dbca47c9';
+const DEFAULT_USER_ID = '5f7c5eda-6065-4da2-b6a7-199fdb9362e5';
 
 // Poses do Nimo (frontend/assets)
 const NIMO = {

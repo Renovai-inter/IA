@@ -445,13 +445,6 @@ main {
   position: relative;
 }
 
-.mascot-halo {
-  position: absolute;
-  width: 130px;
-  height: 130px;
-  border-radius: 50%;
-  background: var(--tema-soft);
-}
 
 .mascot {
   position: relative;
@@ -467,6 +460,7 @@ main {
   text-transform: uppercase;
   color: var(--tema-texto);
   font-weight: 800;
+  margin-top: 20px;
   margin-bottom: 6px;
 }
 

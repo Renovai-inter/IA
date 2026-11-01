@@ -76,17 +76,17 @@ class Settings(BaseSettings):
     ROTAS_EMPRESA: Tuple[str, ...] = ('pedidos',)
 
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
+        'guardrail_entrada':      ('GROQ',   'LOW'),
         'router_agent':           ('GROQ',   'LOW'),
         'faq_agent':              ('GEMINI', 'HIGH'),
         'material_estoque_agent': ('GEMINI', 'HIGH'),
         'recomendacao_agent':     ('GROQ',   'HIGH'),
-        'orchestrator_agent':     ('GROQ',   'MEDIUM'),
-        'resumo_agent':           ('GROQ',   'LOW'),
-        'guardrail_entrada':      ('GROQ',   'LOW'),
-        'guardrail_saida':        ('GROQ',   'LOW'),
         'coleta_agent':           ('GEMINI', 'HIGH'),
         'financeiro_agent':       ('GEMINI', 'HIGH'),
+        'resumo_agent':           ('GROQ',   'LOW'),
+        'orchestrator_agent':     ('GROQ',   'MEDIUM'),
         'judge':                  ('GEMINI', 'HIGH'),
+        'guardrail_saida':        ('GROQ',   'LOW'),
     }
     GUARDRAIL_ROTAS_REVISAO: Tuple[str, ...] = ('financeiro',)
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {
