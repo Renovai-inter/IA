@@ -35,7 +35,10 @@ _FUSO = ZoneInfo('America/Sao_Paulo')
 # USD por 1 milhão de tokens: (entrada, saída).
 PRECO_POR_MILHAO: dict[str, tuple[float, float]] = {
     'gemini-3.8-flash': (0.30, 2.50),
-    'gemini-3.5-flash-lite': (0.30, 2.50),
+    'gemini-3.5-flash-lite': (0.15, 0.60),
+    'claude-3-5-haiku-20241022': (0.80, 4.00),
+    'claude-3-5-haiku-latest': (0.80, 4.00),
+    'claude-3-haiku-20240307': (0.25, 1.25),
     'gemini-3.5-flash': (0.30, 2.50),
     'gemini-2.5-flash': (0.30, 2.50),
     'qwen/qwen3.8-27b': (0.80, 4.00),
@@ -57,7 +60,7 @@ _NOS_ESPECIALISTA = {
     'pedidos',
     'rag_faq',
 }
-_PROVEDORES_ESPECIALISTA_ESPERADOS = ('gemini',)
+_PROVEDORES_ESPECIALISTA_ESPERADOS = ('gemini', 'anthropic', 'claude')
 
 LIMITE_TURNOS = 50
 LIMITE_LOGS = 100
