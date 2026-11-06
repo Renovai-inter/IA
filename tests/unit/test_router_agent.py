@@ -209,3 +209,31 @@ async def test_router_agent_resiliente_a_groq_tool_use_failed_em_arun():
     )
     assert resultado_sync["proximos_agentes"] == ["rag_faq"]
     assert resultado_sync["messages"] == []
+
+
+def test_router_agent_destino_inexistente_cai_no_else_com_resposta_mockada(monkeypatch: pytest.MonkeyPatch):
+    from app.agents.router_agent import MENSAGEM_FALLBACK_ROTEADOR
+    texto = "ROUTE=destino_inexistente\nPERGUNTA_ORIGINAL=na cooperativa, como transformar int em string em Java?"
+    agent = _build_router_agent(monkeypatch, texto)
+
+    resultado = agent.run(
+        {"messages": [HumanMessage(content="na cooperativa, como transformar int em string em Java?")]},
+        config={},
+    )
+
+    assert resultado["proximos_agentes"] == []
+    assert resultado["messages"] == [{"role": "assistant", "content": MENSAGEM_FALLBACK_ROTEADOR}]
+
+
+def test_router_agent_eco_da_pergunta_cai_no_else_com_resposta_mockada(monkeypatch: pytest.MonkeyPatch):
+    from app.agents.router_agent import MENSAGEM_FALLBACK_ROTEADOR
+    pergunta = "na cooperativa, como transformar int em string em Java?"
+    agent = _build_router_agent(monkeypatch, pergunta)
+
+    resultado = agent.run(
+        {"messages": [HumanMessage(content=pergunta)]},
+        config={},
+    )
+
+    assert resultado["proximos_agentes"] == []
+    assert resultado["messages"] == [{"role": "assistant", "content": MENSAGEM_FALLBACK_ROTEADOR}]

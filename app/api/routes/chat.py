@@ -3,6 +3,7 @@ import time
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from langchain_core.messages import HumanMessage
 
+from app.agents.router_agent import MENSAGEM_FALLBACK_ROTEADOR
 from app.api.schemas.chat_request import ChatRequest
 from app.api.schemas.chat_response import ChatResponse
 from app.core.observabilidade import medir_span
@@ -170,7 +171,21 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
             else:
                 rota = agentes_turno[-1] if agentes_turno else 'fim'
 
-        resposta = _obter_texto_mensagem(resultado['messages'][-1])
+        ultima_msg = resultado['messages'][-1] if resultado.get('messages') else None
+        role_ultima = (
+            (ultima_msg.get('role') or ultima_msg.get('type'))
+            if isinstance(ultima_msg, dict)
+            else getattr(ultima_msg, 'type', None)
+        ) if ultima_msg is not None else None
+        texto_bruto = (_obter_texto_mensagem(ultima_msg) if ultima_msg is not None else '').strip()
+        if (
+            role_ultima in ('ai', 'assistant')
+            and texto_bruto
+            and texto_bruto.lower() not in (pergunta.strip().lower(), body.pergunta.strip().lower())
+        ):
+            resposta = texto_bruto
+        else:
+            resposta = MENSAGEM_FALLBACK_ROTEADOR
         latencia_ms = int((time.perf_counter() - t0_turno) * 1000)
 
         # Gravação assíncrona do histórico no MongoDB Atlas e atualização da Fila/Ranking no Redis
