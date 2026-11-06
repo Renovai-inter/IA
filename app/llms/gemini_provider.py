@@ -89,5 +89,12 @@ class GeminiProvider(LLMProvider):
         if base_llm is None:
             return None
         if overrides:
-            return base_llm.model_copy(update=overrides)
+            limpos = dict(overrides)
+            target_model = limpos.get('model') or getattr(base_llm, 'model', getattr(base_llm, 'model_name', ''))
+            if 'flash-lite' in str(target_model).lower():
+                limpos.pop('temperature', None)
+                limpos.pop('top_p', None)
+            if not limpos:
+                return base_llm
+            return base_llm.model_copy(update=limpos)
         return base_llm

@@ -46,6 +46,13 @@ PRECO_POR_MILHAO: dict[str, tuple[float, float]] = {
     'openai/gpt-oss-120b': (0.15, 0.60),
     'openai/gpt-oss-20b': (0.075, 0.30),
     'gemini-embedding-2-preview': (0.05, 0.00),
+    'gpt-6.1-terra': (1.00, 5.00),
+    'gpt-6-terra': (1.00, 5.00),
+    'gpt-6-luna': (0.10, 0.50),
+    'gpt-4o-mini': (0.15, 0.60),
+    'gpt-4o': (2.50, 10.00),
+    'text-embedding-3-small': (0.02, 0.00),
+    'text-embedding-3-large': (0.13, 0.00),
 }
 
 _NOS_ESPECIALISTA = {

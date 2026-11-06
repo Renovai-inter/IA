@@ -100,7 +100,8 @@ class GeminiDecisionEngine(DecisionEngine):
     def _obter_llm(self, model_name: Optional[str] = None):
         target_model = model_name or self.model
         if self._llm is not None:
-            if model_name is None or getattr(self._llm, 'model', None) == target_model:
+            current_model = getattr(self._llm, 'model', getattr(self._llm, 'model_name', None))
+            if model_name is None or current_model == target_model or current_model is None:
                 return self._llm
 
         if not self.api_key:
@@ -119,7 +120,7 @@ class GeminiDecisionEngine(DecisionEngine):
         return ChatGoogleGenerativeAI(
             model=target_model,
             google_api_key=self.api_key,
-            temperature=0.0,
+            temperature=0.0 if 'flash-lite' not in str(target_model).lower() else None,
             **kwargs,
         )
 
@@ -190,7 +191,7 @@ class GeminiDecisionEngine(DecisionEngine):
             resp = llm.invoke(prompt)
         except Exception as exc:
             err_str = str(exc)
-            if any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline', '429', 'RESOURCE_EXHAUSTED', 'ResourceExhausted', 'Quota', 'Too Many Requests', 'rate limit')):
+            if self.api_key and any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline', '429', 'RESOURCE_EXHAUSTED', 'ResourceExhausted', 'Quota', 'Too Many Requests', 'rate limit')):
                 fallback_mod = FALLBACK_GEMINI_JUDGE_MODEL
                 if current_model != fallback_mod:
                     log.warning(
@@ -218,7 +219,7 @@ class GeminiDecisionEngine(DecisionEngine):
             resp = await llm.ainvoke(prompt)
         except Exception as exc:
             err_str = str(exc)
-            if any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline', '429', 'RESOURCE_EXHAUSTED', 'ResourceExhausted', 'Quota', 'Too Many Requests', 'rate limit')):
+            if self.api_key and any(k in err_str for k in ('404', 'NOT_FOUND', '504', 'DEADLINE_EXCEEDED', 'Deadline', '429', 'RESOURCE_EXHAUSTED', 'ResourceExhausted', 'Quota', 'Too Many Requests', 'rate limit')):
                 fallback_mod = FALLBACK_GEMINI_JUDGE_MODEL
                 if current_model != fallback_mod:
                     log.warning(

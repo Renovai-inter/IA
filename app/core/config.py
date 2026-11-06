@@ -24,8 +24,14 @@ class Settings(BaseSettings):
         extra='ignore',
     )
 
-    GEMINI_API_KEY: str
-    GROQ_API_KEY: str
+    OPENAI_API_KEY: str = ''
+    OPENAI_MODEL_HIGH: str = 'gpt-6.1-terra'
+    OPENAI_MODEL_MEDIUM: str = 'gpt-6-luna'
+    OPENAI_MODEL_LOW: str = 'gpt-6-luna'
+    OPENAI_MODEL_EMBEDDING: str = 'text-embedding-3-small'
+
+    GEMINI_API_KEY: str = ''
+    GROQ_API_KEY: str = ''
     QDRANT_API_KEY: str
     LANGSMITH_API_KEY: str | None = None
     HF_TOKEN: str | None = None
@@ -76,17 +82,17 @@ class Settings(BaseSettings):
     ROTAS_EMPRESA: Tuple[str, ...] = ('pedidos',)
 
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
-        'guardrail_entrada':      ('GROQ',   'LOW'),
-        'router_agent':           ('GROQ',   'LOW'),
-        'faq_agent':              ('GEMINI', 'HIGH'),
-        'material_estoque_agent': ('GEMINI', 'HIGH'),
-        'recomendacao_agent':     ('GROQ',   'HIGH'),
-        'coleta_agent':           ('GEMINI', 'HIGH'),
-        'financeiro_agent':       ('GEMINI', 'HIGH'),
-        'resumo_agent':           ('GROQ',   'LOW'),
-        'orchestrator_agent':     ('GROQ',   'MEDIUM'),
-        'judge':                  ('GEMINI', 'HIGH'),
-        'guardrail_saida':        ('GROQ',   'LOW'),
+        'guardrail_entrada':      ('OPENAI', 'LOW'),
+        'router_agent':           ('OPENAI', 'LOW'),
+        'faq_agent':              ('OPENAI', 'MEDIUM'),
+        'material_estoque_agent': ('OPENAI', 'HIGH'),
+        'recomendacao_agent':     ('OPENAI', 'HIGH'),
+        'coleta_agent':           ('OPENAI', 'HIGH'),
+        'financeiro_agent':       ('OPENAI', 'HIGH'),
+        'resumo_agent':           ('OPENAI', 'LOW'),
+        'orchestrator_agent':     ('OPENAI', 'MEDIUM'),
+        'judge':                  ('OPENAI', 'HIGH'),
+        'guardrail_saida':        ('OPENAI', 'LOW'),
     }
     GUARDRAIL_ROTAS_REVISAO: Tuple[str, ...] = ('financeiro',)
     AGENT_REPOSITORY_MAP: Dict[str, List[str]] = {
@@ -96,8 +102,6 @@ class Settings(BaseSettings):
     }
 
     _CAMPOS_OBRIGATORIOS: ClassVar[tuple[str, ...]] = (
-        'GEMINI_API_KEY',
-        'GROQ_API_KEY',
         'DATABASE_URL',
     )
 
@@ -107,4 +111,6 @@ class Settings(BaseSettings):
         for nome in self._CAMPOS_OBRIGATORIOS:
             if not getattr(self, nome, None):
                 problemas.append(f'Variável ausente no .env: {nome}')
+        if not (self.OPENAI_API_KEY or self.GEMINI_API_KEY or self.GROQ_API_KEY):
+            problemas.append('Nenhuma chave de provedor LLM configurada (.env: OPENAI_API_KEY, GEMINI_API_KEY ou GROQ_API_KEY).')
         return problemas
