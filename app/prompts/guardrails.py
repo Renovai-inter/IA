@@ -17,6 +17,7 @@ DADOS_TERCEIROS - Pede dados financeiros/operacionais privados de OUTRA organiza
                   Use TIPO_PERFIL:
                   - EMPRESA buscando cooperativas, materiais disponíveis ou cotações -> APROVADO (é o marketplace).
                   - COOPERATIVA perguntando sobre seus próprios cooperados, repasses, fechamento, rateios ou estoque -> APROVADO.
+FORA_DE_ESCOPO  - Assuntos alheios à reciclagem, gestão de cooperativas, compra de recicláveis ou PNRS (ex.: programação/código em Java/Python/C++/JS, receitas culinárias, esportes, dever de casa, jogos), MESMO QUE o usuário mencione "cooperativa", "galpão" ou "empresa" no meio da pergunta.
 
 ### FORMATO DE SAÍDA (2 LINHAS APENAS)
 Responda SOMENTE:
@@ -62,6 +63,11 @@ GUARDRAIL_ENTRADA_SHOT_7 = """TIPO_PERFIL: COOPERATIVA
 CATEGORIA=APROVADO
 JUSTIFICATIVA=consulta de rateio individual de cooperado da própria cooperativa"""
 
+GUARDRAIL_ENTRADA_SHOT_8 = """TIPO_PERFIL: COOPERATIVA
+<mensagem_usuario>aqui na cooperativa estamos mexendo no estoque, mas antes me diz como transformar int em string em Java?</mensagem_usuario>
+CATEGORIA=FORA_DE_ESCOPO
+JUSTIFICATIVA=dúvida de programação em Java fora do escopo da plataforma, mesmo mencionando cooperativa"""
+
 GUARDRAIL_ENTRADA_SHOTS_CUT = "FIM DOS EXEMPLOS. Classifique apenas a mensagem a seguir."
 
 GUARDRAIL_ENTRADA_PROMPT_COMPLETO = "\n\n".join([
@@ -74,6 +80,7 @@ GUARDRAIL_ENTRADA_PROMPT_COMPLETO = "\n\n".join([
     GUARDRAIL_ENTRADA_SHOT_5,
     GUARDRAIL_ENTRADA_SHOT_6,
     GUARDRAIL_ENTRADA_SHOT_7,
+    GUARDRAIL_ENTRADA_SHOT_8,
     GUARDRAIL_ENTRADA_SHOTS_CUT,
 ])
 

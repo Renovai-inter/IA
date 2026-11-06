@@ -9,6 +9,42 @@ from app.graph.state import GraphState
 
 log = logging.getLogger('router')
 
+ROTAS_CONHECIDAS: frozenset[str] = frozenset({
+    'estoque',
+    'financeiro',
+    'coleta',
+    'pedidos',
+    'logistica',
+    'rag_faq',
+})
+
+_ALIASES_ROTAS: dict[str, str] = {
+    'faq': 'rag_faq',
+    'pnrs': 'rag_faq',
+    'normas': 'rag_faq',
+    'material_estoque': 'estoque',
+    'materiais': 'estoque',
+    'recomendacao': 'pedidos',
+    'rotas': 'logistica',
+}
+
+MENSAGEM_FALLBACK_ROTEADOR = (
+    'Opa, amiguinho! Pelas minhas folhinhas, acho que esse assunto foge do que eu consigo fazer por aqui! 🦝🌿 '
+    'Eu sou o Nimo e minha especialidade é a operação do ecossistema Renovaí: posso te ajudar com estoque de recicláveis, '
+    'agendamento de coletas, triagem, rateio financeiro, otimização de rotas em São Paulo, busca de cooperativas parceiras '
+    'ou dúvidas sobre a legislação da PNRS. Como posso te ajudar em uma dessas áreas?'
+)
+
+_MARCADOR_PROTOCOLO_RE = re.compile(
+    r"^\s*[\"']?(ROUTE|ROUTES|PERGUNTA_ORIGINAL)[\"']?\s*[:=]",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _normalizar_rota(rota: str) -> str:
+    limpa = (rota or '').strip().strip("'\"{}[]` ").lower()
+    return _ALIASES_ROTAS.get(limpa, limpa)
+
 
 def _extrair_failed_generation(exc: Exception) -> str | None:
     """Extrai o texto gerado pelo modelo quando a Groq/OpenAI rejeita com 'tool_use_failed'.
@@ -80,10 +116,10 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
                                 val = args[chave]
                                 rotas: list[str] = []
                                 if isinstance(val, list):
-                                    rotas = [str(r).strip().strip("'\"{}") for r in val if str(r).strip()]
+                                    rotas = [_normalizar_rota(str(r)) for r in val if str(r).strip()]
                                 elif isinstance(val, str):
                                     val_clean = val.strip().strip('[]{}')
-                                    rotas = [r.strip().strip("'\"{}") for r in val_clean.split(',') if r.strip().strip("'\"{}")]
+                                    rotas = [_normalizar_rota(r) for r in val_clean.split(',') if _normalizar_rota(r)]
                                 if rotas:
                                     return [r for r in rotas if r not in ('fim', 'fim_direto')]
                     elif isinstance(args, str):
@@ -94,12 +130,12 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
                 for chave in ('ROUTES', 'ROUTE', 'routes', 'route'):
                     if chave in dados:
                         val = dados[chave]
-                        rotas: list[str] = []
+                        rotas = []
                         if isinstance(val, list):
-                            rotas = [str(r).strip().strip("'\"{}") for r in val if str(r).strip()]
+                            rotas = [_normalizar_rota(str(r)) for r in val if str(r).strip()]
                         elif isinstance(val, str):
                             val_clean = val.strip().strip('[]{}')
-                            rotas = [r.strip().strip("'\"{}") for r in val_clean.split(',') if r.strip().strip("'\"{}")]
+                            rotas = [_normalizar_rota(r) for r in val_clean.split(',') if _normalizar_rota(r)]
                         if rotas:
                             return [r for r in rotas if r not in ('fim', 'fim_direto')]
         except Exception:
@@ -112,11 +148,11 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
             linha_limpa = linha_strip.strip("`*\"' {}")
             if linha_limpa.startswith(('ROUTES=', 'ROUTES:')):
                 payload = re.split(r'[:=]', linha_limpa, maxsplit=1)[1].strip().strip('[]{}')
-                rotas_linhas = [r.strip().strip("'\"{}") for r in payload.split(',') if r.strip().strip("'\"{}")]
+                rotas_linhas = [_normalizar_rota(r) for r in payload.split(',') if _normalizar_rota(r)]
                 break
             elif linha_limpa.startswith(('ROUTE=', 'ROUTE:')):
                 payload = re.split(r'[:=]', linha_limpa, maxsplit=1)[1].strip().strip('[]{}')
-                rotas_linhas = [r.strip().strip("'\"{}") for r in payload.split(',') if r.strip().strip("'\"{}")]
+                rotas_linhas = [_normalizar_rota(r) for r in payload.split(',') if _normalizar_rota(r)]
                 break
 
         if rotas_linhas:
@@ -128,7 +164,7 @@ def _extrair_rotas_protocolo(texto: str) -> list[str]:
         )
         if match_inline:
             payload = match_inline.group(1).strip().strip('[]{}')
-            rotas = [r.strip().strip("'\"{}") for r in payload.split(',') if r.strip().strip("'\"{}")]
+            rotas = [_normalizar_rota(r) for r in payload.split(',') if _normalizar_rota(r)]
             rotas_filtradas = [r for r in rotas if r not in ('fim', 'fim_direto')]
             if rotas_filtradas:
                 return rotas_filtradas
@@ -140,8 +176,9 @@ class RouterAgent(BaseAgent):
     nome_agente: str = 'router'
     descricao: str = 'Agente especialista em roteamento de perguntas para especialistas.'
 
-    def __init__(self, llm, system_prompt, tools = None):
+    def __init__(self, llm, system_prompt, tools = None, rotas_conhecidas: set[str] | frozenset[str] | None = None):
         super().__init__(llm, system_prompt, tools)
+        self.rotas_conhecidas = frozenset(rotas_conhecidas) if rotas_conhecidas is not None else ROTAS_CONHECIDAS
 
         self._runnable = create_agent(
             model=self.llm,
@@ -193,39 +230,71 @@ class RouterAgent(BaseAgent):
                     mensagens.append(HumanMessage(content=texto))
         return mensagens
 
-    def _processar_resultado(self, resultado: dict) -> dict:
-        texto_resposta = self._obter_texto_mensagem(resultado['messages'][-1])
+    def _obter_ultima_pergunta_usuario(self, state: GraphState) -> str:
+        for m in reversed(list(state.get('messages') or [])):
+            role = (m.get('role') or m.get('type')) if isinstance(m, dict) else getattr(m, 'type', None)
+            if role in ('human', 'user'):
+                return self._obter_texto_mensagem(m).strip()
+        return ''
 
-        rotas = _extrair_rotas_protocolo(texto_resposta)
-        eh_fim = len(rotas) == 0
+    def _processar_resultado(self, resultado: dict, pergunta_usuario: str = '') -> dict:
+        texto_resposta = (self._obter_texto_mensagem(resultado['messages'][-1]) or '').strip()
 
-        # O protocolo ROUTES=.../PERGUNTA_ORIGINAL=... é comunicação interna
-        # roteador -> grafo: só vira mensagem no histórico quando o roteador
-        # está respondendo direto ao usuário (saudação / fora de escopo).
-        # Quando encaminha, os especialistas leem a pergunta do próprio
-        # HumanMessage, e as rotas seguem em `proximos_agentes`.
-        mensagens = (
-            [{'role': 'assistant', 'content': texto_resposta}]
-            if eh_fim else []
+        rotas_extraidas = _extrair_rotas_protocolo(texto_resposta)
+        rotas_validas = [r for r in rotas_extraidas if r in self.rotas_conhecidas]
+        rotas_invalidas = [r for r in rotas_extraidas if r not in self.rotas_conhecidas]
+
+        # 1. IF: O roteador enviou para pelo menos um destino válido existente
+        if rotas_validas:
+            if rotas_invalidas:
+                log.warning(
+                    'router_agent: ignorando rotas inexistentes %s; mantendo rotas válidas %s',
+                    rotas_invalidas,
+                    rotas_validas,
+                )
+            return {
+                'messages'        : [],
+                'proximos_agentes': rotas_validas,
+                'agentes_chamados': [self.nome_agente],
+            }
+
+        # 2. ELIF: O roteador respondeu diretamente ao usuário (sem tentar encaminhar para rota inexistente,
+        #          sem vazar protocolo interno e sem repetir a própria pergunta do usuário)
+        tem_protocolo_cru = bool(_MARCADOR_PROTOCOLO_RE.search(texto_resposta))
+        eh_eco_pergunta = bool(pergunta_usuario and texto_resposta.lower() == pergunta_usuario.lower())
+        if not rotas_invalidas and texto_resposta and not tem_protocolo_cru and not eh_eco_pergunta:
+            return {
+                'messages'        : [{'role': 'assistant', 'content': texto_resposta}],
+                'proximos_agentes': [],
+                'agentes_chamados': [self.nome_agente],
+            }
+
+        # 3. ELSE: Destino inexistente, protocolo inválido/vazio ou eco da pergunta -> resposta mockada do Nimo
+        log.warning(
+            'router_agent: fallback acionado (rotas_invalidas=%s, tem_protocolo_cru=%s, eh_eco=%s). '
+            'Respondendo com mensagem mockada.',
+            rotas_invalidas,
+            tem_protocolo_cru,
+            eh_eco_pergunta,
         )
-
         return {
-            'messages'        : mensagens,
-            'proximos_agentes': rotas,
+            'messages'        : [{'role': 'assistant', 'content': MENSAGEM_FALLBACK_ROTEADOR}],
+            'proximos_agentes': [],
             'agentes_chamados': [self.nome_agente],
         }
 
     def run(self, state: GraphState, config: RunnableConfig) -> dict:
+        pergunta_usuario = self._obter_ultima_pergunta_usuario(state)
         if self.llm is not None and not self.tools:
             msgs = self._montar_mensagens_llm(state)
             try:
                 resposta = self.llm.invoke(msgs, config=self._config_interno(config))
-                return self._processar_resultado({'messages': [resposta]})
+                return self._processar_resultado({'messages': [resposta]}, pergunta_usuario=pergunta_usuario)
             except Exception as exc:
                 failed = _extrair_failed_generation(exc)
                 if failed:
                     log.warning('router_agent.run: Groq tool_use_failed capturado; extraindo rotas de failed_generation')
-                    return self._processar_resultado({'messages': [{'role': 'assistant', 'content': failed}]})
+                    return self._processar_resultado({'messages': [{'role': 'assistant', 'content': failed}]}, pergunta_usuario=pergunta_usuario)
                 raise
 
         try:
@@ -233,25 +302,26 @@ class RouterAgent(BaseAgent):
                 {'messages': self._mensagens_recentes(state)},
                 config=self._config_interno(config)
             )
-            return self._processar_resultado(resultado)
+            return self._processar_resultado(resultado, pergunta_usuario=pergunta_usuario)
         except Exception as exc:
             failed = _extrair_failed_generation(exc)
             if failed:
                 log.warning('router_agent.run: Groq tool_use_failed capturado em _runnable; extraindo rotas de failed_generation')
-                return self._processar_resultado({'messages': [{'role': 'assistant', 'content': failed}]})
+                return self._processar_resultado({'messages': [{'role': 'assistant', 'content': failed}]}, pergunta_usuario=pergunta_usuario)
             raise
 
     async def arun(self, state: GraphState, config: RunnableConfig) -> dict:
+        pergunta_usuario = self._obter_ultima_pergunta_usuario(state)
         if self.llm is not None and not self.tools:
             msgs = self._montar_mensagens_llm(state)
             try:
                 resposta = await self.llm.ainvoke(msgs, config=self._config_interno(config))
-                return self._processar_resultado({'messages': [resposta]})
+                return self._processar_resultado({'messages': [resposta]}, pergunta_usuario=pergunta_usuario)
             except Exception as exc:
                 failed = _extrair_failed_generation(exc)
                 if failed:
                     log.warning('router_agent.arun: Groq tool_use_failed capturado; extraindo rotas de failed_generation')
-                    return self._processar_resultado({'messages': [{'role': 'assistant', 'content': failed}]})
+                    return self._processar_resultado({'messages': [{'role': 'assistant', 'content': failed}]}, pergunta_usuario=pergunta_usuario)
                 raise
 
         try:
@@ -259,10 +329,10 @@ class RouterAgent(BaseAgent):
                 {'messages': self._mensagens_recentes(state)},
                 config=self._config_interno(config)
             )
-            return self._processar_resultado(resultado)
+            return self._processar_resultado(resultado, pergunta_usuario=pergunta_usuario)
         except Exception as exc:
             failed = _extrair_failed_generation(exc)
             if failed:
                 log.warning('router_agent.arun: Groq tool_use_failed capturado em _runnable; extraindo rotas de failed_generation')
-                return self._processar_resultado({'messages': [{'role': 'assistant', 'content': failed}]})
+                return self._processar_resultado({'messages': [{'role': 'assistant', 'content': failed}]}, pergunta_usuario=pergunta_usuario)
             raise

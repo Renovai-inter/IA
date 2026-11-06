@@ -4,10 +4,11 @@ Guardrail de ENTRADA — verificações em ordem de custo crescente:
   1. tamanho                (determinístico)
   2. prompt injection       (determinístico, regex PT/EN)
   3. dados internos / SQL   (determinístico)
-  4. classificação semântica (LLM rápido, 1 chamada) -> feito pelo GuardrailEntradaAgent
+  4. código / fora escopo   (determinístico)
+  5. classificação semântica (LLM rápido, 1 chamada) -> feito pelo GuardrailEntradaAgent
 
 Este módulo NÃO conhece LLM nem LangGraph: são funções puras, testáveis sem mock.
-O agente (app/agents/guardrail_agent.py) orquestra 1-3 daqui + a chamada de LLM.
+O agente (app/agents/guardrail_agent.py) orquestra 1-4 daqui + a chamada de LLM.
 """
 from __future__ import annotations
 
@@ -45,7 +46,7 @@ _PADROES_INJECAO = [re.compile(p, re.IGNORECASE | re.MULTILINE) for p in (
     r"pretend\s+(you\s+are|to\s+be)",
     r"jailbreak|dan\s+mode",
     # marcadores de prompt
-    r"<\s*/?\s*system\s*>', r'\[/?INST\]', r'###\s*(instruction|system)",
+    r"<\s*/?\s*system\s*>", r"\[/?INST\]", r"###\s*(instruction|system)",
     # protocolo INTERNO do grafo — usuário não tem motivo legítimo para escrever isso
     r"^\s*(ROUTE|PERGUNTA_ORIGINAL|CATEGORIA)\s*=",
 )]
@@ -65,6 +66,39 @@ _PADROES_SQL = [re.compile(p, re.IGNORECASE) for p in (
     r";\s*(select|insert|update|delete|drop)\b",
     r"--\s*$",
 )]
+
+_PADROES_FORA_ESCOPO = [re.compile(p, re.IGNORECASE) for p in (
+    r"\b(transformar|converter|convers[ãa]o\s+de|cast\s+de)\s+(um\s+)?(int|integer|float|double|boolean|char|array|lista)\s+(em|para|to)\s+(string|str|int|integer|float|json)\b",
+    r"\b(em|usando|na\s+linguagem)\s+(java|javascript|typescript|c\+\+|c#|golang|rust|ruby|php|kotlin|swift)\b",
+    r"\b(escreva|crie|implemente|fa[çc]a|gere)\s+(um\s+)?(c[óo]digo|script|algoritmo|programa|fun[çc][ãa]o|classe)\s+(em\s+)?(python|java|javascript|c\+\+|c#|html|css|sql)\b",
+)]
+
+
+# ------------------------------------------------------------------------------
+# Classificação semântica (consumida pelo agente)
+# ------------------------------------------------------------------------------
+RESPOSTAS_BLOQUEIO = {
+    'OFENSIVO':        ('conteudo_ofensivo',
+                        'Poxa, amigo... O Nimo fica triste desse jeito! 🦝💔 '
+                        'Vamos manter o respeito, a cordialidade e o carinho pra gente cuidar bem da cooperativa e do planeta juntos?'),
+    'PERIGOSO':        ('pedido_perigoso',
+                        'Cuidado, amiguinho! O Nimo protege você, os cooperados e a natureza: não posso orientar nenhum procedimento perigoso! '
+                        'Para manuseio ou descarte de materiais perigosos (como pilhas, baterias, óleos ou contaminantes), '
+                        'procure sempre um ponto de descarte licenciado ou a coordenação técnica da sua cooperativa! 🌿⚠️'),
+    'ILICITO':         ('pedido_ilicito',
+                        'De jeito nenhum! O Nimo joga limpo, segue as normas e cuida da justiça! Não posso ajudar com nada irregular ou fora das leis. '
+                        'Que tal a gente conferir o estoque, agendamento de coletas ou os relatórios de rateio com tudo certinho? 🦝🧤'),
+    'POLITICO':        ('pergunta_politica',
+                        'Opa! O Nimo não entra em debates políticos ou partidários: a minha bandeira oficial é a reciclagem e a sustentabilidade! '
+                        'Posso te ajudar com o dia a dia da cooperativa, pedidos de compra ou com as ferramentas do Renovaí? 🦝🌿'),
+    'DADOS_TERCEIROS': ('dados_terceiros',
+                        'Opa, respeito à privacidade em primeiro lugar! Por aqui, eu só tenho acesso aos dados da sua própria organização. '
+                        'As informações e valores de outras cooperativas ou empresas ficam bem guardadinhas com elas! 🦝🔒'),
+    'FORA_DE_ESCOPO':  ('fora_de_escopo',
+                        'Opa, amiguinho! Pelas minhas folhinhas, acho que esse assunto foge da minha área de atuação! 🦝🌿 '
+                        'Mesmo que você esteja na cooperativa ou em uma empresa parceira, o Nimo só consegue ajudar com temas do ecossistema Renovaí: '
+                        'estoque de recicláveis, coletas, triagens, rateio financeiro, rotas de veículos em São Paulo, busca de cooperativas ou legislação da PNRS!'),
+}
 
 
 def verificar_deterministico(texto: str) -> Optional[ResultadoGuardrail]:
@@ -102,30 +136,12 @@ def verificar_deterministico(texto: str) -> Optional[ResultadoGuardrail]:
             'Não consigo processar essa solicitação técnica. Se precisar de dados do galpão ou financeiro, é só me pedir normalmente! 🦝🧤'
         )
 
+    if any(p.search(texto) for p in _PADROES_FORA_ESCOPO):
+        motivo, mensagem = RESPOSTAS_BLOQUEIO['FORA_DE_ESCOPO']
+        return ResultadoGuardrail(True, motivo, mensagem)
+
     return None
 
-
-# ------------------------------------------------------------------------------
-# Classificação semântica (consumida pelo agente)
-# ------------------------------------------------------------------------------
-RESPOSTAS_BLOQUEIO = {
-    'OFENSIVO':        ('conteudo_ofensivo',
-                        'Poxa, amigo... O Nimo fica triste desse jeito! 🦝💔 '
-                        'Vamos manter o respeito, a cordialidade e o carinho pra gente cuidar bem da cooperativa e do planeta juntos?'),
-    'PERIGOSO':        ('pedido_perigoso',
-                        'Cuidado, amiguinho! O Nimo protege você, os cooperados e a natureza: não posso orientar nenhum procedimento perigoso! '
-                        'Para manuseio ou descarte de materiais perigosos (como pilhas, baterias, óleos ou contaminantes), '
-                        'procure sempre um ponto de descarte licenciado ou a coordenação técnica da sua cooperativa! 🌿⚠️'),
-    'ILICITO':         ('pedido_ilicito',
-                        'De jeito nenhum! O Nimo joga limpo, segue as normas e cuida da justiça! Não posso ajudar com nada irregular ou fora das leis. '
-                        'Que tal a gente conferir o estoque, agendamento de coletas ou os relatórios de rateio com tudo certinho? 🦝🧤'),
-    'POLITICO':        ('pergunta_politica',
-                        'Opa! O Nimo não entra em debates políticos ou partidários: a minha bandeira oficial é a reciclagem e a sustentabilidade! '
-                        'Posso te ajudar com o dia a dia da cooperativa, pedidos de compra ou com as ferramentas do Renovaí? 🦝🌿'),
-    'DADOS_TERCEIROS': ('dados_terceiros',
-                        'Opa, respeito à privacidade em primeiro lugar! Por aqui, eu só tenho acesso aos dados da sua própria organização. '
-                        'As informações e valores de outras cooperativas ou empresas ficam bem guardadinhas com elas! 🦝🔒'),
-}
 
 _CATEGORIA_RE = re.compile(r"^\s*CATEGORIA\s*=\s*([A-Z_]+)", re.MULTILINE)
 
