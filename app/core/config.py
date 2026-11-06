@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     SESSAO_TTL_MIN: int = 120
     RATE_LIMIT_MAX_REQUESTS: int = 15
     RATE_LIMIT_WINDOW_SECONDS: int = 60
+    SLO_LATENCIA_P95_MS: int = 15_000
 
     def model_post_init(self, __context: Any) -> None:
         import os
@@ -84,7 +85,7 @@ class Settings(BaseSettings):
     AGENT_LLM_MAP: Dict[str, Tuple[str, str]] = {
         'guardrail_entrada':      ('OPENAI', 'LOW'),
         'router_agent':           ('OPENAI', 'LOW'),
-        'faq_agent':              ('OPENAI', 'MEDIUM'),
+        'faq_agent':              ('OPENAI', 'HIGH'),
         'material_estoque_agent': ('OPENAI', 'HIGH'),
         'recomendacao_agent':     ('OPENAI', 'HIGH'),
         'coleta_agent':           ('OPENAI', 'HIGH'),

@@ -2,7 +2,7 @@
 Módulo de Observabilidade, SRE e FinOps (ROI) Centralizado do Renovai IA.
 
 Responsabilidades:
-1. Métricas de Serviço e SRE (SLIs: latência média, latência p95, índice de erros, bloqueios e recusas do juiz; SLOs: 8s, 5%).
+1. Métricas de Serviço e SRE (SLIs: latência média, latência p95, índice de erros, bloqueios e recusas do juiz; SLOs: 15s, 5%).
 2. Latência Interagentes vs. Tempo Total de Resposta (rastreamento individual por agente/nó do grafo e subgrafos A2A).
 3. Métricas de Modelos de IA e FinOps (tokens entrada/saída, custo em USD, custo por resolução, projeção para 100 e 1.000 usuários semanais e cálculo de ROI).
 4. Logging Estruturado e Debugs unificados com propagação contextual assíncrona (via contextvars).
@@ -18,6 +18,7 @@ import functools
 import inspect
 import logging
 import math
+import os
 import sys
 import threading
 import time
@@ -72,7 +73,7 @@ _PROVEDORES_ESPECIALISTA_ESPERADOS = ('gemini', 'anthropic', 'claude')
 LIMITE_TURNOS = 50
 LIMITE_LOGS = 100
 LIMITE_SPANS = 500
-LIMITE_P95_MS = 8_000
+LIMITE_P95_MS = int(os.getenv('SLO_LATENCIA_P95_MS', '15000'))
 LIMITE_TAXA_ERRO = 0.05
 
 # Premissas FinOps / SRE para estimativa de escala (100 e 1.000 usuários semanais) e ROI:
