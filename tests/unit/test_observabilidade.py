@@ -150,7 +150,7 @@ def test_slo_ok_quando_dentro_dos_limites():
     resumo = painel["resumo"]
     assert resumo["turnos"] == 20
     assert resumo["taxa_erro"] == 0.0
-    assert resumo["latencia_p95_ms"] <= 8_000
+    assert resumo["latencia_p95_ms"] <= 15_000
     assert resumo["slo_ok"] is True
 
 
@@ -229,7 +229,7 @@ def test_rota_monitor_endpoint():
     assert "por_rota" in data
     assert "turnos" in data
     assert "logs" in data
-    assert data["slo"]["latencia_p95_limite_ms"] == 8000
+    assert data["slo"]["latencia_p95_limite_ms"] == 15000
     assert data["slo"]["taxa_erro_limite"] == 0.05
     assert data["resumo"]["turnos"] == 1
 

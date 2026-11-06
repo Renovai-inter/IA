@@ -24,6 +24,7 @@ from app.prompts import (
 
 from app.llms.gemini_provider import GeminiProvider
 from app.llms.groq_provider import GroqProvider
+from app.llms.openai_provider import OpenaiLLMProvider
 
 from app.agents.base import BaseAgent
 from app.agents.router_agent import RouterAgent
@@ -164,10 +165,19 @@ def build_container(
     }
 
     if providers is None:
-        providers = {
-            'GEMINI': GeminiProvider(settings.GEMINI_API_KEY),
-            'GROQ':   GroqProvider(settings.GROQ_API_KEY),
-        }
+        providers = {}
+        openai_key = getattr(settings, 'OPENAI_API_KEY', '') or 'mock-openai-key'
+        providers['OPENAI'] = OpenaiLLMProvider(
+            api_key=openai_key,
+            model_high=getattr(settings, 'OPENAI_MODEL_HIGH', 'gpt-6.1-terra'),
+            model_medium=getattr(settings, 'OPENAI_MODEL_MEDIUM', 'gpt-6-luna'),
+            model_low=getattr(settings, 'OPENAI_MODEL_LOW', 'gpt-6-luna'),
+            model_embedding=getattr(settings, 'OPENAI_MODEL_EMBEDDING', 'text-embedding-3-small'),
+        )
+        if getattr(settings, 'GEMINI_API_KEY', None):
+            providers['GEMINI'] = GeminiProvider(settings.GEMINI_API_KEY)
+        if getattr(settings, 'GROQ_API_KEY', None):
+            providers['GROQ'] = GroqProvider(settings.GROQ_API_KEY)
 
     observabilidade = Observabilidade()
     observabilidade.acoplar_provedores(providers)
@@ -249,7 +259,7 @@ def build_container(
             'cls': FaqAgent,
             'prompt': FAQ_PROMPT_COMPLETO,
             'tools': tools_faq_mcp,
-            'llm_overrides': {'temperature': 0.1},
+
         },
         'material_estoque_agent': {
             'route': 'estoque',
@@ -291,7 +301,7 @@ def build_container(
             'prompt': ORQUESTRADOR_PROMPT_COMPLETO,
             'tools': [],
             'llm_overrides': {
-                'temperature': 0.2,
+
                 'max_tokens': 1536,
             },
         },
@@ -314,7 +324,7 @@ def build_container(
         if spec.get('sem_llm'):
             llm = None
         else:
-            provider_tier = llm_map.get(name) or settings.AGENT_LLM_MAP.get(name, ('GEMINI', 'HIGH'))
+            provider_tier = llm_map.get(name) or settings.AGENT_LLM_MAP.get(name, ('OPENAI', 'HIGH'))
             llm_overrides = spec.get('llm_overrides') or {}
             llm = llm_factory.get(*provider_tier, **llm_overrides)
         agent_repos = settings.AGENT_REPOSITORY_MAP.get(name, [])

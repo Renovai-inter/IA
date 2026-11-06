@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 MOCK_ENV_VARS = {
+    "OPENAI_API_KEY": "mock-openai-key",
     "GEMINI_API_KEY": "mock-gemini-key",
     "GROQ_API_KEY": "mock-groq-key",
     "QDRANT_API_KEY": "mock-qdrant-key",

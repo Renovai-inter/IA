@@ -2,7 +2,7 @@
 Módulo de Observabilidade, SRE e FinOps (ROI) Centralizado do Renovai IA.
 
 Responsabilidades:
-1. Métricas de Serviço e SRE (SLIs: latência média, latência p95, índice de erros, bloqueios e recusas do juiz; SLOs: 8s, 5%).
+1. Métricas de Serviço e SRE (SLIs: latência média, latência p95, índice de erros, bloqueios e recusas do juiz; SLOs: 15s, 5%).
 2. Latência Interagentes vs. Tempo Total de Resposta (rastreamento individual por agente/nó do grafo e subgrafos A2A).
 3. Métricas de Modelos de IA e FinOps (tokens entrada/saída, custo em USD, custo por resolução, projeção para 100 e 1.000 usuários semanais e cálculo de ROI).
 4. Logging Estruturado e Debugs unificados com propagação contextual assíncrona (via contextvars).
@@ -18,6 +18,7 @@ import functools
 import inspect
 import logging
 import math
+import os
 import sys
 import threading
 import time
@@ -46,6 +47,13 @@ PRECO_POR_MILHAO: dict[str, tuple[float, float]] = {
     'openai/gpt-oss-120b': (0.15, 0.60),
     'openai/gpt-oss-20b': (0.075, 0.30),
     'gemini-embedding-2-preview': (0.05, 0.00),
+    'gpt-6.1-terra': (1.00, 5.00),
+    'gpt-6-terra': (1.00, 5.00),
+    'gpt-6-luna': (0.10, 0.50),
+    'gpt-4o-mini': (0.15, 0.60),
+    'gpt-4o': (2.50, 10.00),
+    'text-embedding-3-small': (0.02, 0.00),
+    'text-embedding-3-large': (0.13, 0.00),
 }
 
 _NOS_ESPECIALISTA = {
@@ -65,7 +73,7 @@ _PROVEDORES_ESPECIALISTA_ESPERADOS = ('gemini', 'anthropic', 'claude')
 LIMITE_TURNOS = 50
 LIMITE_LOGS = 100
 LIMITE_SPANS = 500
-LIMITE_P95_MS = 8_000
+LIMITE_P95_MS = int(os.getenv('SLO_LATENCIA_P95_MS', '15000'))
 LIMITE_TAXA_ERRO = 0.05
 
 # Premissas FinOps / SRE para estimativa de escala (100 e 1.000 usuários semanais) e ROI:
